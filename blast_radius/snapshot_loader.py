@@ -26,7 +26,8 @@ def _sf_query(soql: str, tooling: bool = False) -> List[Dict[str, Any]]:
     cmd = f'sf data query --query "{soql}" --json'
     if tooling:
         cmd += " --use-tooling-api"
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace")
     try:
         data = json.loads(res.stdout)
     except json.JSONDecodeError:

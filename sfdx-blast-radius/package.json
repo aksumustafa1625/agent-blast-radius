@@ -1,0 +1,33 @@
+{
+  "name": "sfdx-blast-radius",
+  "version": "0.1.0",
+  "description": "Agent Blast Radius - static, zero-credit Agentforce authority analysis at the execution-semantics layer.",
+  "type": "commonjs",
+  "author": "Mustafa Aksu",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "commands"
+  ],
+  "keywords": [
+    "sf-plugin",
+    "sfdx-plugin",
+    "agentforce",
+    "security"
+  ],
+  "oclif": {
+    "commands": "./commands",
+    "bin": "sf",
+    "topicSeparator": " ",
+    "topics": {
+      "blast-radius": {
+        "description": "Compute the real data-access surface (blast radius) of an Agentforce agent."
+      }
+    }
+  },
+  "dependencies": {
+    "@oclif/core": "^4"
+  }
+}
