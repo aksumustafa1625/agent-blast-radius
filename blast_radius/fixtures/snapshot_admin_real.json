@@ -1,0 +1,18 @@
+{
+  "_note": "Captured from HospitalOrg via snapshot_loader.py on 2026-07-14 (admin user, scoped to Blast_Test__c). Real data, used to test the loader->resolver pipeline deterministically.",
+  "runningUser": "agent-user@example.com",
+  "channel": null,
+  "systemPermissions": { "ViewAllData": true, "ModifyAllData": true },
+  "objectPermissions": [
+    {
+      "parent": "X00ex00000018ozh_128_09_04_12_1",
+      "sobjectType": "Blast_Test__c",
+      "read": true, "create": true, "edit": true, "delete": true,
+      "viewAllRecords": true, "modifyAllRecords": true
+    }
+  ],
+  "fieldPermissions": [
+    { "parent": "BlastR_Classify", "field": "Blast_Test__c.Secret_Data__c", "read": true, "edit": false },
+    { "parent": "BlastR_Classify", "field": "Blast_Test__c.Customer_IBAN__c", "read": true, "edit": false }
+  ]
+}

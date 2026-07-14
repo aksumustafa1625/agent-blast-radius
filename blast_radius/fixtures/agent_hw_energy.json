@@ -1,0 +1,16 @@
+{
+  "_note": "Normalized agent config standing in for a GenAiPlanner(Bundle)/GenAiPlugin/GenAiFunction retrieve. Targets are REAL deployed artifacts in this org.",
+  "agent": "HW_Energy_Agent",
+  "runningUser": "svc@example.com",
+  "channel": "web-unauthenticated",
+  "topics": [
+    {
+      "name": "Billing",
+      "actions": [
+        { "name": "HWGetLatestBill",     "invocationTargetType": "flow", "invocationTarget": "BlastR_System_Flow" },
+        { "name": "HWExplainConsumption", "invocationTargetType": "apex", "invocationTarget": "BlastRadius_E2_ReaderV58" },
+        { "name": "HWSafeLookup",         "invocationTargetType": "apex", "invocationTarget": "BlastRadius_E2_ReaderV67" }
+      ]
+    }
+  ]
+}

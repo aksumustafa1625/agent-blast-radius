@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_IBAN__c</fullName>
+    <label>Customer IBAN</label>
+    <type>Text</type>
+    <length>34</length>
+    <securityClassification>Confidential</securityClassification>
+    <complianceGroup>PII;GDPR</complianceGroup>
+</CustomField>

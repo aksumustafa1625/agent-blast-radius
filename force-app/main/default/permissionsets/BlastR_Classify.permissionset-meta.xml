@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>BlastR Classify</label>
+    <hasActivationRequired>false</hasActivationRequired>
+    <fieldPermissions>
+        <field>Blast_Test__c.Customer_IBAN__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Blast_Test__c.Secret_Data__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+</PermissionSet>

@@ -1,0 +1,16 @@
+{
+  "runningUser": "svc@example.com",
+  "channel": "web-unauthenticated",
+  "systemPermissions": { "ViewAllData": false, "ModifyAllData": false },
+  "objectPermissions": [
+    {
+      "parent": "Profile:HW Agent Minimal",
+      "sobjectType": "Blast_Test__c",
+      "read": true, "create": false, "edit": false, "delete": false,
+      "viewAllRecords": false, "modifyAllRecords": false
+    }
+  ],
+  "fieldPermissions": [
+    { "parent": "PermSet:BlastR_Read", "field": "Blast_Test__c.Secret_Data__c", "read": true, "edit": false }
+  ]
+}

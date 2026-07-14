@@ -1,0 +1,7 @@
+{
+  "runningUser": "admin@example.com",
+  "channel": "in-app",
+  "systemPermissions": { "ViewAllData": true, "ModifyAllData": false },
+  "objectPermissions": [],
+  "fieldPermissions": []
+}

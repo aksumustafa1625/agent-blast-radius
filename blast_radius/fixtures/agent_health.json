@@ -1,0 +1,15 @@
+{
+  "_note": "Agent config for the live HealthRecord agent. Targets are REAL deployed Apex actions in HospitalOrg. Replace with a GenAi-metadata retrieve once the agent is built in Agent Builder.",
+  "agent": "HealthRecord_Assistant",
+  "runningUser": "hr-agent-runtime-user",
+  "channel": "agent",
+  "topics": [
+    {
+      "name": "PatientInfo",
+      "actions": [
+        { "name": "GetHealthRecordSummary",     "invocationTargetType": "apex", "invocationTarget": "GetHealthRecordSummary" },
+        { "name": "GetHealthRecordSummarySafe", "invocationTargetType": "apex", "invocationTarget": "GetHealthRecordSummarySafe" }
+      ]
+    }
+  ]
+}

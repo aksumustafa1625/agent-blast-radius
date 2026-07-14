@@ -1,0 +1,14 @@
+{
+  "_note": "REAL permission data queried from the deployed HR_Agent_Minimal permission set (HospitalOrg, 2026-07-14). Object read on HealthRecord__c and FLS on Patient_Name__c only - deliberately NO FLS on Diagnosis__c.",
+  "runningUser": "hr-agent-runtime-user",
+  "channel": "agent",
+  "systemPermissions": { "ViewAllData": false, "ModifyAllData": false },
+  "objectPermissions": [
+    { "parent": "PermSet:HR_Agent_Minimal", "sobjectType": "HealthRecord__c",
+      "read": true, "create": false, "edit": false, "delete": false,
+      "viewAllRecords": false, "modifyAllRecords": false }
+  ],
+  "fieldPermissions": [
+    { "parent": "PermSet:HR_Agent_Minimal", "field": "HealthRecord__c.Patient_Name__c", "read": true, "edit": false }
+  ]
+}

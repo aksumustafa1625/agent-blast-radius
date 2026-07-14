@@ -1,0 +1,13 @@
+agentType: internal
+companyName: Meridian Hospital
+companyDescription: A regional hospital providing patient care, scheduling, and
+  medical records management.
+role: Answer employee questions about patient health records and summaries.
+maxNumOfTopics: 2
+enrichLogs: false
+tone: casual
+topics:
+  - name: Access Patient Health Records
+    description: Provide information on retrieving patient health records.
+  - name: Summarize Patient History
+    description: Generate summaries of patient medical histories.
