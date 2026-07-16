@@ -538,3 +538,54 @@ class FindingDedupeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class FormulaFieldReachTest(unittest.TestCase):
+    """PS516: a formula in the reach is an UNRESOLVED reach, not a proven leak.
+
+    Raised by an external review, and concrete rather than hypothetical: 11 of
+    Invoice's 93 fields are formulas and the flagship demo action reads one of them
+    (TotalAmountWithTax). A formula's value is computed from other fields this
+    analyzer does not resolve, so the running user's FLS on the formula does not bound
+    what its value carries.
+
+    It is the one channel a v67 read does not close - user mode enforces FLS on the
+    formula the user CAN see, not on its inputs - which is why the test below fires it
+    at v67, where every other rule stays quiet.
+
+    Deliberately WARN and worded as OUR limit. Whether a formula really carries a
+    field's value past FLS is a claim about the PLATFORM, and it is NOT measured: the
+    fixture that would settle it could not be deployed (the deploy reports success and
+    the field never appears). Claiming the leak would be the believed-premise mistake
+    this tool has already been caught making once today.
+    """
+
+    SRC = ("public with sharing class C { void m(){ "
+           "List<Invoice> r = [SELECT Total__c, Status FROM Invoice]; } }")
+
+    def _find(self, api, calculated):
+        reach = parse_apex_source(self.SRC, api)
+        return {(f.rule, f.where.split("-> ")[-1])
+                for f in analyze_apex(reach, load_perms("user_minimal.json"), {}, {}, {},
+                                      calculated=calculated)}
+
+    def test_formula_field_is_flagged_even_when_the_read_is_bounded(self):
+        # v67: user mode enforces FLS, so nothing else fires - and PS516 still must,
+        # because user mode never looked at what the formula reads.
+        r = self._find(67.0, {"Invoice.Total__c"})
+        self.assertIn(("PS516", "Invoice.Total__c"), r)
+
+    def test_a_plain_field_is_not_flagged(self):
+        r = self._find(67.0, {"Invoice.Total__c"})
+        self.assertNotIn(("PS516", "Invoice.Status"), r)
+
+    def test_nothing_fires_when_no_field_is_a_formula(self):
+        self.assertEqual({f for f in self._find(67.0, set()) if f[0] == "PS516"}, set())
+
+    def test_it_is_a_warning_not_a_proven_leak(self):
+        reach = parse_apex_source(self.SRC, 67.0)
+        fs = [f for f in analyze_apex(reach, load_perms("user_minimal.json"), {}, {}, {},
+                                      calculated={"Invoice.Total__c"})
+              if f.rule == "PS516"]
+        self.assertEqual([f.severity for f in fs], ["WARN"],
+                         "the platform behaviour is unmeasured; ERROR would claim proof")

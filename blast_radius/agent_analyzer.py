@@ -207,7 +207,8 @@ def analyze_agent(agent: AgentConfig, source_root: str, perms,
                   triggers_by_object: dict = None,
                   apex_backend: str = "auto",
                   script_ir: dict = None,
-                  graph_edges=None) -> List[ActionSummary]:
+                  graph_edges=None,
+                  calculated: set = None) -> List[ActionSummary]:
     """`script_ir` (Agent Script only) closes the last hop of the Authority Path:
     it lets PS52x prove an Apex field is interpolated into the model's prompt.
 
@@ -234,7 +235,8 @@ def analyze_agent(agent: AgentConfig, source_root: str, perms,
                 summaries.append(_unresolved(action, "Apex class source not found"))
                 continue
             reach = parse_apex(path, source_root, backend=apex_backend)
-            findings = analyze_apex(reach, perms, classification, object_sharing, triggers_by_object)
+            findings = analyze_apex(reach, perms, classification, object_sharing,
+                                    triggers_by_object, calculated=calculated)
             if script_ir:
                 findings = findings + analyze_prompt_flow(
                     action.name, reach, perms, classification, script_ir)

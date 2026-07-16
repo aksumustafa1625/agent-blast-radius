@@ -276,6 +276,10 @@ def main():
     # personal field the agent reads.
     classification, visible = org_loaders.classification(
         objects, args.org, fields=_reached_fields(agent, root, args.apex_backend))
+    # Which reached fields are FORMULAS. Their inputs are not resolved, so the user's
+    # FLS on the formula does not bound what its value carries - the one channel a v67
+    # user-mode read does not close. PS516 reports it as an unresolved reach.
+    calculated = org_loaders.calculated_fields(objects, args.org)
     sharing = org_loaders.sharing(objects, args.org)
     triggers = org_loaders.active_triggers(objects, args.org)
     if args.permission_set:
@@ -286,7 +290,7 @@ def main():
 
     summaries = analyze_agent(agent, root, perms, classification, sharing, triggers,
                               apex_backend=args.apex_backend, script_ir=script_ir,
-                              graph_edges=graph_edges)
+                              graph_edges=graph_edges, calculated=calculated)
     coverage = classification_coverage(summaries, classification, visible)
 
     # An evidence-grade gate. The regex fallback cannot trace the Authority Path,

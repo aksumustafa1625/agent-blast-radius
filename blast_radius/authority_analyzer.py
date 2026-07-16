@@ -149,7 +149,8 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                    classification: Dict[str, dict],
                    object_sharing: Dict[str, str],
                    triggers_by_object: Dict[str, list] = None,
-                   sanitizer: Dict = None) -> List[Finding]:
+                   sanitizer: Dict = None,
+                   calculated: set = None) -> List[Finding]:
     triggers_by_object = triggers_by_object or {}
     findings: List[Finding] = []
 
@@ -295,6 +296,39 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
         # RETURNING, unresolved reach) is surfaced even when the object itself is
         # unknown, so it is never silently dropped. Fires before the sobject guard
         # below (an op with no known object would otherwise be skipped entirely).
+        # PS516 - a FORMULA field in the reach is an unresolved reach.
+        #
+        # A formula's value is COMPUTED from other fields, and this analyzer does not
+        # resolve which. So the user's FLS on the formula does NOT bound what its value
+        # carries: a formula the user is allowed can echo a field they are not. It is the
+        # one channel that can survive a v67 user-mode read - user mode enforces FLS on
+        # the formula the user CAN see, not on what it references, which is why this is
+        # reported even when the read is otherwise bounded.
+        #
+        # WARN, and worded as OUR limit, not as a leak. Whether a formula actually
+        # carries a field's value past FLS is a claim about the PLATFORM that is not
+        # measured here (the fixture that would settle it could not be deployed - see
+        # CLAUDE.md §9). "We do not resolve what this formula reads" is true either way.
+        # Claiming the leak would be exactly the believed-premise mistake this tool has
+        # already been caught making.
+        if u.operation == "read" and calculated:
+            for fld in u.fields:
+                full = fld if "." in fld else f"{u.sobject}.{fld}"
+                if full not in calculated:
+                    continue
+                findings.append(Finding(
+                    "PS516", "WARN", f"{action} -> {full}",
+                    "This field is a FORMULA; the fields it reads are not resolved here.",
+                    "A formula's value is computed from other fields, so the running "
+                    "user's FLS on THIS field does not bound what its value carries - a "
+                    "formula they are allowed can echo one they are not. Unlike every "
+                    "other reach, this is not settled by user mode: a v67 read enforces "
+                    "FLS on the formula, not on its inputs. Reported as an unresolved "
+                    "reach, not as a proven leak - what the platform does here is not "
+                    "measured.",
+                    f"Open {full}'s formula and check whether any field it references is "
+                    "invisible to this user or carries a compliance label."))
+
         if u.operation == "read" and not u.fields_complete:
             findings.append(Finding(
                 "PS504", "WARN", f"{action} -> {u.sobject or '?'}",
@@ -388,10 +422,11 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
 
 
 def analyze_apex(reach, perms, classification, object_sharing,
-                 triggers_by_object=None) -> List[Finding]:
+                 triggers_by_object=None, calculated=None) -> List[Finding]:
     findings = _analyze_units(reach.class_name, units_from_apex(reach),
                               perms, classification, object_sharing, triggers_by_object,
-                              sanitizer=getattr(reach, "sanitizer", None))
+                              sanitizer=getattr(reach, "sanitizer", None),
+                              calculated=calculated)
 
     # PS514 - async/event/callout hand-off: the transaction ends here and the work
     # continues in a context this analyzer does not follow. The agent's real blast

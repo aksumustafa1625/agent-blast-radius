@@ -156,6 +156,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 | PS512 | ERROR/WARN | `stripInaccessible` decision discarded (no-op bug) / wrong AccessType for a read. |
 | PS513 | ERROR/WARN | Latent reach in an INACTIVE prompt-template version. |
 | PS514 | WARN | Async/event/callout hand-off. For a platform event the publish IS analysed (a write, cascade via PS509); the open edge is a Flow/process/external subscriber. |
+| PS516 | WARN | **A FORMULA field in the reach.** Its inputs aren't resolved, so the user's FLS on the formula doesn't bound what its value carries — **the one channel a v67 user-mode read does not close** (user mode enforces FLS on the formula the user CAN see, not on its inputs). Worded as OUR limit, not a leak: the platform behaviour is **not measured** (see §9). |
 | PS520/521/**522** | INFO/WARN/**ERROR** | The data → prompt chain, traced hop by hop. **PS522 is the differentiator.** |
 
 ---
@@ -363,13 +364,35 @@ the fingerprint binding the analyzer's own source hash + parser version.
    straight on a query (`delete [SELECT ...]` — **both** backends); a name declared
    with two types resolving to the wrong object; and comments-before-strings
    corrupting a URL and erasing a real `update`.
-6. **Polymorphic classification** — a lookup with more than one `referenceTo` target
+6. **Formula/roll-up field inputs — E12 is BLOCKED, and say so.** An external review
+   raised it and it is real *and concrete*: **11 of Invoice's 93 fields are formulas,
+   and the flagship demo action reads one** (`TotalAmountWithTax`). PS516 now reports
+   it as an unresolved reach — a statement about OUR resolution, which is true whatever
+   the platform does. **What is NOT known:** whether a formula actually carries a
+   field's value past the running user's FLS. The fixture that would settle it
+   (`IBAN_Echo__c`, a Text formula echoing `Customer_IBAN__c`) **could not be
+   deployed**: `sf project deploy start` reports *Succeeded, 4 components, 0 errors*
+   and the field never appears — not via the data API, not via Tooling. Unresolved.
+   **Do not upgrade PS516 to a leak claim until that is measured** — believing a
+   well-established platform behaviour is exactly how the `stripInaccessible` false
+   positive happened, and that one was "well-established" too.
+7. **Polymorphic classification** — a lookup with more than one `referenceTo` target
    is skipped, so its fields stay unclassified. Deliberate and honest (we cannot know
    which object a given row points at), but it IS a coverage hole: a GDPR field behind
    a polymorphic lookup is invisible to PS506. Single-target relationships **are**
    resolved (§7).
-7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
-   retrieval — all opaque today.
+8. **Restriction/scoping rules — and the direction matters.** They REDUCE what the
+   user sees, so not modelling them makes the tool think the user is MORE privileged
+   than they are → **the escalation gap is a LOWER bound, not an upper one**. An
+   external reviewer caught the docs classifying this as a *conservative* limitation;
+   it is the opposite — optimistic. Muting is no longer in this bucket (E9 measured
+   the aggregate applies it).
+9. **No suppression / baseline.** There is no way to silence a reviewed PS501 or
+   PS507. A CI gate nobody can silence gets switched off — a real product risk, raised
+   by an external review and not yet addressed. If it is built, the honest shape is
+   sfge's: an inline directive **with a reason**, and unreasoned suppressions listed in
+   the report.
+10. Managed-package internals, Knowledge/Data Cloud retrieval — opaque today.
 
 ---
 

@@ -385,6 +385,22 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     L.append("Produced by static analysis. No agent was invoked. 0 Flex Credits.")
     L.append(f"Bound to fingerprint `{fp}`; regenerate if agent config, any analysed "
              "Apex/Flow, or permission metadata changes.")
+    # SAY WHAT THE SEAL DOES NOT COVER, on the same page as the seal.
+    #
+    # An external reviewer put it exactly right: the distinction was "in your head,
+    # not in the report". A reader who sees a live COUNT table above a line saying
+    # "bound to fingerprint" will reasonably assume the counts are sealed too. They
+    # are not - the fingerprint binds the STATIC analysis (and the analyzer's own
+    # source), while a COUNT is a measurement of the org at a moment. Two runs a day
+    # apart can share a fingerprint and show different counts, and that is correct
+    # behaviour, not drift - but only if the document says so.
+    if counts:
+        L.append("")
+        L.append("_The fingerprint seals the **static analysis** — the agent's config, the "
+                 "analysed Apex/Flow, the permission snapshot, and the analyzer itself. It "
+                 "does **not** cover the live `COUNT()` figures above: those are a "
+                 "measurement of the org at the moment of the run. Two runs sharing a "
+                 "fingerprint can legitimately show different counts._")
     return "\n".join(L)
 
 

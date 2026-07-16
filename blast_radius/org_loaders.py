@@ -60,7 +60,14 @@ def function_resolver(target_org: Optional[str] = None) -> Dict[str, dict]:
 
 
 def _label_rows(obj: str, target_org):
-    return _sf("SELECT QualifiedApiName, ComplianceGroup, SecurityClassification "
+    # IsCalculated comes along because a FORMULA field's value is computed from other
+    # fields, and this analyzer does not resolve which. A user's FLS on the formula
+    # therefore does not bound what its VALUE carries - so a formula in the reach is an
+    # unresolved reach, whatever its own label says. Measured on the demo's own object:
+    # 11 of Invoice's 93 fields are formulas, and the flagship action reads one of them
+    # (TotalAmountWithTax).
+    return _sf("SELECT QualifiedApiName, ComplianceGroup, SecurityClassification, "
+               "IsCalculated "
                f"FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='{obj}'",
                target_org=target_org)
 
@@ -106,6 +113,37 @@ def _relationship_targets(obj: str, target_org) -> Dict[str, str]:
         refs = (r.get("ReferenceTo") or {}).get("referenceTo") or []
         if rel and len(refs) == 1:
             out[rel] = refs[0]
+    return out
+
+
+def calculated_fields(objects: Iterable[str], target_org: Optional[str] = None) -> set:
+    """{'Object.Field'} for every FORMULA field on the reached objects.
+
+    Why this is its own loader and not a label: a formula's value is COMPUTED from
+    other fields, and this analyzer does not resolve which. So the running user's FLS
+    on the formula does not bound what the formula's VALUE carries - a formula the
+    user is allowed can echo a field they are not. That makes a formula in the reach
+    an UNRESOLVED reach, whatever its own compliance label says, and it is the one
+    channel that can survive even a v67 user-mode read: user mode enforces FLS on the
+    formula the user CAN see, not on what it references.
+
+    Raised by an external review. NOT measured here - the fixture that would settle it
+    could not be deployed (see CLAUDE.md §9), so this emits an honest unknown rather
+    than a leak claim: the statement is about OUR resolution, which is true either way,
+    not about the platform's behaviour, which is not.
+
+    It is not hypothetical: 11 of Invoice's 93 fields are formulas, and the flagship
+    demo action reads one of them (TotalAmountWithTax)."""
+    out = set()
+    for obj in objects:
+        try:
+            rows = _sf("SELECT QualifiedApiName FROM FieldDefinition "
+                       f"WHERE EntityDefinition.QualifiedApiName='{obj}' "
+                       "AND IsCalculated=true", target_org=target_org)
+        except RuntimeError:
+            continue                       # best-effort, never fatal
+        for r in rows:
+            out.add(f"{obj}.{r['QualifiedApiName']}")
     return out
 
 
