@@ -14,6 +14,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CLASSES = os.path.join(HERE, "..", "force-app", "main", "default", "classes")
 V58 = os.path.join(CLASSES, "BlastRadius_E2_ReaderV58.cls")
 V67 = os.path.join(CLASSES, "BlastRadius_E2_ReaderV67.cls")
+SRC_ROOT = os.path.join(HERE, "..", "force-app", "main", "default")
+DEMO_PUBLISHER = os.path.join(CLASSES, "SendPaymentRemindersAction.cls")
 
 
 def resolved(source: str, api):
@@ -107,3 +109,57 @@ class ExtractionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+
+class EventPublishReachTest(unittest.TestCase):
+    """EventBus.publish is a write with a cascade, not a dead end.
+
+    Regression for a real miss: the demo action published Invoice_Payment_Requested__e
+    and the analyzer saw nothing at all - the event never entered the reach, so the
+    subscriber could not be queried and the publish produced no finding. It was also
+    the class of bug we keep paying for: modelled in the regex path only, it stayed
+    invisible under the AST backend, which builds its DML from its own IR. Hence the
+    both-backends test below, against the real demo class.
+    """
+
+    SRC = """public with sharing class Pub {
+        public void go() {
+            List<Invoice_Payment_Requested__e> evts = new List<Invoice_Payment_Requested__e>();
+            EventBus.publish(evts);
+        }
+    }"""
+
+    def _publishes(self, reach):
+        return [(o.sobject, o.resolved.enforces_fls)
+                for o in reach.operations if o.operation == "publish"]
+
+    def test_regex_backend_sees_the_publish(self):
+        self.assertEqual(self._publishes(parse_apex_source(self.SRC, 63)),
+                         [("Invoice_Payment_Requested__e", False)])
+
+    def test_v67_publish_enforces_fls(self):
+        # Publish has no mode clause to override, so it follows the apiVersion default.
+        self.assertEqual(self._publishes(parse_apex_source(self.SRC, 67)),
+                         [("Invoice_Payment_Requested__e", True)])
+
+    def test_unresolvable_event_type_stays_unknown(self):
+        # An untyped publish argument must not be guessed at.
+        self.assertEqual(
+            self._publishes(parse_apex_source(
+                "public class P { void g(){ EventBus.publish(mystery); } }", 63)),
+            [(None, False)])
+
+    def test_no_publish_no_op(self):
+        self.assertEqual(
+            self._publishes(parse_apex_source(
+                "public class P { void g(){ Account a; insert a; } }", 63)), [])
+
+    def test_both_backends_agree_on_the_real_demo_class(self):
+        ast = parse_apex(DEMO_PUBLISHER, SRC_ROOT, backend="ast")
+        rgx = parse_apex(DEMO_PUBLISHER, SRC_ROOT, backend="regex")
+        if ast.backend != "ast":
+            self.skipTest("AST backend unavailable")
+        # The whole point of parsing this once in Python: no backend skew.
+        self.assertEqual(self._publishes(ast), self._publishes(rgx))
+        self.assertEqual(self._publishes(ast), [("Invoice_Payment_Requested__e", False)])

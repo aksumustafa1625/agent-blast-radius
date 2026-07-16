@@ -150,7 +150,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 | PS511 | INFO | Pre-v67 class inventory. |
 | PS512 | ERROR/WARN | `stripInaccessible` decision discarded (no-op bug) / wrong AccessType for a read. |
 | PS513 | ERROR/WARN | Latent reach in an INACTIVE prompt-template version. |
-| PS514 | WARN | Async/event/callout hand-off — reach continues in a context we don't follow. |
+| PS514 | WARN | Async/event/callout hand-off. For a platform event the publish IS analysed (a write, cascade via PS509); the open edge is a Flow/process/external subscriber. |
 | PS520/521/**522** | INFO/WARN/**ERROR** | The data → prompt chain, traced hop by hop. **PS522 is the differentiator.** |
 
 ---
@@ -227,7 +227,13 @@ semantics, stripInaccessible, async hand-offs, PSG (E8).
    each fixture, execute as the modelled user, record the outcome) is worth more per
    case than ten new `reasoned` labels. Then a systematic sfge differential.
 2. **Inter-procedural taint** — aliases/helper returns are `undetermined` today.
-3. **Async reach** is flagged (PS514) but not followed.
+3. **Async reach** — mostly followed now; what remains is narrower than it looks.
+   Queueable/Batch/`@future` reach already merges via the one-level class-ref follow
+   (`new SecretJob()` matches `_CLASS_REF`) — measured, not assumed. `EventBus.publish`
+   is modelled as a DML verb, so the event enters the reach and PS503/PS509 apply to it
+   for free. **Still unfollowed: Flow, process, and off-platform subscribers**, plus the
+   scheduled/callout kinds. PS514 states precisely which of these is the open edge —
+   don't let it drift back to a blanket "not analysed".
 4. **Muting permission sets** — untested edge.
 5. **Entry-point matrix** — the "no declaration" result depends on the caller;
    test LWC/REST/invocable/trigger/anonymous/queueable/`test.runAs`.

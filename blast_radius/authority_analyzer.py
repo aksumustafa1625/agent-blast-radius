@@ -16,10 +16,13 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 _CLASSIFIED_TAGS = ("GDPR", "PII", "HIPAA", "PCI", "CCPA")
-_DML_OPS = {"insert", "update", "upsert", "delete", "undelete", "create"}
+# `publish` is here on purpose: publishing a platform event needs Create on the
+# event object and fires that event's trigger, so it is a write with a cascade -
+# exactly what PS503 and PS509 already reason about.
+_DML_OPS = {"insert", "update", "upsert", "delete", "undelete", "create", "publish"}
 # Which object permission a DML verb requires (shared by PS503 and PS509).
 _DML_NEED = {"insert": "create", "create": "create", "update": "edit",
-             "upsert": "edit", "delete": "delete"}
+             "upsert": "edit", "delete": "delete", "publish": "create"}
 _SEV_RANK = {"ERROR": 0, "WARN": 1, "INFO": 2}
 
 
@@ -374,7 +377,33 @@ def analyze_apex(reach, perms, classification, object_sharing,
     # PS514 - async/event/callout hand-off: the transaction ends here and the work
     # continues in a context this analyzer does not follow. The agent's real blast
     # radius may be LARGER than this report. Never silently dropped.
+    # A platform event is the one hand-off we now partly follow: the publish itself
+    # is modelled as a write (PS503) and an APEX subscriber trigger is analysed like
+    # any other cascade (PS509). Say exactly that, and scope the unknown to what is
+    # genuinely still unfollowed - a Flow/process subscriber or an external consumer.
+    # A blanket "not analysed" here would overstate our own blindness, which is the
+    # same honesty failure as understating it.
+    events = sorted({op.sobject for op in reach.operations
+                     if op.operation == "publish" and op.sobject})
     for kind in getattr(reach, "async_handoffs", []) or []:
+        if kind == "platform event" and events:
+            named = ", ".join(events)
+            has_apex_sub = any((triggers_by_object or {}).get(e) for e in events)
+            covered = ("Its Apex subscriber trigger IS analysed above"
+                       if has_apex_sub else
+                       "No Apex subscriber trigger exists on it")
+            findings.append(Finding(
+                "PS514", "WARN", f"{reach.class_name} (platform event: {named})",
+                f"This action publishes {named}. The publish is analysed as a write; "
+                "any Flow, process, or external subscriber is NOT.",
+                f"{covered}, but a platform event can also be consumed by a Flow, a "
+                "process, or an off-platform subscriber, each running in its own "
+                "transaction as a different user. Publishing is how an agent starts "
+                "work it could not do inline, so the true blast radius can be larger "
+                "than this report. An honest unknown edge, not a proven leak.",
+                f"List the subscribers of {named} (Flow, process, and external) and "
+                "review each as its own entry point."))
+            continue
         findings.append(Finding(
             "PS514", "WARN", f"{reach.class_name} ({kind})",
             f"This action hands off to a {kind}; the reach of that separate execution "

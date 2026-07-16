@@ -127,6 +127,12 @@ _DML = re.compile(
     re.IGNORECASE)
 _DB_DML = re.compile(
     r"\bDatabase\.(insert|update|upsert|delete|undelete)\s*\(\s*([A-Za-z_]\w*)", re.IGNORECASE)
+# Publishing a platform event IS a write: it needs Create on the event object and
+# it FIRES THAT EVENT'S TRIGGER - the same cascade DML causes. Modelling it as a
+# DML verb means the existing machinery (PS503 write escalation, PS509 legacy
+# trigger cascade) applies to the subscriber for free, instead of the publish being
+# a dead end that only ever produced an honest-unknown.
+_EVENT_PUBLISH = re.compile(r"\bEventBus\s*\.\s*publish\s*\(\s*([A-Za-z_]\w*)", re.IGNORECASE)
 _ACCESS_LEVEL = re.compile(r"AccessLevel\.(USER|SYSTEM)_MODE", re.IGNORECASE)
 _COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
@@ -265,6 +271,30 @@ def _flag_polymorphic(reach) -> None:
                    "related objects and are not resolved")
 
 
+def _event_publish_ops(source: str, api_version, sharing) -> list:
+    """`EventBus.publish(evts)` -> a write of the event object.
+
+    Publishing needs Create on the event and FIRES THAT EVENT'S TRIGGER, so it is a
+    write with a cascade - which means PS503 and PS509 already know how to reason
+    about it, and the subscriber stops being a dead end. Modelled here rather than
+    in either extractor so both backends get it (the AST path builds DML from its
+    own IR and would otherwise miss this entirely).
+
+    The event type comes from the publish argument's declared type; an unresolvable
+    one yields sobject=None, which stays an honest unknown rather than a guess."""
+    types = _variable_types(source)
+    ops = []
+    for m in _EVENT_PUBLISH.finditer(source):
+        obj = types.get(m.group(1).lower())
+        ops.append(ApexOperation(
+            operation="publish", sobject=obj, fields=[], fields_complete=True,
+            resolved=ResolvedMode(None, _resolve_dml_fls(None, api_version),
+                                  "EventBus.publish " + ("v>=67 user default"
+                                  if (api_version or 0) >= 67 else "API v<=66 default")),
+            note=None if obj else "platform event type undetermined"))
+    return ops
+
+
 def _sanitizer(source: str) -> Optional[dict]:
     """Detect Security.stripInaccessible usage in a class.
 
@@ -399,6 +429,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
             note=None if obj else "DML target object undetermined"))
 
     reach.operations.extend(_sosl_operations(source, api_version, sharing))
+    reach.operations.extend(_event_publish_ops(source, api_version, sharing))
     reach.sanitizer = _sanitizer(source)
     reach.async_handoffs = _async_handoffs(source)
     _flag_polymorphic(reach)
@@ -457,6 +488,7 @@ def _parse_file(cls_path: str, backend: str = "auto") -> ApexReach:
             with open(cls_path, encoding="utf-8") as f:
                 src = _strip_comments(f.read())
             reach.operations.extend(_sosl_operations(src, api, reach.sharing))
+            reach.operations.extend(_event_publish_ops(src, api, reach.sharing))
             reach.sanitizer = _sanitizer(src)
             reach.async_handoffs = _async_handoffs(src)
             _flag_polymorphic(reach)
