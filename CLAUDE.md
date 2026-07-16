@@ -269,8 +269,25 @@ semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
    don't let it drift back to a blanket "not analysed".
 4. **Entry-point matrix** — the "no declaration" result depends on the caller;
    test LWC/REST/invocable/trigger/anonymous/queueable/`test.runAs`.
-5. **Backend confidence** — regex and AST findings carry equal severity; they
-   shouldn't, and the fingerprint should include analyzer/parser/CLI/API versions.
+5. **Backend confidence** — **the premise was wrong; measure before acting on it.**
+   This used to read "regex findings should carry lower severity than AST ones". A
+   differential over **104 real classes** from a live org refutes that: neither
+   backend dominates. Classified by what a disagreement does to a *finding* —
+   **OVERCLAIM 3** (regex names an object AST doesn't), **MISSED 7** (AST sees reach
+   regex doesn't), **DEGRADED 21** (regex says `None` where AST resolves → an honest
+   PS504 instead of PS503), **NOISE 21** (extra unresolved ops), 64/104 identical.
+   Each backend is blind where the other sees:
+   - **regex** misresolves a **multiline SELECT with a subquery** to the *inner*
+     `FROM` (non-greedy match), so it can miss the outer object entirely — a genuine
+     false-clean path when Node is absent. **Still open.**
+   - **AST** had no `FieldDeclarationContext` in its type map, so `update user;` on a
+     class member gave `update:None` — the *supposedly weaker* regex got those 5
+     classes right. **Fixed**; a differential test pins it.
+   - **regex has no scope at all**: a local shadowing a field resolves to the field's
+     type. Not fixable without a parse tree — it is why AST is the default, and it is
+     what the report's backend note discloses.
+   Still to do: the **fingerprint should bind analyzer/parser/CLI/API versions** (it
+   already binds `backend`).
 6. **Relationship/polymorphic classification** (see §7).
 7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.

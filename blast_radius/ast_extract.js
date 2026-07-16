@@ -55,10 +55,21 @@ function baseType(t) {
 }
 
 // Map of variable name (lowercased) -> declared sObject/base type.
+//
+// Order is precedence: `put` is first-wins, and Apex resolution is
+// local > parameter > class field, so class fields are collected LAST and a local
+// of the same name shadows them exactly as it does at runtime.
+//
+// FieldDeclarationContext (a class member, `private User user;`) used to be missing
+// entirely, so `update user;` resolved to sobject=null and the DML degraded to an
+// honest-unknown PS504 instead of a PS503 naming User. Measured, not theorised: it
+// hit 5 of 104 real classes in a live org, and the REGEX backend - supposedly the
+// weaker one - got them right because its declaration pattern never cared where the
+// declaration lived.
 function variableTypes(root) {
   const types = {};
   const put = (id, ty) => { const k = (id || '').toLowerCase(); if (k && !(k in types)) types[k] = ty; };
-  for (const d of collect(root, 'LocalVariableDeclarationContext')) {
+  const declared = (d) => {
     const tref = firstChildOfType(d, 'TypeRefContext');
     const ty = tref ? baseType(text(tref)) : null;
     const vds = firstChildOfType(d, 'VariableDeclaratorsContext');
@@ -66,12 +77,14 @@ function variableTypes(root) {
       const idc = firstChildOfType(vd, 'IdContext');
       put(idc ? text(idc) : null, ty);
     }
-  }
+  };
+  for (const d of collect(root, 'LocalVariableDeclarationContext')) declared(d);
   for (const fp of collect(root, 'FormalParameterContext')) {
     const tref = firstChildOfType(fp, 'TypeRefContext');
     const idc = firstDescOfType(fp, 'IdContext');
     put(idc ? text(idc) : null, tref ? baseType(text(tref)) : null);
   }
+  for (const d of collect(root, 'FieldDeclarationContext')) declared(d);
   return types;
 }
 

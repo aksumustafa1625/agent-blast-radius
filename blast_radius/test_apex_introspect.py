@@ -5,6 +5,7 @@ Run from the repo root:  python blast_radius/test_apex_introspect.py
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +17,23 @@ V58 = os.path.join(CLASSES, "BlastRadius_E2_ReaderV58.cls")
 V67 = os.path.join(CLASSES, "BlastRadius_E2_ReaderV67.cls")
 SRC_ROOT = os.path.join(HERE, "..", "force-app", "main", "default")
 DEMO_PUBLISHER = os.path.join(CLASSES, "SendPaymentRemindersAction.cls")
+
+
+def _write(root: str, name: str, source: str) -> str:
+    """Write a class + its meta.xml under `root` and return the .cls path."""
+    classes = os.path.join(root, "classes")
+    os.makedirs(classes, exist_ok=True)
+    path = os.path.join(classes, name + ".cls")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(source)
+    with open(path + "-meta.xml", "w", encoding="utf-8") as f:
+        f.write("""<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>58.0</apiVersion>
+    <status>Active</status>
+</ApexClass>
+""")
+    return path
 
 
 def resolved(source: str, api):
@@ -163,3 +181,76 @@ class EventPublishReachTest(unittest.TestCase):
         # The whole point of parsing this once in Python: no backend skew.
         self.assertEqual(self._publishes(ast), self._publishes(rgx))
         self.assertEqual(self._publishes(ast), [("Invoice_Payment_Requested__e", False)])
+
+
+class ClassFieldDmlTargetTest(unittest.TestCase):
+    """A DML target declared as a CLASS FIELD must resolve, on BOTH backends.
+
+    Found by differential, not by reasoning: comparing the two extractors over 104
+    real classes from a live org showed the AST backend - the default, and the one
+    assumed stronger - reporting `update:None` for `update user;` where the regex
+    backend correctly said `update:User`. Its variable-type map walked locals and
+    parameters but never FieldDeclarationContext, so a class member had no type and
+    the DML degraded to an honest-unknown PS504 instead of a PS503 naming the object.
+    5 of 104 classes hit it. The shape below is Salesforce's own MyProfilePageController.
+    """
+
+    SRC = """public with sharing class Prof {
+        private User user;
+        public void save() {
+            update user;
+        }
+    }"""
+
+    def _dml(self, reach):
+        return [(o.operation, o.sobject) for o in reach.operations if o.operation == "update"]
+
+    def test_regex_backend(self):
+        self.assertEqual(self._dml(parse_apex_source(self.SRC, 58.0)), [("update", "User")])
+
+    def test_both_backends_agree(self):
+        with tempfile.TemporaryDirectory() as d:
+            classes = os.path.join(d, "classes")
+            os.makedirs(classes)
+            with open(os.path.join(classes, "Prof.cls"), "w", encoding="utf-8") as f:
+                f.write(self.SRC)
+            with open(os.path.join(classes, "Prof.cls-meta.xml"), "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                        '<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>\n')
+            path = os.path.join(classes, "Prof.cls")
+            ast = parse_apex(path, d, backend="ast")
+            if ast.backend != "ast":
+                self.skipTest("AST backend unavailable")
+            self.assertEqual(self._dml(ast), [("update", "User")])
+            self.assertEqual(self._dml(ast), self._dml(parse_apex(path, d, backend="regex")))
+
+    SHADOWED = """public class Prof {
+        private User user;
+        public void save() {
+            Account user = new Account();
+            update user;
+        }
+    }"""
+
+    def test_ast_resolves_shadowing_but_regex_cannot(self):
+        """Where the backends genuinely differ - and why AST is the default.
+
+        Apex resolves local > parameter > field, so `update user;` here is an Account.
+        The AST path gets it right because it collects locals before fields into a
+        first-wins map. The REGEX path cannot: it has no notion of scope at all, only
+        document order, and the field is written first. This is not a regression to
+        fix - it is the limit of matching text without a parse tree, and it is exactly
+        the asymmetry the report's backend note exists to disclose. Asserting the real
+        behaviour keeps that honest; asserting the behaviour we wish it had would hide
+        a false positive (PS503 against the wrong object) behind a green test.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "Prof", self.SHADOWED)
+            ast = parse_apex(path, d, backend="ast")
+            if ast.backend != "ast":
+                self.skipTest("AST backend unavailable")
+            self.assertEqual(self._dml(ast), [("update", "Account")])
+            # Measured, not desired: the regex fallback names the field's type.
+            self.assertEqual(self._dml(parse_apex(path, d, backend="regex")),
+                             [("update", "User")])
