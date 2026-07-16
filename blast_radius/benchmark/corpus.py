@@ -16,12 +16,21 @@ THE TRAP THIS FILE AVOIDS
 
     truth = "experiment:EN"  the outcome was MEASURED in a real org (Milestone 0).
                              These are the strong labels.
+    truth = "experiment:oracle"
+                             MEASURED by the runtime oracle (oracle.py), which
+                             deploys the case, runs it as the modelled user, and
+                             lets the ORG decide. Re-runnable on demand - the
+                             strongest label available, because nothing about it
+                             depends on the author being right.
     truth = "sfge"           an independent engine agrees (differential oracle).
     truth = "platform-doc"   documented Salesforce semantics, not measured here.
     truth = "reasoned"       derived by the author from the above. WEAKEST label:
                              it shares a mind with the implementation, so it proves
                              consistency, not correctness. Counted and reported
                              separately for exactly that reason.
+
+A case carrying `runtime={...}` can be settled by oracle.py. Adding a runtime shape
+to a `reasoned` case is worth more than adding ten new reasoned cases.
 
 Each case declares the EXACT set of graded rules it must produce. Anything else
 that fires is a false positive; anything declared that doesn't fire is a false
@@ -56,13 +65,22 @@ CASES = [
     # ---------------------------------------------------------------- precedence
     # The core law. E1/E2/E2b/E3 measured these exact shapes in a real org, so
     # these are the benchmark's strongest labels.
+    #
+    # `runtime` marks a case the ORACLE can settle in a live org (see oracle.py):
+    # it deploys the same shape as real Apex, runs it as the modelled user, and
+    # checks whether the field actually comes back. `expect_read` is what the
+    # ANALYZER's verdict predicts the org will do - True when it claims the field
+    # escapes past the user (FLS bypassed), False when it claims the field is out
+    # of reach (FLS enforced). The org, not the author, decides who was right.
     dict(id="prec-v58-without-plain", api=58.0, apex=_cls(_READ, "without"),
          expect={"PS501", "PS506"}, truth="experiment:E1,E2",
+         runtime=dict(sharing="without", clause=None, expect_read=True),
          why="legacy + without sharing + plain SOQL: system mode on BOTH axes. "
              "E1 measured 5 records read vs 0 for the user; E2 measured v58=5."),
 
     dict(id="prec-v67-without-plain", api=67.0, apex=_cls(_READ, "without"),
          expect=set(), truth="experiment:E2,E2b",
+         runtime=dict(sharing="without", clause=None, expect_read=False),
          why="THE false-positive killer. Same `without sharing` source at v67 is "
              "SAFE: E2 measured v67=0 records, E2b measured the field read BLOCKED "
              "('No such column'). Version-blind flagging here is wrong - and sfge "
@@ -72,15 +90,18 @@ CASES = [
          apex=_cls("List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c "
                    "WITH USER_MODE];", "without"),
          expect=set(), truth="experiment:E3",
+         runtime=dict(sharing="without", clause="WITH USER_MODE", expect_read=False),
          why="Operation clause beats the class declaration. E3 measured the same "
              "`without sharing` class returning 0 with WITH USER_MODE."),
 
     dict(id="prec-v67-no-declaration", api=67.0, apex=_cls(_READ, "none"),
          expect=set(), truth="experiment:E2",
+         runtime=dict(sharing="none", clause=None, expect_read=False),
          why="v67 default is user mode even with no sharing declaration."),
 
     dict(id="prec-v58-with-sharing-plain", api=58.0, apex=_cls(_READ, "with"),
          expect={"PS506"}, truth="experiment:E1,E2b",
+         runtime=dict(sharing="with", clause=None, expect_read=True),
          why="TWO AXES, the distinction most reviews get wrong: `with sharing` "
              "enforces the RECORD axis (so no PS501) but at v58 CRUD/FLS is still "
              "bypassed, so the GDPR field still escapes (PS506)."),
@@ -88,9 +109,12 @@ CASES = [
     dict(id="prec-v58-without-systemmode-clause", api=67.0,
          apex=_cls("List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c "
                    "WITH SYSTEM_MODE];", "without"),
-         expect={"PS501", "PS506"}, truth="platform-doc",
-         why="An explicit WITH SYSTEM_MODE re-opens both axes even at v67. Not "
-             "measured in-org; documented behaviour."),
+         expect={"PS501", "PS506"}, truth="experiment:oracle",
+         runtime=dict(sharing="without", clause="WITH SYSTEM_MODE", expect_read=True),
+         why="An explicit WITH SYSTEM_MODE re-opens both axes even at v67. This "
+             "label started as `platform-doc` - believed from the docs, never "
+             "measured. The runtime oracle settled it in a live org: the field DOES "
+             "come back past the user. Earned, not assumed."),
 
     # ------------------------------------------------------------ field vs GDPR
     dict(id="field-untagged-escalates-ps502", api=58.0,

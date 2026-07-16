@@ -8,10 +8,46 @@ An external technical review named this the single highest-leverage next step, a
 is the only thing that turns *deterministic* into *deterministic **and** correct*.
 
 ```bash
-python blast_radius/benchmark/run.py       # per-rule precision / recall
-python blast_radius/benchmark/mutate.py    # does the corpus detect a broken analyzer?
+python blast_radius/benchmark/run.py                    # per-rule precision / recall
+python blast_radius/benchmark/mutate.py                 # does the corpus detect a broken analyzer?
+python blast_radius/benchmark/oracle.py --org <alias>   # let the ORG judge the analyzer
 ```
-Both run in CI and fail the build, so an accuracy regression is caught like a broken test.
+`run.py` and `mutate.py` run in CI and fail the build, so an accuracy regression is caught
+like a broken test. `oracle.py` needs a live org, so it runs on demand.
+
+## The runtime oracle — the org decides, not the author
+
+The weakness of any hand-labelled benchmark is that its labels come from the same mind
+as the implementation. `oracle.py` removes that: for every case carrying a `runtime`
+shape it deploys the same Apex into a real org, runs it **as the modelled user**, and
+asks the only question that settles it — *does that field actually come back?*
+
+**The generated test asserts the analyzer's own prediction.** So a failing test is not a
+broken test; it is the org saying the analyzer is wrong. That is the point.
+
+```
+RUNTIME ORACLE - the analyzer predicts, the org judges
+cases with a runtime shape: 6   org: HospitalOrg
+
+CASE                                    ORG SAYS    LABEL
+prec-v58-without-plain                  agrees      experiment:runtime
+prec-v67-without-plain                  agrees      experiment:runtime
+prec-v58-without-usermode-clause        agrees      experiment:runtime
+prec-v67-no-declaration                 agrees      experiment:runtime
+prec-v58-with-sharing-plain             agrees      experiment:runtime
+prec-v58-without-systemmode-clause      agrees      experiment:runtime
+```
+
+It has already paid for itself: `prec-v58-without-systemmode-clause` was labelled
+`platform-doc` — believed from the documentation, never measured. The oracle settled it
+in a live org, so that label is now **earned**.
+
+It needs an org carrying the Milestone 0 fixture (`Blast_Test__c` with
+`Customer_IBAN__c`). The test builds its own throwaway user and permission set — object
+read, and deliberately **no** field permission on the GDPR field — so the field is out of
+the user's reach unless execution mode puts it back, which is exactly the thing under test.
+
+**Adding a `runtime` shape to a `reasoned` case is worth more than ten new reasoned cases.**
 
 ## Current result
 
@@ -38,11 +74,11 @@ Every case carries a `truth` field:
 
 | `truth` | count | what it's worth |
 |---|---|---|
-| `experiment:EN` | 6 | **Measured in a real org** (Milestone 0). The strong labels. |
-| `platform-doc` | 10 | Documented Salesforce semantics, not measured here. |
+| `experiment:*` | 7 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
+| `platform-doc` | 9 | Documented Salesforce semantics, not measured here. |
 | `reasoned` | 7 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
 
-Only 6 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
+Only 7 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
 the analyzer agrees with its author, which is worth very little. That is why the runner
 prints this table under the numbers rather than hiding it.
 
@@ -64,16 +100,17 @@ the review brief).
   real corpus, not the finished benchmark.
 - **The mutations are also the author's.** 8/8 measures sensitivity to the breaks I
   thought of.
-- **No runtime oracle yet.** The strongest possible label is "we ran it in an org and
-  measured the outcome" — only 6 cases have that. The Milestone 0 experiments are the
-  template for adding more.
+- **Only 6 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
+  still rest on reasoning or documentation.
+- **The oracle needs a specific fixture** (`Blast_Test__c` + `Customer_IBAN__c`), so it
+  runs on demand rather than in CI.
 - **Only the single sfge probe** (Appendix AD) so far, not a systematic differential.
 
 ## What v2 needs, in order
 
-1. **Runtime oracle** — extend the E1–E7 pattern: deploy each fixture, execute as the
-   modelled user, record what actually happened. Every case moved from `reasoned` to
-   `experiment:` is worth more than ten new `reasoned` cases.
+1. **More runtime shapes.** `oracle.py` exists and settles 6 cases; the other 17 have no
+   `runtime` shape yet. Writing one is worth more than ten new `reasoned` cases. The
+   sanitizer, SOSL, async and write cases are all executable in principle.
 2. **Systematic sfge differential** — run both engines over the whole corpus and triage
    every disagreement. Each one teaches something about one engine or the other.
 3. **Breadth** — Flow, Agent Script, relationship/polymorphic fields, PSG/muting,
