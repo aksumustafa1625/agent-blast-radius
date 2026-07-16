@@ -234,6 +234,37 @@ _STRIP_INACCESSIBLE = re.compile(
 _GET_RECORDS = re.compile(r"\.\s*getRecords\s*\(", re.IGNORECASE)
 
 
+# A polymorphic select - `TYPEOF What WHEN Account THEN Name, Industry WHEN
+# Opportunity THEN Amount END` - defeats BOTH extractors: each returns mangled
+# tokens ("TYPEOF What WHEN Account THEN Name") AND claims fields_complete, so no
+# PS504 fires. That is the worst failure mode this tool can have: a silent
+# false-clean dressed as a full parse. The branch fields belong to polymorphic
+# RELATED objects (Account.Industry, Opportunity.Amount), which we cannot key to
+# the queried object anyway, so the honest answer is "not resolved" - never a
+# guess, and never nonsense field names that would produce nonsense findings.
+# Signature: the token carries BOTH `WHEN` and `THEN`. That is TYPEOF syntax and
+# nothing else - it matches the regex extractor's split tokens ("TYPEOF What WHEN
+# Account THEN Name") AND the AST extractor's space-stripped one
+# ("TYPEOFWhatWHENAccountTHENName,..."), while a real field such as
+# `TypeOfWork__c` carries neither. Keying on "TYPEOF" alone would flag that field.
+def _is_polymorphic_token(f: str) -> bool:
+    u = (f or "").upper()
+    return "WHEN" in u and "THEN" in u
+
+
+def _flag_polymorphic(reach) -> None:
+    for op in reach.operations:
+        if not op.fields:
+            continue
+        garbage = [f for f in op.fields if _is_polymorphic_token(f)]
+        if not garbage:
+            continue
+        op.fields = [f for f in op.fields if f not in garbage]
+        op.fields_complete = False
+        op.note = ("PS504: polymorphic TYPEOF select - the branch fields belong to "
+                   "related objects and are not resolved")
+
+
 def _sanitizer(source: str) -> Optional[dict]:
     """Detect Security.stripInaccessible usage in a class.
 
@@ -370,6 +401,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
     reach.operations.extend(_sosl_operations(source, api_version, sharing))
     reach.sanitizer = _sanitizer(source)
     reach.async_handoffs = _async_handoffs(source)
+    _flag_polymorphic(reach)
     return reach
 
 
@@ -427,6 +459,7 @@ def _parse_file(cls_path: str, backend: str = "auto") -> ApexReach:
             reach.operations.extend(_sosl_operations(src, api, reach.sharing))
             reach.sanitizer = _sanitizer(src)
             reach.async_handoffs = _async_handoffs(src)
+            _flag_polymorphic(reach)
             return reach
         except Exception:
             if backend == "ast":

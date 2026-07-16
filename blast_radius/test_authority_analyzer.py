@@ -311,6 +311,40 @@ class SoslAndDynamicReadTest(unittest.TestCase):
         self.assertNotIn("PS502", self._rules(src, 67.0))
 
 
+class PolymorphicSelectTest(unittest.TestCase):
+    """A TYPEOF select defeated BOTH extractors: each returned mangled tokens
+    ("TYPEOF What WHEN Account THEN Name") *and* claimed fields_complete, so no
+    PS504 fired and one backend even raised PS502 on a nonsense field name. That
+    is the worst failure this tool can have - a silent false-clean dressed as a
+    full parse. It must be an honest unknown instead."""
+
+    SRC = ("public without sharing class T { void m(){ List<Task> r = [SELECT Id, "
+           "TYPEOF What WHEN Account THEN Name, Industry WHEN Opportunity THEN "
+           "Amount END FROM Task]; } }")
+
+    def test_typeof_is_an_honest_unknown_not_a_full_parse(self):
+        perms = load_perms("user_minimal.json")
+        reach = parse_apex_source(self.SRC, 58.0, "T")
+        op = [o for o in reach.operations if o.operation == "read"][0]
+        self.assertFalse(op.fields_complete, "a TYPEOF select must not claim completeness")
+        self.assertEqual(op.fields, ["Id"], "mangled branch tokens must be dropped")
+        rules = {f.rule for f in analyze_apex(reach, perms, {}, {})}
+        self.assertIn("PS504", rules)
+        self.assertNotIn("PS502", rules)   # never flag a nonsense field name
+
+    def test_real_field_names_are_not_mistaken_for_polymorphic(self):
+        from apex_introspect import _is_polymorphic_token
+        for fld in ("TypeOfWork__c", "Amendment__c", "Whence__c", "Trend__c",
+                    "Id", "Customer_IBAN__c"):
+            self.assertFalse(_is_polymorphic_token(fld), fld)
+
+    def test_the_signature_needs_both_when_and_then(self):
+        from apex_introspect import _is_polymorphic_token
+        self.assertTrue(_is_polymorphic_token("TYPEOF What WHEN Account THEN Name"))
+        self.assertTrue(_is_polymorphic_token("TYPEOFWhatWHENAccountTHENName,Industry"))
+        self.assertTrue(_is_polymorphic_token("Industry WHEN Opportunity THEN Amount END"))
+
+
 class TriggerHandlerDelegationTest(unittest.TestCase):
     """PS509 must not be fooled by a v67 trigger that delegates its DML to a
     pre-v67 handler class - the DML runs in the handler's (system) mode."""
