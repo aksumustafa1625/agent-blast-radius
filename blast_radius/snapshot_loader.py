@@ -25,10 +25,23 @@ exist. The measurement:
     ObjectPermissions equalled the union of its component permission sets exactly
     (nothing missing, nothing extra).
 
-Since the platform computes that aggregate as (components MINUS muting), reading
-it also applies MUTING permission sets. That last step is architectural, not
-measured: no muting permission set existed in the test orgs, so it is an honest
-untested edge rather than a verified one.
+MUTING permission sets ride the same aggregate - now MEASURED too (E9), where it
+used to say "architectural, not measured". A muting set was built in the lab org:
+a component granting FLS read on Blast_Test__c.Customer_IBAN__c, a muter removing
+it, both in one group. The result:
+
+  * component  -> FieldPermissions.PermissionsRead = true
+  * aggregate  -> NO FieldPermissions row at all
+
+So the aggregate applies muting, and reading it is enough. The org confirms it at
+runtime (BlastRadius_E9_Muting.cls): as the assigned user, WITH USER_MODE the read
+is BLOCKED ("No such column") while a pre-v67 class still reads the value - i.e.
+the muted GDPR field escapes exactly as PS506 reports.
+
+This mattered in the dangerous direction. Had the aggregate NOT reflected muting,
+we would have credited the user with a permission they lack, concluded "the user
+can already see this field", and stayed silent about a real escalation - a false
+clean, the worst outcome this tool can produce.
 
 Usage:
     python blast_radius/snapshot_loader.py <username> [sobject1 sobject2 ...]

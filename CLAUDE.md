@@ -62,7 +62,8 @@ got this wrong once and the live TechnoStore run caught it — see §7.
 | **E5** | Flow `runInMode` is declarative/static → Flow actions analysable without Apex parsing. |
 | **E6** | A trigger's DML runs in the mode of the **trigger's OWN apiVersion**, independent of the initiating action. |
 | **E7** | Agent Script `apex://` syntax is vendor-validated (`sf agent validate` → success). |
-| **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. Muting rides the same aggregate (architectural, **not measured** — no muting set existed in the test orgs). |
+| **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. |
+| **E9** | **Muting is handled, and now measured** (it was E8's untested edge). A muter removing FLS on a field its component grants: the **component still shows `PermissionsRead=true`, the aggregate has NO row** — so reading the aggregate applies muting. Runtime agrees (`BlastRadius_E9_Muting.cls`): `WITH USER_MODE` → **BLOCKED**, while a pre-v67 class still reads the value — the muted GDPR field escapes exactly as PS506 says. Platform constraint worth knowing: **muting Read alone is rejected** (mute Edit too), and a rejected muting set deploys **empty**, which makes any muting test vacuously green. |
 
 **Do not "fix" the precedence law from documentation.** A sister-AI review once
 demanded v67 `without sharing` be treated as record-bypassing. E2b disproved that
@@ -246,12 +247,17 @@ gets a blind spot the regex path doesn't have, or vice versa.
 ## 9. Known gaps — say these out loud
 
 Fixed already: SOSL, dynamic-SOQL PS504, PS509 handler + proof, record-reach
-semantics, stripInaccessible, async hand-offs, PSG (E8).
+semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
 
 **Still open, in rough priority:**
-1. **Benchmark v2** — the single highest-leverage item. A **runtime oracle** (deploy
-   each fixture, execute as the modelled user, record the outcome) is worth more per
-   case than ten new `reasoned` labels. Then a systematic sfge differential.
+1. **Benchmark v2.** The **runtime oracle is built** (`benchmark/oracle.py`) and
+   settles **16 of 23** cases; it has already caught a real false positive (§7), and
+   it has a negative control so its greens aren't vacuous. What's left: the
+   **systematic sfge differential** over the whole corpus (only the two Appendix AD
+   cases are done), and the 4 `reasoned` labels that a shape could still reach.
+   **Don't count all 7 shapeless cases as gaps** — the corpus docstring records which
+   claims no oracle can ever settle (PS504/PS514 assert what *we* report, not what the
+   platform does).
 2. **Inter-procedural taint** — aliases/helper returns are `undetermined` today.
 3. **Async reach** — mostly followed now; what remains is narrower than it looks.
    Queueable/Batch/`@future` reach already merges via the one-level class-ref follow
@@ -260,13 +266,12 @@ semantics, stripInaccessible, async hand-offs, PSG (E8).
    for free. **Still unfollowed: Flow, process, and off-platform subscribers**, plus the
    scheduled/callout kinds. PS514 states precisely which of these is the open edge —
    don't let it drift back to a blanket "not analysed".
-4. **Muting permission sets** — untested edge.
-5. **Entry-point matrix** — the "no declaration" result depends on the caller;
+4. **Entry-point matrix** — the "no declaration" result depends on the caller;
    test LWC/REST/invocable/trigger/anonymous/queueable/`test.runAs`.
-6. **Backend confidence** — regex and AST findings carry equal severity; they
+5. **Backend confidence** — regex and AST findings carry equal severity; they
    shouldn't, and the fingerprint should include analyzer/parser/CLI/API versions.
-7. **Relationship/polymorphic classification** (see §7).
-8. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
+6. **Relationship/polymorphic classification** (see §7).
+7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.
 
 ---

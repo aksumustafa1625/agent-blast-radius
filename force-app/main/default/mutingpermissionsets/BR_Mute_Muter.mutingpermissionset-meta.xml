@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MutingPermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Agent Blast Radius experiment E9: the MUTER. Listing a permission here MUTES it. Both editable and readable are muted because the platform rejects muting Read alone ("To mute Read, first mute Create, Edit, Delete, View All Records, and Modify All Records") - a constraint worth keeping visible, since a silently-empty muting set makes any muting experiment vacuously green.</description>
+    <label>BR Mute Muter</label>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Blast_Test__c.Customer_IBAN__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+</MutingPermissionSet>

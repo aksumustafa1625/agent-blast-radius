@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Agent Blast Radius muting experiment (E9). Component grants the GDPR field; muter removes it. The question: does the platform-computed aggregate PermissionSet reflect the muting? Our snapshot loader assumes it does.</description>
+    <label>BR Mute Group</label>
+    <mutingPermissionSets>BR_Mute_Muter</mutingPermissionSets>
+    <permissionSets>BR_Mute_Component</permissionSets>
+</PermissionSetGroup>
