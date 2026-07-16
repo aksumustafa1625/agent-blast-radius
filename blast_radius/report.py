@@ -127,32 +127,45 @@ def classification_coverage(actions: List[ActionSummary], classification: dict,
 
 
 def record_reach(counts: Optional[dict]) -> Optional[dict]:
-    """Normalize per-object counts into a record-reach headline.
+    """Normalize per-object counts into an honest record-reach summary.
 
-    Aggregates only MEASURED gaps (objects where user_visible is known); objects
-    whose user visibility is sharing-dependent are listed but excluded from the
-    aggregate, so the headline never overstates. Returns None if no counts."""
+    Two rules keep this from overstating (both were real defects once):
+      * A **user-mode** read enforces sharing, so the agent is bounded by the
+        running user by construction: gap 0, and the object's record count is NOT
+        the agent's reach. Such objects are reported as `bounded` and never
+        contribute to the escalation aggregate.
+      * For a **system-mode** read, the object's `org_total` is an UPPER BOUND
+        only - query predicates and LIMIT are not resolved - so the aggregate is
+        `upper_bound_total`, never "the agent reaches N records".
+
+    Only MEASURED system-mode rows (user_visible known) enter the gap aggregate;
+    sharing-dependent visibility stays `unknown`. Returns None if no counts."""
     if not counts:
         return None
-    measured, unknown = [], []
-    agent_total = user_total = gap_total = 0
-    have_system = False
+    measured, unknown, bounded = [], [], []
+    upper_bound_total = user_total = gap_total = 0
+    have_bound = False
     for obj, c in sorted(counts.items()):
-        st = c.get("system_total")
+        ot = c.get("org_total")
         uv = c.get("user_visible")
-        row = {"object": obj, "system_total": st, "user_visible": uv,
-               "gap": c.get("gap"), "note": c.get("note", ""), "cause": c.get("cause")}
-        if st is not None:
-            have_system = True
-            agent_total += st
-        if uv is not None and st is not None:
+        row = {"object": obj, "org_total": ot, "user_visible": uv,
+               "gap": c.get("gap"), "note": c.get("note", ""),
+               "cause": c.get("cause"), "mode": c.get("mode", "system")}
+        if row["mode"] == "user":
+            bounded.append(row)                     # no escalation by construction
+            continue
+        if ot is not None:
+            have_bound = True
+            upper_bound_total += ot
+        if uv is not None and ot is not None:
             user_total += uv
-            gap_total += max(st - uv, 0)
+            gap_total += max(ot - uv, 0)
             measured.append(row)
         else:
             unknown.append(row)
-    return {"rows": measured + unknown, "measured": measured, "unknown": unknown,
-            "agent_total": agent_total if have_system else None,
+    return {"rows": measured + unknown + bounded,
+            "measured": measured, "unknown": unknown, "bounded": bounded,
+            "upper_bound_total": upper_bound_total if have_bound else None,
             "user_total": user_total, "gap_total": gap_total,
             "has_measured_gap": bool(measured)}
 
@@ -227,7 +240,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
         L.append("")
 
     if reach:
-        L.append("### Record reach (live COUNT)")
+        L.append("### Record reach (live COUNT — upper bound)")
         L.append("")
         if reach["has_measured_gap"]:
             causes = {r.get("cause") for r in reach["measured"] if r.get("gap")}
@@ -235,25 +248,40 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
             if causes == {"crud"}:
                 qual = " The whole measured gap is a CRUD escalation — the running user has " \
                        "no object permission at all, so this is deterministic, not sharing-dependent."
-            L.append(f"> **The agent's code reaches {reach['agent_total']} records where "
-                     f"the running user sees {reach['user_total']} — a record gap of "
-                     f"{reach['gap_total']}.** _(measured objects only)_{qual}")
+            L.append(f"> **The agent's system-mode reads could reach up to "
+                     f"{reach['upper_bound_total']} records where the running user sees "
+                     f"{reach['user_total']} — an upper-bound record gap of "
+                     f"{reach['gap_total']}.** _(measured system-mode objects only)_{qual}")
             L.append("")
-        L.append("| Object | Agent reaches | User sees | Record gap | Cause |")
-        L.append("| --- | ---: | ---: | ---: | --- |")
+        elif reach["bounded"] and not reach["unknown"]:
+            L.append("> **Every read the agent performs enforces sharing, so the agent is "
+                     "bounded by the running user — there is no record escalation.**")
+            L.append("")
+        L.append("| Object | Read mode | Records in org | User sees | Gap (upper bound) | Cause |")
+        L.append("| --- | --- | ---: | ---: | ---: | --- |")
         for r in reach["rows"]:
-            st = "?" if r["system_total"] is None else str(r["system_total"])
-            if r["user_visible"] is None:
-                uv, gp = f"_n/a — {r['note']}_", "—"
+            ot = "?" if r["org_total"] is None else str(r["org_total"])
+            if r["mode"] == "user":
+                mode, uv, gp = "user", "_= agent (sharing enforced)_", "0"
             else:
-                uv = str(r["user_visible"])
-                gp = str(r["gap"]) if r["gap"] else "0"
-            L.append(f"| `{r['object']}` | {st} | {uv} | {gp} | {_CAUSE_LABEL[r.get('cause')]} |")
+                mode = "system"
+                if r["user_visible"] is None:
+                    uv, gp = f"_n/a — {r['note']}_", "—"
+                else:
+                    uv = str(r["user_visible"])
+                    gp = f"≤ {r['gap']}" if r["gap"] else "0"
+            L.append(f"| `{r['object']}` | {mode} | {ot} | {uv} | {gp} | "
+                     f"{_CAUSE_LABEL[r.get('cause')]} |")
         L.append("")
-        L.append("> _Counts are live `COUNT()` queries run as the analysis identity. "
-                 "**CRUD** = the user has no object permission at all (deterministic); "
-                 "**sharing** = the user can read the object but record-level sharing may "
-                 "hide rows, which is data-dependent and shown as `n/a` — never estimated._")
+        L.append("> _`Records in org` is a live `COUNT()` of the whole object run as the "
+                 "analysis identity. **It is an upper bound, not the agent's result**: query "
+                 "predicates and `LIMIT` are not resolved statically. It is an escalation "
+                 "ceiling only for **system-mode** reads — a **user-mode** read enforces "
+                 "sharing, so the agent is bounded by the running user and the gap is 0 by "
+                 "construction. **CRUD** = the user has no object permission at all "
+                 "(deterministic); **sharing** = the user can read the object but record-level "
+                 "sharing may hide rows, which is data-dependent and shown as `n/a` — never "
+                 "estimated._")
         L.append("")
 
     if gap:

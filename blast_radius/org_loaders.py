@@ -187,32 +187,54 @@ def _derive_user_visible(system_total, sharing_model, obj_access):
 
 
 def record_counts(objects: Iterable[str], sharing: Dict[str, str], perms,
-                  target_org: Optional[str] = None) -> Dict[str, dict]:
-    """Per-object REAL record counts for the record-reach headline.
+                  target_org: Optional[str] = None,
+                  modes: Optional[Dict[str, str]] = None) -> Dict[str, dict]:
+    """Per-object record numbers for the record-reach section.
 
-    `system_total` is a live `COUNT()` run as the analysis identity: the ceiling
-    a system-mode / without-sharing action reaches. `user_visible` is derived
-    from the running user's posture (see _derive_user_visible) and is left None
-    when it cannot be measured honestly. NO number here is ever fabricated.
+    HONESTY CONTRACT (two things this must never claim):
+
+    1. `org_total` is a live `COUNT()` of the WHOLE object. It is NOT what the
+       agent's query returns - query predicates and LIMIT are not resolved - so it
+       is only ever an UPPER BOUND, never "the agent reaches N records".
+    2. It is only an escalation ceiling at all when the read runs in **system
+       mode**. `modes[obj] == 'user'` means every read of that object enforces
+       sharing, so the agent is bounded by the running user BY CONSTRUCTION: the
+       record gap is 0 and `org_total` says nothing about the agent's reach.
+
+    `user_visible` is derived from the running user's posture (see
+    _derive_user_visible) and is left None when it cannot be measured honestly.
+    NO number here is ever fabricated.
     """
+    modes = modes or {}
     out: Dict[str, dict] = {}
     for obj in objects:
-        entry = {"system_total": None, "user_visible": None, "note": "", "gap": None,
-                 "cause": None}
+        mode = modes.get(obj, "system")      # unknown mode -> worst case
+        entry = {"org_total": None, "user_visible": None, "note": "", "gap": None,
+                 "cause": None, "mode": mode}
         try:
             rows = _sf(f"SELECT COUNT(Id) c FROM {obj}", target_org=target_org)
-            entry["system_total"] = int(rows[0]["c"]) if rows else 0
+            entry["org_total"] = int(rows[0]["c"]) if rows else 0
         except (RuntimeError, KeyError, ValueError, TypeError):
             entry["note"] = "count unavailable (object not queryable by the analysis identity)"
             out[obj] = entry
             continue
+
+        if mode == "user":
+            # Sharing is enforced on every read of this object -> the agent sees
+            # exactly what the running user sees. No record escalation exists, and
+            # the org total is NOT the agent's reach.
+            entry["gap"] = 0
+            entry["note"] = "user-mode read - the agent is bounded by the running user"
+            out[obj] = entry
+            continue
+
         visible, note, cause = _derive_user_visible(
-            entry["system_total"], sharing.get(obj), perms.object_access(obj))
+            entry["org_total"], sharing.get(obj), perms.object_access(obj))
         entry["user_visible"] = visible
         entry["note"] = note
         entry["cause"] = cause
-        if visible is not None and entry["system_total"] is not None:
-            entry["gap"] = max(entry["system_total"] - visible, 0)
+        if visible is not None and entry["org_total"] is not None:
+            entry["gap"] = max(entry["org_total"] - visible, 0)
         out[obj] = entry
     return out
 

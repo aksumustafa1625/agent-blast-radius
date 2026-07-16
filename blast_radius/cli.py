@@ -91,6 +91,48 @@ def _reached_objects(agent, source_root: str, backend: str = "auto",
     return objects
 
 
+def _record_modes(agent, source_root: str, backend: str = "auto"):
+    """{object: 'user'|'system'} for the objects the agent READS.
+
+    This is what makes the record-reach headline honest: a read that is bounded by
+    the running user has no record escalation, so the org's record count says
+    nothing about the agent's reach and must not be presented as one.
+
+    'user' requires BOTH axes to be enforced (enforces_sharing AND enforces_fls) -
+    i.e. a genuine user-mode read. Enforcing only one is NOT bounded:
+      * `with sharing` at v<=66 gives (sharing=True, fls=False) - the query filters
+        by sharing rules but BYPASSES CRUD/FLS, so it can read an object the user
+        has no permission on at all. That is a real escalation ceiling.
+      * v67+ / WITH USER_MODE gives (True, True) - genuinely bounded.
+    Any undetermined axis, or any single system-mode read, makes the object
+    'system' (worst case wins)."""
+    modes: dict = {}
+
+    def _note(obj, enforces_sharing, enforces_fls):
+        bounded = (enforces_sharing is True) and (enforces_fls is True)
+        this = "user" if bounded else "system"
+        if modes.get(obj) == "system" or this == "system":
+            modes[obj] = "system"
+        else:
+            modes[obj] = "user"
+
+    for action in agent.actions:
+        if action.target_type == "apex":
+            path = os.path.join(source_root, "classes", action.target + ".cls")
+            if os.path.exists(path):
+                for o in parse_apex(path, source_root, backend=backend).operations:
+                    if o.sobject and o.operation == "read":
+                        _note(o.sobject, o.resolved.enforces_sharing, o.resolved.enforces_fls)
+        elif action.target_type == "flow":
+            path = os.path.join(source_root, "flows", action.target + ".flow-meta.xml")
+            if os.path.exists(path):
+                fr = parse_flow(path)
+                for a in fr.accesses:
+                    if a.sobject and a.operation == "read":
+                        _note(a.sobject, fr.enforces_sharing, not fr.runs_in_system_context)
+    return modes
+
+
 def main():
     ap = argparse.ArgumentParser(description="Compute an Agentforce agent's blast radius.")
     ap.add_argument("--agent", default=None, help="GenAiPlannerBundle API name")
@@ -187,7 +229,10 @@ def main():
         # beyond the user". A create/insert target is not a read of N records, so
         # count only the objects the code actually READS - honest by construction.
         read_objects = _reached_objects(agent, root, args.apex_backend, read_only=True)
-        counts = org_loaders.record_counts(read_objects, sharing, perms, args.org)
+        # Per-object record-axis mode: a user-mode (sharing-enforced) read is bounded
+        # by the running user, so the org's record count is NOT the agent's reach.
+        modes = _record_modes(agent, root, args.apex_backend)
+        counts = org_loaders.record_counts(read_objects, sharing, perms, args.org, modes=modes)
 
     # org health: whole-org signals (API-version debt, god-mode grants, OWD) that
     # don't concern THIS agent but a reviewer of the org should see. Live mode only
@@ -196,7 +241,6 @@ def main():
     if not args.no_org_health and not args.agent_script:
         try:
             import org_health
-            from report import escalation_gap
             print("gathering org health (whole-org signals) ...")
             health = org_health.gather_org_health(args.org)
             # tie the org-wide posture back to THIS agent: its escalation gap and
@@ -228,8 +272,12 @@ def main():
         from report import record_reach
         rr = record_reach(counts)
         if rr and rr["has_measured_gap"]:
-            print(f"RECORD REACH: agent reaches {rr['agent_total']} records, "
-                  f"user sees {rr['user_total']} (gap {rr['gap_total']}, measured objects)")
+            print(f"RECORD REACH: system-mode reads could reach UP TO "
+                  f"{rr['upper_bound_total']} records, user sees {rr['user_total']} "
+                  f"(upper-bound gap {rr['gap_total']}; predicates/LIMIT not resolved)")
+        elif rr and rr["bounded"] and not rr["unknown"]:
+            print("RECORD REACH: every read enforces sharing - the agent is bounded "
+                  "by the running user (no record escalation)")
     findings = [f for s in summaries for f in s.findings]
     order = {"ERROR": 0, "WARN": 1, "INFO": 2}
     for sev in ("ERROR", "WARN", "INFO"):

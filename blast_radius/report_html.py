@@ -256,7 +256,7 @@ def _circle_svg(inner_n: int, outer_n: int, gap_n: int, gdpr_n: int) -> str:
 def _record_section(reach) -> str:
     if not reach:
         return ""
-    p = ['<p class="eyebrow">Record reach — how many records the agent can read</p>']
+    p = ['<p class="eyebrow">Record reach — the system-mode ceiling, not a measured result</p>']
     if reach["has_measured_gap"]:
         causes = {r.get("cause") for r in reach["measured"] if r.get("gap")}
         qual = ''
@@ -266,43 +266,61 @@ def _record_section(reach) -> str:
                     'deterministic, not sharing-dependent.</span>')
         p.append(
             f'<div class="clean" style="border-left:4px solid var(--gap)">'
-            f'The agent&rsquo;s code reaches <b>{reach["agent_total"]}</b> records where the '
-            f'running user sees <b>{reach["user_total"]}</b> &mdash; a record gap of '
-            f'<b>{reach["gap_total"]}</b>. <span style="color:var(--muted)">(measured objects only)</span>'
-            f'{qual}</div>')
+            f'The agent&rsquo;s <b>system-mode</b> reads could reach <b>up to '
+            f'{reach["upper_bound_total"]}</b> records where the running user sees '
+            f'<b>{reach["user_total"]}</b> &mdash; an <b>upper-bound</b> record gap of '
+            f'<b>{reach["gap_total"]}</b>. <span style="color:var(--muted)">(measured '
+            f'system-mode objects only)</span>{qual}</div>')
+    elif reach["bounded"] and not reach["unknown"]:
+        p.append(
+            '<div class="clean" style="border-left:4px solid var(--proof)">'
+            'Every read the agent performs <b>enforces sharing</b>, so the agent is bounded by '
+            'the running user &mdash; there is <b>no record escalation</b>.</div>')
     p.append('<div class="recwrap"><table class="rec"><thead><tr>'
-             '<th>Object</th><th>Agent reaches</th><th>User sees</th>'
-             '<th>Record gap</th><th style="text-align:left">Cause</th>'
-             '<th style="width:26%">&nbsp;</th></tr></thead><tbody>')
+             '<th>Object</th><th style="text-align:left">Read mode</th>'
+             '<th>Records in org</th><th>User sees</th>'
+             '<th>Gap (upper bound)</th><th style="text-align:left">Cause</th>'
+             '<th style="width:20%">&nbsp;</th></tr></thead><tbody>')
     for r in reach["rows"]:
-        st = "?" if r["system_total"] is None else str(r["system_total"])
+        ot = "?" if r["org_total"] is None else str(r["org_total"])
         cause_txt = _CAUSE_LABEL.get(r.get("cause"), "—")
-        if r["user_visible"] is None:
-            uv = f'<td class="na">n/a &middot; {_esc(r["note"])}</td>'
-            gp = '<td class="na">&mdash;</td>'
+        if r["mode"] == "user":
+            mode_cell = '<td style="text-align:left">user</td>'
+            uv = '<td class="na">= agent (sharing enforced)</td>'
+            gp = '<td>0</td>'
             bar = ''
         else:
-            uv = f'<td>{r["user_visible"]}</td>'
-            g = r["gap"] or 0
-            gp = f'<td class="gap">{g}</td>' if g else '<td>0</td>'
-            total = r["system_total"] or 0
-            if total:
-                upct = round(100 * r["user_visible"] / total)
-                bar = (f'<div class="recbar"><i class="u" style="width:{upct}%"></i>'
-                       f'<i class="g" style="width:{100 - upct}%"></i></div>')
-            else:
+            mode_cell = '<td style="text-align:left">system</td>'
+            if r["user_visible"] is None:
+                uv = f'<td class="na">n/a &middot; {_esc(r["note"])}</td>'
+                gp = '<td class="na">&mdash;</td>'
                 bar = ''
+            else:
+                uv = f'<td>{r["user_visible"]}</td>'
+                g = r["gap"] or 0
+                gp = f'<td class="gap">&le; {g}</td>' if g else '<td>0</td>'
+                total = r["org_total"] or 0
+                if total:
+                    upct = round(100 * r["user_visible"] / total)
+                    bar = (f'<div class="recbar"><i class="u" style="width:{upct}%"></i>'
+                           f'<i class="g" style="width:{100 - upct}%"></i></div>')
+                else:
+                    bar = ''
         cause_cell = (f'<td style="text-align:left" class="{"na" if not r.get("cause") else ""}">'
                       f'{_esc(cause_txt)}</td>')
-        p.append(f'<tr><td>{_esc(r["object"])}</td><td>{st}</td>{uv}{gp}{cause_cell}'
+        p.append(f'<tr><td>{_esc(r["object"])}</td>{mode_cell}<td>{ot}</td>{uv}{gp}{cause_cell}'
                  f'<td>{bar}</td></tr>')
     p.append('</tbody></table></div>')
     p.append('<div class="clean" style="border-left:4px solid var(--info); font-size:12.5px">'
              'Only objects the agent&rsquo;s code actually <b>reads</b> are counted here '
-             '(a create/insert target is a write, not a read of N records). Live '
-             '<code>COUNT()</code> run as the analysis identity; <b>n/a</b> marks record '
-             'visibility that is sharing/ownership dependent and cannot be measured without '
-             'running as the user &mdash; it is never estimated.</div>')
+             '(a create/insert target is a write, not a read of N records). <b>Records in org</b> '
+             'is a live <code>COUNT()</code> of the whole object &mdash; it is an <b>upper '
+             'bound, not the agent&rsquo;s result</b>: query predicates and <code>LIMIT</code> '
+             'are not resolved statically. It is an escalation ceiling only for <b>system-mode</b> '
+             'reads; a <b>user-mode</b> read enforces sharing, so the agent is bounded by the '
+             'running user and the gap is 0 by construction. <b>n/a</b> marks record visibility '
+             'that is sharing/ownership dependent and cannot be measured without running as the '
+             'user &mdash; it is never estimated.</div>')
     return "\n".join(p)
 
 
@@ -360,13 +378,20 @@ def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
                 f'permission to see. None are GDPR-labelled, but it is still an access mismatch '
                 f'worth reviewing.</p>')
 
-    # 3) record reach, plainly
+    # 3) record reach, plainly. Only system-mode reads have a ceiling; and the org
+    # COUNT is an upper bound (predicates/LIMIT unresolved), never a measured reach.
     if reach and reach.get("has_measured_gap"):
         p.append(
-            f'<p>On <b>records</b>: the agent’s code could read up to <b>{reach["agent_total"]}</b> '
-            f'record(s) where this user is normally allowed <b>{reach["user_total"]}</b>. That is a '
-            f'boundary to confirm — make sure those queries are limited to the right customer, '
+            f'<p>On <b>records</b>: the agent&rsquo;s system-mode code could read <b>up to '
+            f'{reach["upper_bound_total"]}</b> record(s) where this user is normally allowed '
+            f'<b>{reach["user_total"]}</b>. That is a ceiling, not a measured result &mdash; it is '
+            f'a boundary to confirm; make sure those queries are limited to the right customer, '
             f'not the whole table.</p>')
+    elif reach and reach.get("bounded") and not reach.get("unknown"):
+        p.append(
+            '<p>On <b>records</b>: every read the agent performs enforces sharing and the '
+            'user&rsquo;s permissions, so the agent cannot see records this user could not see '
+            'anyway. There is no record-level gap to fix.</p>')
 
     # 4) honest-coverage caveat, in plain words
     if coverage and coverage.get("not_visible"):

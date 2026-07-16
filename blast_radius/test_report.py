@@ -100,23 +100,40 @@ class RecordReachTest(unittest.TestCase):
     """--include-counts headline: aggregates only MEASURED gaps, never estimates."""
 
     COUNTS = {
-        "Blast_Test__c": {"system_total": 512, "user_visible": 0, "gap": 512,
-                          "note": "no object read", "cause": "crud"},
-        "Account": {"system_total": 300, "user_visible": 300, "gap": 0,
-                    "note": "OWD Read - user with read sees all", "cause": None},
-        "Case": {"system_total": 88, "user_visible": None, "gap": None,
+        "Blast_Test__c": {"org_total": 512, "user_visible": 0, "gap": 512,
+                          "note": "no object read", "cause": "crud", "mode": "system"},
+        "Account": {"org_total": 300, "user_visible": 300, "gap": 0,
+                    "note": "OWD Read - user with read sees all", "cause": None,
+                    "mode": "system"},
+        "Case": {"org_total": 88, "user_visible": None, "gap": None,
                  "note": "OWD Private - record-sharing dependent (run as the user to measure)",
-                 "cause": "sharing"},
+                 "cause": "sharing", "mode": "system"},
     }
 
     def test_aggregate_excludes_unmeasured(self):
         r = record_reach(self.COUNTS)
-        # agent_total sums every known system_total; user/gap only measured objects
-        self.assertEqual(r["agent_total"], 512 + 300 + 88)
+        # upper_bound_total sums every known org_total; user/gap only measured objects
+        self.assertEqual(r["upper_bound_total"], 512 + 300 + 88)
         self.assertEqual(r["user_total"], 0 + 300)
         self.assertEqual(r["gap_total"], 512)
         self.assertTrue(r["has_measured_gap"])
         self.assertEqual(len(r["unknown"]), 1)   # the Private/unmeasured Case
+
+    def test_user_mode_read_is_bounded_not_an_escalation(self):
+        # C1/OQ16: a sharing-enforced read means the agent sees what the user sees.
+        # The org's record count must NOT become "agent reaches N", and the object
+        # must not enter the escalation aggregate.
+        counts = {"Invoice": {"org_total": 31, "user_visible": None, "gap": 0,
+                              "note": "user-mode read - the agent is bounded by the running user",
+                              "cause": None, "mode": "user"}}
+        r = record_reach(counts)
+        self.assertFalse(r["has_measured_gap"])
+        self.assertEqual(r["gap_total"], 0)
+        self.assertIsNone(r["upper_bound_total"])   # nothing system-mode to bound
+        self.assertEqual(len(r["bounded"]), 1)
+        md = render_markdown("A", "u", "c", [], counts=counts)
+        self.assertIn("bounded by the running user", md)
+        self.assertNotIn("could reach up to", md)
 
     def test_none_when_no_counts(self):
         self.assertIsNone(record_reach(None))
@@ -125,7 +142,10 @@ class RecordReachTest(unittest.TestCase):
     def test_markdown_shows_headline_and_na(self):
         md = render_markdown("A", "u", "c", [], counts=self.COUNTS)
         self.assertIn("Record reach", md)
-        self.assertIn("reaches 900 records", md)   # 512+300+88
+        # C1: the org COUNT is an upper bound, never "the agent reaches N records"
+        self.assertIn("could reach up to 900 records", md)   # 512+300+88
+        self.assertNotIn("code reaches 900", md)
+        self.assertIn("upper bound", md)
         self.assertIn("user sees 300", md)
         self.assertIn("n/a", md)                   # the unmeasured Private object
         self.assertIn("512", md)
