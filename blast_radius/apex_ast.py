@@ -22,6 +22,25 @@ _NODE_MODULES = os.path.join(_HERE, "node_modules", "@apexdevtools", "apex-parse
 _NODE = os.environ.get("BLAST_RADIUS_NODE") or shutil.which("node")
 
 _available_cache: Optional[bool] = None
+_parser_version_cache: Optional[str] = None
+
+
+def parser_version() -> Optional[str]:
+    """Version of the ANTLR apex-parser package, or None if it isn't installed.
+
+    The fingerprint binds it because the parse tree IS part of the analysis: a
+    parser upgrade can change which reads the AST backend sees (this session's
+    differential found one such blind spot), and two runs that saw different reads
+    must not be able to share a fingerprint."""
+    global _parser_version_cache
+    if _parser_version_cache is not None:
+        return _parser_version_cache or None
+    try:
+        with open(os.path.join(_NODE_MODULES, "package.json"), encoding="utf-8") as f:
+            _parser_version_cache = json.load(f).get("version") or ""
+    except (OSError, ValueError):
+        _parser_version_cache = ""
+    return _parser_version_cache or None
 
 
 def ast_available() -> bool:

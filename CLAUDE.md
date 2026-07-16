@@ -237,7 +237,9 @@ gets a blind spot the regex path doesn't have, or vice versa.
   **16 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
   the author's, and 5 labels still only prove consistency, not correctness.
 - **Determinism**: proven live — two runs, byte-identical md+html (same sha256).
-  Note the fingerprint binds the **static analysis**, not the live COUNTs.
+  The fingerprint binds the **static analysis**, not the live COUNTs — and it binds
+  the analyzer itself: a sha256 of the rule/extractor source plus the parser version,
+  so a rule change cannot silently reuse an old fingerprint.
 - **Four real orgs**: HospitalOrg (lab + live agent), HanseWatt (all v67 → clean),
   TechnoStore (106 classes + 7 triggers, **100% pre-v67** → the legacy demo),
   Urla (no agent).
@@ -289,8 +291,16 @@ semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
    - **regex has no scope at all**: a local shadowing a field resolves to the field's
      type. Not fixable without a parse tree — it is why AST is the default, and it is
      what the report's backend note discloses.
-   Still to do: the **fingerprint should bind analyzer/parser/CLI/API versions** (it
-   already binds `backend`).
+   **Fingerprint: done, and narrower than the TODO said.** It now binds
+   `analyzer` — a **sha256 of the analyzer's own source** (`report._ANALYSIS_SOURCES`),
+   not a hand-bumped string, because a version someone must remember to bump is
+   exactly the lie the fingerprint exists to prevent — and `parser` (the apex-parser
+   version; a parser upgrade changes which reads the AST sees). It deliberately does
+   **not** bind the **sf CLI** or the **org API version**: neither touches the static
+   resolution, and the fingerprint binds the static analysis, not the live COUNTs.
+   The class's own apiVersion was always bound per action. The hash over-invalidates
+   (a comment edit moves it) — the safe direction: a false alarm beats a false claim
+   of reproducibility.
 6. **Relationship/polymorphic classification** (see §7).
 7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.

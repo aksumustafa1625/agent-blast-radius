@@ -78,6 +78,59 @@ class DeterminismTest(unittest.TestCase):
         f2 = fingerprint("A", "u", "c", self.actions)
         self.assertEqual(f1, f2)
 
+    def test_fingerprint_binds_the_analyzer_itself(self):
+        """The tool is part of its own result.
+
+        Without this, changing the precedence law or a rule produces the SAME
+        fingerprint as the run before it - the report would be certifying
+        reproducibility it cannot actually see. The version is a hash of the
+        analyzer's source rather than a hand-bumped string precisely so that
+        forgetting to bump it is not possible.
+        """
+        import report as _report
+        base = fingerprint("A", "u", "c", self.actions)
+        real = _report.analyzer_version
+        try:
+            _report.analyzer_version = lambda: "different-analyzer"
+            self.assertNotEqual(base, fingerprint("A", "u", "c", self.actions))
+        finally:
+            _report.analyzer_version = real
+        # ...and it must come back to the same value, or the fingerprint is noise.
+        self.assertEqual(base, fingerprint("A", "u", "c", self.actions))
+
+    def test_analyzer_version_tracks_the_rule_code(self):
+        import report as _report
+        here = os.path.dirname(os.path.abspath(_report.__file__))
+        rules = os.path.join(here, "authority_analyzer.py")
+        original = open(rules, "rb").read()
+        _report.analyzer_version.cache_clear()
+        before = _report.analyzer_version()
+        try:
+            with open(rules, "ab") as f:
+                f.write(b"# analyzer_version probe")
+            _report.analyzer_version.cache_clear()
+            self.assertNotEqual(before, _report.analyzer_version(),
+                                "a change to the RULES left the analyzer version alone")
+        finally:
+            with open(rules, "wb") as f:
+                f.write(original)
+            _report.analyzer_version.cache_clear()
+        self.assertEqual(before, _report.analyzer_version(),
+                         "the version is not a pure function of the source")
+
+    def test_fingerprint_binds_the_parser_version(self):
+        # A parser upgrade can change which reads the AST backend sees - this session's
+        # differential found exactly such a blind spot - so two runs that saw different
+        # reads must not be able to share a fingerprint.
+        import apex_ast as _ast
+        base = fingerprint("A", "u", "c", self.actions)
+        real = _ast.parser_version
+        try:
+            _ast.parser_version = lambda: "99.99.99"
+            self.assertNotEqual(base, fingerprint("A", "u", "c", self.actions))
+        finally:
+            _ast.parser_version = real
+
     def test_fingerprint_changes_when_findings_change(self):
         base = fingerprint("A", "u", "c", self.actions)
         stripped = ActionSummary(

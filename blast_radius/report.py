@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import List, Optional
+
+import apex_ast
 
 _SEV_ORDER = {"ERROR": 0, "WARN": 1, "INFO": 2}
 
@@ -177,9 +181,57 @@ def record_reach(counts: Optional[dict]) -> Optional[dict]:
             "has_measured_gap": bool(measured)}
 
 
+# The code that DECIDES a finding. Rendering is deliberately absent: it changes the
+# document, not the analysis, and verify_deterministic.py sha256s the whole document
+# anyway.
+_ANALYSIS_SOURCES = (
+    "apex_introspect.py",        # the precedence law + regex extraction
+    "ast_extract.js",            # the parse-tree extraction
+    "authority_analyzer.py",     # the rules
+    "flow_introspect.py",
+    "genai_prompt_introspect.py",
+    "prompt_flow_analyzer.py",
+    "permission_resolver.py",
+    "agentscript_loader.py",
+    "snapshot_loader.py",
+)
+
+
+@lru_cache(maxsize=1)
+def analyzer_version() -> str:
+    """A hash of the analyzer's OWN source, not a hand-maintained version string.
+
+    A number someone has to remember to bump defeats the point: change a rule, forget
+    the bump, and the fingerprint still claims the two runs were the same analysis -
+    which is the exact lie it exists to prevent. Hashing the code cannot be forgotten.
+
+    It over-invalidates: editing a comment in authority_analyzer.py changes the
+    fingerprint although no verdict moved. That direction is the safe one. Two
+    identical analyses showing different fingerprints is a false alarm; two DIFFERENT
+    analyses sharing one is a false claim of reproducibility, and this project treats
+    those as very different sins."""
+    h = hashlib.sha256()
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in _ANALYSIS_SOURCES:          # fixed order - not os.listdir
+        h.update(name.encode("utf-8"))
+        try:
+            with open(os.path.join(here, name), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            # A missing analysis module is itself a different analyzer, so it must
+            # change the hash rather than be skipped silently.
+            h.update(b"<missing>")
+    return h.hexdigest()[:12]
+
+
 def fingerprint(agent: str, running_user: str, channel: Optional[str],
                 actions: List[ActionSummary]) -> str:
     payload = {
+        # The tool is part of its own result. Without these, an analyzer or parser
+        # change that moves a verdict produces the SAME fingerprint as the run before
+        # it - the fingerprint would be certifying reproducibility it cannot see.
+        "analyzer": analyzer_version(),
+        "parser": apex_ast.parser_version() or "none",
         "agent": agent, "user": running_user, "channel": channel,
         "actions": [
             {
