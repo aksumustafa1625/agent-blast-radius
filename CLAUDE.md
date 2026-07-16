@@ -174,6 +174,21 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 ## 7. Mistakes already paid for — do not repeat
 
+- **A `platform-doc` label is a belief, not a measurement — and one of them was
+  false.** PS512/PS506 claimed `stripInaccessible(AccessType.UPDATABLE)` on a read
+  path "strips nothing, so the escalation stays proven", and fired **ERROR** on it.
+  The runtime oracle refuted it in-org on **both** branches: without object Edit the
+  call **throws** (`No access to entity`); with it, the field is **stripped**. It
+  generalises — FLS cannot grant Edit without Read, so *unreadable ⊆ un-updatable*,
+  and any AccessType strips at least what READABLE would. The wrong AccessType is a
+  **reliability bug, not a leak**. Two lessons: **a false positive costs credibility
+  exactly like a false clean does**, and *one* measurement is not a rule — probe every
+  branch of the axis that could differ before generalising.
+- **Don't grade one axis with the other axis's evidence.** `write-v67-plain-is-clean`
+  was labelled `experiment:E2`, but E2 only ever **read** (5 rows vs 0). It never
+  wrote, so it could not speak for DML's default. Borrowed evidence reads as measured
+  and isn't.
+
 - **Reports are written AFTER render.** A render crash leaves a **stale report on
   disk** that looks like a successful run. Always check the console summary line,
   not the file. (This hid two bugs at once: a `KeyError` on a renamed key, and an
@@ -202,11 +217,21 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 ## 8. Proof surface — what backs the claims
 
-- **140 unit tests.**
+- **162 unit tests.**
 - **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): 23 hand-labelled
   cases → **100% precision/recall on this corpus**, and **8/8 mutation score**
-  (break the analyzer on purpose; the corpus catches it). Honest limits: only **6 of
-  23** labels are org-measured; the mutations are the author's; no runtime oracle yet.
+  (break the analyzer on purpose; the corpus catches it).
+- **Runtime oracle** (`benchmark/oracle.py --org <alias>`): **the analyzer predicts,
+  the org judges.** It deploys each case with a `runtime` shape as real Apex, runs it
+  as the modelled user, and asserts *the analyzer's own prediction* — so a red test
+  means the analyzer is wrong, which is the only ground truth not sharing a mind with
+  the implementation. **15 of 23 cases have a shape; all 15 agree.** It has already
+  caught a real false positive (see §7). Both axes are covered: `kind:"read"` measures
+  FLS, `kind:"write"` measures object CRUD as a user holding no Create.
+  Adding a runtime shape to a `reasoned` case beats adding ten new reasoned cases.
+- **Label strength** (the benchmark's real quality metric, printed every run):
+  **16 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
+  the author's, and 5 labels still only prove consistency, not correctness.
 - **Determinism**: proven live — two runs, byte-identical md+html (same sha256).
   Note the fingerprint binds the **static analysis**, not the live COUNTs.
 - **Four real orgs**: HospitalOrg (lab + live agent), HanseWatt (all v67 → clean),

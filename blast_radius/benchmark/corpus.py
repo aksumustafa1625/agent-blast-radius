@@ -32,6 +32,22 @@ THE TRAP THIS FILE AVOIDS
 A case carrying `runtime={...}` can be settled by oracle.py. Adding a runtime shape
 to a `reasoned` case is worth more than adding ten new reasoned cases.
 
+WHAT NO ORACLE CAN SETTLE - a limit of the method, not a to-do list
+    Some cases assert what the ANALYZER must REPORT, not what the platform does, so
+    there is nothing for an org to judge. Running the code would simply execute the
+    query; it cannot pronounce on whether we were right to call our own knowledge
+    incomplete. These stay `reasoned`/`platform-doc` permanently and honestly:
+      unknown-dynamic-soql, unknown-sosl-without-returning   - PS504 says "we do not
+          know". An org cannot measure the absence of our knowledge.
+      async-queueable, async-callout, async-none-is-clean    - PS514 says "we flag a
+          hand-off we do not follow". Same shape of claim.
+      field-untagged-escalates-ps502                         - its platform half (a
+          v58 read escapes) is already measured by prec-v58-without-plain; the half
+          that distinguishes it (PS502 vs PS506) is our own labelling design, which
+          the org has no opinion about.
+    Counting these as gaps would overstate what is missing, exactly as counting them
+    as measured would overstate what is proven.
+
 Each case declares the EXACT set of graded rules it must produce. Anything else
 that fires is a false positive; anything declared that doesn't fire is a false
 negative. Ungraded rules (see GRADED) are ignored so INFO inventory noise like
@@ -139,14 +155,29 @@ CASES = [
     dict(id="field-user-can-see-is-clean", api=58.0,
          apex=_cls("List<Blast_Test__c> r = [SELECT Secret_Data__c FROM Blast_Test__c];",
                    "with"),
-         expect=set(), truth="reasoned",
+         expect=set(), truth="experiment:oracle",
+         # THE ORACLE'S NEGATIVE CONTROL, and the reason it is worth the fixture work.
+         # Every other read case ends in BLOCKED, which invites the obvious objection:
+         # this user is so crippled that BLOCKED is vacuous and the oracle proves
+         # nothing. So grant FLS on exactly one field and read it under USER_MODE - the
+         # same enforcement that blocks Customer_IBAN__c must let Secret_Data__c
+         # through. If this case ever goes BLOCKED, the oracle's other greens are
+         # worthless and we need to know that before a reviewer finds it.
+         # USER_MODE is forced although the case is v58: under v58's system mode FLS
+         # is bypassed for every field, so a green would prove nothing about FLS.
+         runtime=dict(sharing="with", clause=None, expect_read=True,
+                      perms=dict(read_fields=["Secret_Data__c"]),
+                      body="            List<Blast_Test__c> r = [SELECT Secret_Data__c "
+                           "FROM Blast_Test__c WITH USER_MODE LIMIT 1];\n"
+                           "            if (r.isEmpty()) return 'NO_ROWS';\n"
+                           "            return 'READ=' + r[0].Secret_Data__c;"),
          why="user_minimal HAS FLS read on Secret_Data__c, and `with sharing` covers "
              "the record axis, so there is nothing beyond the user. A tool that "
              "flags this is crying wolf."),
 
     dict(id="field-id-only-is-clean", api=58.0,
          apex=_cls("List<Blast_Test__c> r = [SELECT Id FROM Blast_Test__c];", "with"),
-         expect=set(), truth="platform-doc",
+         expect=set(), truth="experiment:oracle",
          why="Id has no FieldPermissions row and is always readable; flagging it "
              "would be a guaranteed false positive on almost every query.",
          # The shape forces USER_MODE although the case itself is v58. Deliberate:

@@ -51,6 +51,9 @@ from corpus import CASES                              # noqa: E402
 TEST_CLASS = "BR_Oracle_Test"
 _OBJECT = "Blast_Test__c"
 _FIELD = "Customer_IBAN__c"
+# The one field the negative control grants FLS on. Seeded with a value so a
+# passing control reads back real data, not a null that would pass either way.
+_FIELD_VISIBLE = "Secret_Data__c"
 
 
 def _ident(case_id: str) -> str:
@@ -137,6 +140,9 @@ def _test_source(cases) -> str:
         # Object Edit is the axis that matters for the stripInaccessible cases.
         perms = rt.get("perms") or {}
         wedit = redit = "true" if perms.get("edit") else "false"
+        # Fields this case's user IS granted read on. Everything else stays invisible.
+        grants = "new List<String>{%s}" % ", ".join(
+            f"'{f}'" for f in (perms.get("read_fields") or []))
         if rt.get("kind") == "write":
             # No seed row: the insert IS the measurement. This user deliberately
             # holds no Create, so a landing insert is the escalation itself.
@@ -150,7 +156,7 @@ def _test_source(cases) -> str:
             methods.append(f"""
     @isTest
     static void {name}() {{
-        User usr = setup('W{i}', false, {wedit});
+        User usr = setup('W{i}', false, {wedit}, {grants});
         String v;
         System.runAs(usr) {{
             v = new BR_Or_{name}().run();
@@ -176,10 +182,11 @@ def _test_source(cases) -> str:
         methods.append(f"""
     @isTest
     static void {name}() {{
-        User usr = setup('T{i}', true, {redit});
+        User usr = setup('T{i}', true, {redit}, {grants});
         String v;
         System.runAs(usr) {{
-            {_OBJECT} rec = new {_OBJECT}(Name = 'oracle', {_FIELD} = 'SECRET-IBAN');
+            {_OBJECT} rec = new {_OBJECT}(Name = 'oracle', {_FIELD} = 'SECRET-IBAN',
+                {_FIELD_VISIBLE} = 'VISIBLE-DATA');
             insert rec;
 {seed}            v = new BR_Or_{name}().run();
         }}
@@ -206,7 +213,8 @@ def _test_source(cases) -> str:
 @isTest
 private class {TEST_CLASS} {{
 
-    private static User setup(String tag, Boolean canCreate, Boolean canEdit) {{
+    private static User setup(String tag, Boolean canCreate, Boolean canEdit,
+                             List<String> readableFields) {{
         User usr;
         System.runAs(new User(Id = UserInfo.getUserId())) {{
             Profile p = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
@@ -225,6 +233,15 @@ private class {TEST_CLASS} {{
             insert new ObjectPermissions(ParentId = ps.Id, SobjectType = '{_OBJECT}',
                 PermissionsRead = true, PermissionsCreate = canCreate,
                 PermissionsEdit = canEdit);
+            // Granted per case. A case that grants nothing leaves every field
+            // invisible - which is the point for the escalation cases, and exactly
+            // why at least one case must grant something (see the negative control).
+            List<FieldPermissions> fps = new List<FieldPermissions>();
+            for (String fld : readableFields) {{
+                fps.add(new FieldPermissions(ParentId = ps.Id, SobjectType = '{_OBJECT}',
+                    Field = '{_OBJECT}.' + fld, PermissionsRead = true));
+            }}
+            if (!fps.isEmpty()) insert fps;
             insert new PermissionSetAssignment(AssigneeId = usr.Id, PermissionSetId = ps.Id);
         }}
         return usr;
