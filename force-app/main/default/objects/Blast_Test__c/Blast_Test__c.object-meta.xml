@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Controlled fixture for the Agent Blast Radius Milestone 0 experiments. Private sharing model so record-level access can be measured.</description>
+    <description>Controlled fixture for the Agent Blast Radius Milestone 0 experiments. Private sharing model so record-level access can be measured. Search is enabled so the benchmark's runtime oracle can settle the SOSL precedence claim - a custom object rejects SOSL outright without it ("entity type does not support search").</description>
+    <enableSearch>true</enableSearch>
     <label>Blast Test</label>
     <pluralLabel>Blast Tests</pluralLabel>
     <nameField>

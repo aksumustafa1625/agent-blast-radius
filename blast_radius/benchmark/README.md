@@ -27,7 +27,7 @@ broken test; it is the org saying the analyzer is wrong. That is the point.
 
 ```
 RUNTIME ORACLE - the analyzer predicts, the org judges
-cases with a runtime shape: 8   org: HospitalOrg
+cases with a runtime shape: 10   org: HospitalOrg
 
 CASE                                    ORG SAYS    LABEL
 prec-v58-without-plain                  agrees      experiment:runtime
@@ -38,6 +38,8 @@ prec-v58-with-sharing-plain             agrees      experiment:runtime
 prec-v58-without-systemmode-clause      agrees      experiment:runtime
 sanitizer-readable-used-caps-severity   agrees      experiment:runtime
 sanitizer-discarded-is-a-bug            agrees      experiment:runtime
+sosl-returning-gdpr-v58                 agrees      experiment:runtime
+sosl-returning-gdpr-v67                 agrees      experiment:runtime
 ```
 
 It has already paid for itself twice.
@@ -85,11 +87,11 @@ Every case carries a `truth` field:
 
 | `truth` | count | what it's worth |
 |---|---|---|
-| `experiment:*` | 9 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
-| `platform-doc` | 8 | Documented Salesforce semantics, not measured here. |
+| `experiment:*` | 11 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
+| `platform-doc` | 6 | Documented Salesforce semantics, not measured here. |
 | `reasoned` | 6 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
 
-Only 9 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
+Only 11 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
 the analyzer agrees with its author, which is worth very little. That is why the runner
 prints this table under the numbers rather than hiding it.
 
@@ -111,7 +113,7 @@ the review brief).
   real corpus, not the finished benchmark.
 - **The mutations are also the author's.** 8/8 measures sensitivity to the breaks I
   thought of.
-- **Only 8 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
+- **Only 10 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
   still rest on reasoning or documentation.
 - **The oracle needs a specific fixture** (`Blast_Test__c` + `Customer_IBAN__c`), so it
   runs on demand rather than in CI.
@@ -119,7 +121,7 @@ the review brief).
 
 ## What v2 needs, in order
 
-1. **More runtime shapes.** `oracle.py` settles 8 cases; the other 15 have no `runtime`
+1. **More runtime shapes.** `oracle.py` settles 10 cases; the other 13 have no `runtime`
    shape yet. Writing one is worth more than ten new `reasoned` cases. The
    sanitizer, SOSL, async and write cases are all executable in principle.
 2. **Systematic sfge differential** — run both engines over the whole corpus and triage

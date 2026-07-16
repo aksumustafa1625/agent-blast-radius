@@ -55,6 +55,17 @@ SHARING = {"Blast_Test__c": "Private"}
 
 _READ = "List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c];"
 
+# The whole SOSL reader rests on ONE claim - that SOSL obeys the SAME mode
+# precedence as SOQL. It was asserted from the docs when the SOSL blind spot was
+# closed; if it is false, that fix is false. So the oracle settles it. SOSL returns
+# nothing inside an Apex test unless the results are fixed first, hence the
+# `fixed_search` flag on those cases.
+_SOSL_BODY = """            List<List<SObject>> res = [FIND 'SECRET' IN ALL FIELDS
+                RETURNING Blast_Test__c(Customer_IBAN__c)];
+            List<Blast_Test__c> b = (List<Blast_Test__c>) res[0];
+            if (b.isEmpty()) return 'NO_ROWS';
+            return 'READ=' + b[0].Customer_IBAN__c;"""
+
 
 def _cls(body: str, sharing: str = "without") -> str:
     decl = "" if sharing == "none" else f"{sharing} sharing "
@@ -154,15 +165,22 @@ CASES = [
     dict(id="sosl-returning-gdpr-v58", api=58.0,
          apex=_cls("List<List<SObject>> r = [FIND :q IN ALL FIELDS RETURNING "
                    "Blast_Test__c(Customer_IBAN__c)];", "without"),
-         expect={"PS501", "PS506"}, truth="platform-doc",
+         expect={"PS501", "PS506"}, truth="experiment:oracle",
+         runtime=dict(sharing="without", clause=None, expect_read=True,
+                      fixed_search=True, body=_SOSL_BODY),
          why="SOSL obeys the same mode precedence as SOQL, so a legacy SOSL that "
-             "RETURNs an invisible GDPR field is the same escalation."),
+             "RETURNs an invisible GDPR field is the same escalation. Measured: the "
+             "org hands the field over."),
 
     dict(id="sosl-returning-gdpr-v67", api=67.0,
          apex=_cls("List<List<SObject>> r = [FIND :q IN ALL FIELDS RETURNING "
                    "Blast_Test__c(Customer_IBAN__c)];", "without"),
-         expect=set(), truth="platform-doc",
-         why="...and is equally safe at v67. Negative twin of the case above."),
+         expect=set(), truth="experiment:oracle",
+         runtime=dict(sharing="without", clause=None, expect_read=False,
+                      fixed_search=True, body=_SOSL_BODY),
+         why="...and is equally safe at v67. Negative twin of the case above - and "
+             "the pair is what proves the SOSL reader inherits the precedence law "
+             "rather than merely being assumed to."),
 
     # -------------------------------------------------------------- sanitizer
     # PS512 rests entirely on two claims about how the PLATFORM behaves. If either
