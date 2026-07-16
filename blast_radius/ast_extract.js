@@ -226,6 +226,15 @@ function outputVarsIn(scope, outTypes) {
       }
     }
   }
+  // `void fill(Resp target, String v) { target.summary = v; }` - an output object
+  // passed IN is just as much a sink as one declared locally. Without this the
+  // helper's write is invisible and the field falls back to undetermined.
+  for (const fp of collect(scope, 'FormalParameterContext')) {
+    const tref = firstChildOfType(fp, 'TypeRefContext');
+    const ty = tref ? baseType(text(tref)) : null;
+    const idc = firstChildOfType(fp, 'IdContext');
+    if (ty && outTypes.has(ty) && idc) vars.add(text(idc));
+  }
   return vars;
 }
 
@@ -235,11 +244,124 @@ function outputVarsIn(scope, outTypes) {
 // value leaves the method. The sink name is what lets the Agent Script layer
 // join this to `set @variables.x = @outputs.summary`.
 const MAX_ALIAS_DEPTH = 3;
+const MAX_CALL_DEPTH = 3;
 
 // The identifier a local declaration binds: `String s = rec.F` -> "s".
+// NOTE the DIRECT child: `List<Blast_Test__c> recs = ...` has IdContexts for the
+// TYPE too, and firstDescOfType would return "List". Same trap below for params.
 function declaredName(declCtx) {
   const id = firstChildOfType(declCtx, 'IdContext') || firstDescOfType(declCtx, 'IdContext');
   return id ? text(id) : null;
+}
+
+/*
+ * Inter-procedural taint: follow a value INTO the method it is passed to.
+ *
+ * `helper(rec.Field)` ended the trace -> undetermined -> worst case. Selector/DAO
+ * style means that is where most real reads go, so the noise landed exactly where
+ * good code lives.
+ *
+ * Two traps found by measuring rather than assuming (both would have silently
+ * mapped the WRONG parameter, and a wrong parameter can produce a wrong
+ * `internal` = a silent false-clean):
+ *   * a method's name is its DIRECT child IdContext - firstDescOfType returns the
+ *     RETURN TYPE ("Resp" for `List<Resp> run(...)`).
+ *   * a parameter's name is likewise the DIRECT child of FormalParameterContext,
+ *     whose children are [TypeRefContext, IdContext] - the descendant search
+ *     returns the TYPE ("String" for `List<String> ids`).
+ */
+function methodTable(root) {
+  const t = new Map();
+  for (const m of collect(root, 'MethodDeclarationContext')) {
+    const id = firstChildOfType(m, 'IdContext');
+    if (!id) continue;
+    const params = [];
+    for (const fp of collect(m, 'FormalParameterContext')) {
+      const pid = firstChildOfType(fp, 'IdContext');
+      params.push(pid ? text(pid) : null);
+    }
+    const key = text(id).toLowerCase();
+    if (!t.has(key)) t.set(key, []);
+    t.get(key).push({ node: m, params });
+  }
+  return t;
+}
+
+// Which argument of `callCtx` contains `node`? -1 when it is not an argument.
+// Keep ONLY parser rule contexts: an argument list's children interleave the
+// commas, and this parser names its terminal class `De`, not `TerminalNodeImpl`.
+// Counting a comma as an argument shifts every index by one and silently maps the
+// value onto the WRONG parameter - which is exactly how a bogus `internal` (a
+// silent false-clean) would get produced. Measured, not assumed.
+function argIndexOf(callCtx, node) {
+  const list = firstDescOfType(callCtx, 'ExpressionListContext');
+  if (!list) return -1;
+  const args = kids(list).filter(c => /Context$/.test(typeName(c)));
+  for (let i = 0; i < args.length; i++) if (isDescendant(node, args[i])) return i;
+  return -1;
+}
+
+/*
+ * How a parameter behaves inside the callee:
+ *   'returned'     it lands in an output object's field IN THERE -> reaches model
+ *   'escapes'      it is returned to the caller -> keep classifying at the CALL SITE
+ *   'internal'     every use seen, none leaves
+ *   'undetermined' anything we could not see
+ * `retEscapes` is what separates a helper's `return x` (goes back to the caller)
+ * from the @InvocableMethod's `return out` (goes to the model). Conflating those
+ * would call every helper's return a model leak.
+ */
+function classifyParamInCallee(callee, paramName, outVars, depth, opts) {
+  if (!paramName) return 'undetermined';
+  const uses = [];
+  for (const t of ['IdPrimaryContext', 'IdContext']) {
+    for (const u of collect(callee, t)) {
+      if (text(u) !== paramName) continue;
+      if (ancestorOfType(u, 'FormalParameterContext')) continue;   // the declaration
+      uses.push(u);
+    }
+  }
+  // Inside the callee its OWN output vars are what count (its locals and any
+  // output object passed in), not the caller's.
+  const calleeOut = opts.outTypes ? outputVarsIn(callee, opts.outTypes) : outVars;
+  let sawUndetermined = false, sawEscape = false;
+  for (const u of uses) {
+    const r = classifyFlow(u, calleeOut, depth, Object.assign({}, opts, { retEscapes: true }));
+    if (r.flow === 'returned') return 'returned';        // proof beats everything
+    if (r.flow === 'undetermined') sawUndetermined = true;
+    if (r.flow === 'escapes') sawEscape = true;
+  }
+  if (sawUndetermined) return 'undetermined';            // safer than 'escapes'
+  if (sawEscape) return 'escapes';
+  return 'internal';
+}
+
+function classifyIntoCallee(callCtx, argNode, outVars, depth, opts) {
+  const UNDET = { flow: 'undetermined', sink: null };
+  if (!opts.table || depth >= MAX_CALL_DEPTH) return UNDET;
+  const cands = opts.table.get(callMethodName(callCtx)) || [];
+  if (!cands.length) return UNDET;                  // external/managed/unknown - sound
+  const idx = argIndexOf(callCtx, argNode);
+  if (idx < 0) return UNDET;
+  const fits = cands.filter(c => idx < c.params.length);
+  if (!fits.length) return UNDET;                   // no overload takes that arg
+
+  let sawUndetermined = false, sawEscape = false;
+  for (const c of fits) {
+    if (opts.seen.has(c.node)) { sawUndetermined = true; continue; }   // recursion
+    const seen = new Set(opts.seen); seen.add(c.node);
+    const r = classifyParamInCallee(c.node, c.params[idx], outVars, depth + 1,
+                                    Object.assign({}, opts, { seen }));
+    if (r === 'returned') return { flow: 'returned', sink: '*' };
+    if (r === 'undetermined') sawUndetermined = true;
+    if (r === 'escapes') sawEscape = true;
+  }
+  if (sawUndetermined) return UNDET;
+  if (sawEscape) {
+    // the value comes back out of the call: carry on from the call expression
+    return classifyFlow(callCtx, outVars, depth + 1, opts);
+  }
+  return { flow: 'internal', sink: null };
 }
 
 /*
@@ -262,7 +384,7 @@ function declaredName(declCtx) {
  * A reassignment (`s = other; out = s;`) still reports `returned`, which
  * over-reports rather than under-reports. That direction is the safe one.
  */
-function classifyAliasUses(declCtx, name, outVars, depth) {
+function classifyAliasUses(declCtx, name, outVars, depth, opts) {
   const method = ancestorOfType(declCtx, 'MethodDeclarationContext');
   if (!method || !name) return { flow: 'undetermined', sink: null };
 
@@ -274,25 +396,34 @@ function classifyAliasUses(declCtx, name, outVars, depth) {
       uses.push(u);
     }
   }
-  let sawUndetermined = false;
+  let sawUndetermined = false, sawEscape = false;
   for (const u of uses) {
-    const r = classifyFlow(u, outVars, depth);
+    const r = classifyFlow(u, outVars, depth, opts);
     if (r.flow === 'returned') return r;           // proof beats everything
     if (r.flow === 'undetermined') sawUndetermined = true;
+    if (r.flow === 'escapes') sawEscape = true;    // alias of a param, returned out
   }
   if (sawUndetermined) return { flow: 'undetermined', sink: null };
+  if (sawEscape) return { flow: 'escapes', sink: null };
   return { flow: 'internal', sink: null };         // every use seen, none a sink
 }
 
-function classifyFlow(node, outVars, depth = 0) {
+function classifyFlow(node, outVars, depth = 0, opts) {
+  opts = opts || {};
+  if (!opts.seen) opts = Object.assign({}, opts, { seen: new Set() });
   let n = node.parentCtx;
   while (n) {
     const tn = typeName(n);
-    if (tn === 'ReturnStatementContext') return { flow: 'returned', sink: '*' };
+    if (tn === 'ReturnStatementContext') {
+      // In a helper, `return x` hands the value BACK to the caller; only the
+      // @InvocableMethod's own return reaches the model.
+      return opts.retEscapes
+        ? { flow: 'escapes', sink: null }
+        : { flow: 'returned', sink: '*' };
+    }
     if (tn === 'MethodCallContext' || tn === 'DotMethodCallContext') {
-      return COLL_METHODS.has(callMethodName(n))
-        ? { flow: 'returned', sink: '*' }
-        : { flow: 'undetermined', sink: null };    // passed to a method: not traced
+      if (COLL_METHODS.has(callMethodName(n))) return { flow: 'returned', sink: '*' };
+      return classifyIntoCallee(n, node, outVars, depth, opts);
     }
     if (tn === 'AssignExpressionContext') {
       const lhs = kids(n)[0];
@@ -304,7 +435,7 @@ function classifyFlow(node, outVars, depth = 0) {
     }
     if (tn === 'VariableDeclaratorContext' || tn === 'LocalVariableDeclarationContext') {
       if (depth >= MAX_ALIAS_DEPTH) return { flow: 'undetermined', sink: null };
-      return classifyAliasUses(n, declaredName(n), outVars, depth + 1);
+      return classifyAliasUses(n, declaredName(n), outVars, depth + 1, opts);
     }
     n = n.parentCtx;
   }
@@ -325,7 +456,7 @@ function fieldAccess(dot) {
 
 // Per-field flow for a query bound to record variable `recVar` in `scope`.
 // Returns { flow: {field: verdict}, sinks: {field: [output field names]} }.
-function fieldFlowFor(recVar, fields, scope, outVars) {
+function fieldFlowFor(recVar, fields, scope, outVars, opts) {
   const undet = new Set();
   const sinks = new Map();                     // field -> Set of sink names
   const addSink = (field, sink) => {
@@ -336,7 +467,7 @@ function fieldFlowFor(recVar, fields, scope, outVars) {
   for (const dot of collect(scope, 'DotExpressionContext')) {
     const fa = fieldAccess(dot);
     if (!fa || leadingId(fa.base) !== recVar || !fields.includes(fa.field)) continue;
-    const { flow, sink } = classifyFlow(dot, outVars);
+    const { flow, sink } = classifyFlow(dot, outVars, 0, opts);
     if (flow === 'returned') addSink(fa.field, sink);
     else if (flow === 'undetermined') undet.add(fa.field);
   }
@@ -352,7 +483,7 @@ function fieldFlowFor(recVar, fields, scope, outVars) {
     while (e.parentCtx && recExpr.test(text(e.parentCtx))) e = e.parentCtx;
     const p = e.parentCtx;
     if (p && typeName(p) === 'DotExpressionContext' && kids(p)[0] === e) continue; // .field / .method()
-    const { flow, sink } = classifyFlow(e, outVars);
+    const { flow, sink } = classifyFlow(e, outVars, 0, opts);
     if (flow === 'returned') fields.forEach(x => addSink(x, sink));
     else if (flow === 'undetermined') fields.forEach(x => undet.add(x));
   }
@@ -390,7 +521,9 @@ function queryFlow(query, root, outTypes, fields) {
     const recVar = idc ? text(idc) : null;
     if (recVar) {
       const method = ancestorOfType(query, 'MethodDeclarationContext') || root;
-      return fieldFlowFor(recVar, fields, method, outputVarsIn(method, outTypes));
+      return fieldFlowFor(recVar, fields, method, outputVarsIn(method, outTypes),
+                          { table: methodTable(root), seen: new Set(),
+                            outTypes: outTypes });
     }
   }
   const call = ancestorOfType(query, 'DotMethodCallContext');       // add([SELECT ...])

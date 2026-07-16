@@ -205,6 +205,94 @@ class AuthorityPathTest(unittest.TestCase):
         # declared and provably never used -> internal is correct, not a guess
         self.assertEqual(flow.get("E__c"), "internal")
 
+    def test_inter_procedural_taint_through_a_helper(self):
+        """`helper(rec.Field)` used to end the trace -> undetermined -> worst case.
+        Selector/DAO style sends most real reads through exactly that shape, so the
+        noise landed where good code lives. Follow the value INTO the callee, but
+        only ever tighten a verdict we can prove - anything unseen stays worst case."""
+        import tempfile, textwrap
+        src = textwrap.dedent("""
+            public without sharing class IPEdge {
+                public class Resp { @InvocableVariable public String summary; }
+                @InvocableMethod(label='p')
+                public static List<Resp> run(List<String> ids) {
+                    List<Resp> out = new List<Resp>();
+                    Resp r = new Resp();
+                    List<HealthRecord__c> recs = [SELECT A__c, B__c, C__c, D__c, E__c
+                                                  FROM HealthRecord__c];
+                    r.summary = passthrough(recs[0].A__c);
+                    checkOnly(recs[0].B__c);
+                    fill(r, recs[0].C__c);
+                    System.debug(recs[0].D__c);
+                    recurse(recs[0].E__c);
+                    out.add(r);
+                    return out;
+                }
+                private static String passthrough(String v) { return v; }
+                private static void checkOnly(String v) { if (v == null) { Integer x = 1; } }
+                private static void fill(Resp target, String v) { target.summary = v; }
+                private static String recurse(String v) { return recurse(v); }
+            }
+        """).strip()
+        with tempfile.TemporaryDirectory() as tmp:
+            classes = os.path.join(tmp, "classes")
+            os.makedirs(classes)
+            path = os.path.join(classes, "IPEdge.cls")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src)
+            with open(path + "-meta.xml", "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?><ApexClass '
+                        'xmlns="http://soap.sforce.com/2006/04/metadata">'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>')
+            reach = parse_apex(path, tmp, backend="ast")
+        flow = ([o for o in reach.operations if o.operation == "read"][0].field_flow) or {}
+        # the helper returns it and the result is sunk -> proven
+        self.assertEqual(flow.get("A__c"), "returned")
+        # the helper only reads it in a predicate; every use seen -> proven internal
+        self.assertEqual(flow.get("B__c"), "internal")
+        # the helper writes it onto an output object passed IN -> proven
+        self.assertEqual(flow.get("C__c"), "returned")
+        # an unmodelled/external method must STAY worst case
+        self.assertEqual(flow.get("D__c"), "undetermined")
+        # recursion must terminate at worst case, never loop or guess
+        self.assertEqual(flow.get("E__c"), "undetermined")
+
+    def test_call_argument_index_ignores_the_commas(self):
+        """The parser names its terminal class `De`, not `TerminalNodeImpl`, so a
+        naive filter counted the comma as an argument and shifted every index by
+        one - mapping the value onto the WRONG parameter. That is precisely how a
+        bogus `internal` could be produced, so it is locked here."""
+        import tempfile, textwrap
+        src = textwrap.dedent("""
+            public without sharing class ArgIdx {
+                public class Resp { @InvocableVariable public String summary; }
+                @InvocableMethod(label='p')
+                public static List<Resp> run(List<String> ids) {
+                    List<Resp> out = new List<Resp>();
+                    Resp r = new Resp();
+                    List<HealthRecord__c> recs = [SELECT Z__c FROM HealthRecord__c];
+                    // Z__c is the THIRD argument; only a correct index reaches `c`
+                    r.summary = pick('a', 'b', recs[0].Z__c);
+                    out.add(r);
+                    return out;
+                }
+                private static String pick(String a, String b, String c) { return c; }
+            }
+        """).strip()
+        with tempfile.TemporaryDirectory() as tmp:
+            classes = os.path.join(tmp, "classes")
+            os.makedirs(classes)
+            path = os.path.join(classes, "ArgIdx.cls")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src)
+            with open(path + "-meta.xml", "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?><ApexClass '
+                        'xmlns="http://soap.sforce.com/2006/04/metadata">'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>')
+            reach = parse_apex(path, tmp, backend="ast")
+        flow = ([o for o in reach.operations if o.operation == "read"][0].field_flow) or {}
+        self.assertEqual(flow.get("Z__c"), "returned")
+
     def test_regex_backend_has_no_flow_and_stays_worst_case(self):
         # The fallback backend cannot trace flow -> worst case, never a downgrade.
         self.assertIsNone(_flow(INTERNAL_ONLY, "Diagnosis__c", backend="regex"))
