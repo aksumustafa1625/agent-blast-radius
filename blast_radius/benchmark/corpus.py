@@ -165,23 +165,38 @@ CASES = [
          why="...and is equally safe at v67. Negative twin of the case above."),
 
     # -------------------------------------------------------------- sanitizer
+    # PS512 rests entirely on two claims about how the PLATFORM behaves. If either
+    # is wrong the rule is wrong, so both are settled by the oracle rather than
+    # believed: does stripInaccessible actually remove the field, and does
+    # discarding its decision actually leave the original readable?
     dict(id="sanitizer-readable-used-caps-severity", api=58.0,
          apex=_cls(_READ + " List<Blast_Test__c> safe = "
                    "Security.stripInaccessible(AccessType.READABLE, r).getRecords();",
                    "without"),
-         expect={"PS501", "PS506"}, truth="reasoned",
-         why="The sanitizer is real, so the finding must NOT be asserted as proven - "
-             "but we cannot prove which list reaches the sink, so it must NOT be "
-             "cleared either. It still fires, capped at WARN. Graded on rule "
-             "identity; severity is checked by expect_severity below.",
+         expect={"PS501", "PS506"}, truth="experiment:oracle",
+         runtime=dict(sharing="without", clause=None, expect_read=False, body="""            List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            if (r.isEmpty()) return 'NO_ROWS';
+            List<Blast_Test__c> safe = Security.stripInaccessible(
+                AccessType.READABLE, r).getRecords();
+            return 'READ=' + safe[0].Customer_IBAN__c;"""),
+         why="The sanitizer is real - the oracle confirms the stripped list will not "
+             "hand the field over - so the finding must NOT be asserted as proven. "
+             "But we cannot prove WHICH list reaches the sink, so it must not be "
+             "cleared either: it fires, capped at WARN. This is the case where the "
+             "org proves the analyzer is being conservative rather than wrong.",
          expect_severity={"PS506": "WARN"}),
 
     dict(id="sanitizer-discarded-is-a-bug", api=58.0,
          apex=_cls(_READ + " Security.stripInaccessible(AccessType.READABLE, r);",
                    "without"),
-         expect={"PS501", "PS506", "PS512"}, truth="platform-doc",
+         expect={"PS501", "PS506", "PS512"}, truth="experiment:oracle",
+         runtime=dict(sharing="without", clause=None, expect_read=True, body="""            List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            if (r.isEmpty()) return 'NO_ROWS';
+            Security.stripInaccessible(AccessType.READABLE, r);
+            return 'READ=' + r[0].Customer_IBAN__c;"""),
          why="stripInaccessible returns sanitized COPIES; discarding the decision "
-             "sanitizes nothing. The code looks protected and is not.",
+             "sanitizes nothing, so the original list still hands the field over. "
+             "PS512 depends on that being true - measured, not assumed.",
          expect_severity={"PS512": "ERROR", "PS506": "ERROR"}),
 
     dict(id="sanitizer-wrong-accesstype", api=58.0,

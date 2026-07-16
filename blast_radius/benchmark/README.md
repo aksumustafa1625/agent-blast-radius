@@ -27,7 +27,7 @@ broken test; it is the org saying the analyzer is wrong. That is the point.
 
 ```
 RUNTIME ORACLE - the analyzer predicts, the org judges
-cases with a runtime shape: 6   org: HospitalOrg
+cases with a runtime shape: 8   org: HospitalOrg
 
 CASE                                    ORG SAYS    LABEL
 prec-v58-without-plain                  agrees      experiment:runtime
@@ -36,11 +36,22 @@ prec-v58-without-usermode-clause        agrees      experiment:runtime
 prec-v67-no-declaration                 agrees      experiment:runtime
 prec-v58-with-sharing-plain             agrees      experiment:runtime
 prec-v58-without-systemmode-clause      agrees      experiment:runtime
+sanitizer-readable-used-caps-severity   agrees      experiment:runtime
+sanitizer-discarded-is-a-bug            agrees      experiment:runtime
 ```
 
-It has already paid for itself: `prec-v58-without-systemmode-clause` was labelled
-`platform-doc` — believed from the documentation, never measured. The oracle settled it
-in a live org, so that label is now **earned**.
+It has already paid for itself twice.
+
+**`prec-v58-without-systemmode-clause`** was labelled `platform-doc` — believed from the
+documentation, never measured. The oracle settled it live, so that label is now **earned**.
+
+**PS512 rests entirely on two claims about the platform**, and a rule is only as good as
+its premises. So the oracle settles both rather than trusting a docs reading: that
+`stripInaccessible(READABLE)` really removes a field the user cannot see (the org says
+**BLOCKED** — so capping severity at WARN is conservative, not wrong), and that
+*discarding* its decision really leaves the original readable (the org says **READ** — so
+the no-op bug PS512 reports is real). A case may supply its own `body` for exactly this:
+when the thing being measured is not the query but what happens to the data afterwards.
 
 It needs an org carrying the Milestone 0 fixture (`Blast_Test__c` with
 `Customer_IBAN__c`). The test builds its own throwaway user and permission set — object
@@ -74,11 +85,11 @@ Every case carries a `truth` field:
 
 | `truth` | count | what it's worth |
 |---|---|---|
-| `experiment:*` | 7 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
-| `platform-doc` | 9 | Documented Salesforce semantics, not measured here. |
-| `reasoned` | 7 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
+| `experiment:*` | 9 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
+| `platform-doc` | 8 | Documented Salesforce semantics, not measured here. |
+| `reasoned` | 6 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
 
-Only 7 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
+Only 9 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
 the analyzer agrees with its author, which is worth very little. That is why the runner
 prints this table under the numbers rather than hiding it.
 
@@ -100,7 +111,7 @@ the review brief).
   real corpus, not the finished benchmark.
 - **The mutations are also the author's.** 8/8 measures sensitivity to the breaks I
   thought of.
-- **Only 6 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
+- **Only 8 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
   still rest on reasoning or documentation.
 - **The oracle needs a specific fixture** (`Blast_Test__c` + `Customer_IBAN__c`), so it
   runs on demand rather than in CI.
@@ -108,8 +119,8 @@ the review brief).
 
 ## What v2 needs, in order
 
-1. **More runtime shapes.** `oracle.py` exists and settles 6 cases; the other 17 have no
-   `runtime` shape yet. Writing one is worth more than ten new `reasoned` cases. The
+1. **More runtime shapes.** `oracle.py` settles 8 cases; the other 15 have no `runtime`
+   shape yet. Writing one is worth more than ten new `reasoned` cases. The
    sanitizer, SOSL, async and write cases are all executable in principle.
 2. **Systematic sfge differential** — run both engines over the whole corpus and triage
    every disagreement. Each one teaches something about one engine or the other.
