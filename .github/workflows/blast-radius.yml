@@ -40,6 +40,15 @@ jobs:
       - name: Unit tests (the analyzer itself)
         run: python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
 
+      # A test count is not an accuracy claim. The benchmark measures per-rule
+      # precision/recall against hand-labelled cases, and the mutation run proves
+      # the corpus actually detects a broken analyzer (an escape = a blind spot).
+      - name: Agent Authority Benchmark (accuracy, not just green tests)
+        run: python blast_radius/benchmark/run.py
+
+      - name: Benchmark mutation score (does the corpus have teeth?)
+        run: python blast_radius/benchmark/mutate.py
+
       - name: Install Salesforce CLI
         run: npm install --global @salesforce/cli
 
