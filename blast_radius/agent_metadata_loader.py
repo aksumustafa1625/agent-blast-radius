@@ -45,12 +45,15 @@ NS = "{http://soap.sforce.com/2006/04/metadata}"
 
 def _norm_kind(ttype: str) -> Optional[str]:
     """Invocation target type -> a source-analysable kind, or None if opaque.
-    apex / flow are read from source; a prompt template is read declaratively."""
+    apex / flow are read from source; a prompt template is read declaratively;
+    an agent target is another agent whose own graph we expand."""
     t = (ttype or "").lower()
     if t in ("apex", "flow"):
         return t
     if "prompt" in t:                 # promptTemplate / prompt
         return "prompt"
+    if t in ("agent", "agentforce", "botdefinition", "planner"):
+        return "agent"                # agent-to-agent delegation
     return None
 
 

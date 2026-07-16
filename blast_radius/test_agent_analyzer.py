@@ -82,5 +82,69 @@ class StandardActionCatalogTest(unittest.TestCase):
         self.assertIn("standard/opaque action", f.message)  # honest: still unknown
 
 
+class AgentGraphTest(unittest.TestCase):
+    """Multi-agent chaining. An agent that invokes another agent inherits that
+    agent's whole data surface; reporting the delegation as one opaque box is the
+    largest possible under-report in a multi-agent org. The graph is flattened
+    BEFORE any reach work, so everything downstream sees the true aggregate."""
+
+    @staticmethod
+    def _cfg(name, actions):
+        return {"agent": name, "runningUser": "u", "channel": "agent",
+                "topics": [{"actions": actions}]}
+
+    @staticmethod
+    def _act(n, t, tgt):
+        return {"name": n, "invocationTargetType": t, "invocationTarget": tgt}
+
+    def test_chain_is_flattened_transitively_with_attribution(self):
+        from agent_analyzer import expand_agent_graph
+        world = {"B": self._cfg("B", [self._act("b_read", "apex", "BClass"),
+                                      self._act("to_c", "agent", "C")]),
+                 "C": self._cfg("C", [self._act("c_read", "apex", "CClass")])}
+        a = parse_agent_config(self._cfg("A", [self._act("a_read", "apex", "AClass"),
+                                               self._act("to_b", "agent", "B")]))
+        actions, edges = expand_agent_graph(a, "root", loader=lambda n: world.get(n))
+        names = [x.name for x in actions]
+        self.assertIn("a_read", names)
+        self.assertIn("B :: b_read", names)      # one hop
+        self.assertIn("C :: c_read", names)      # transitive - the whole graph
+        self.assertTrue(all(ok for _c, _e, ok, _n in edges))
+
+    def test_unresolved_delegation_is_an_honest_unknown_not_clean(self):
+        from agent_analyzer import expand_agent_graph, analyze_agent_graph_edges
+        a = parse_agent_config(self._cfg("A", [self._act("to_x", "agent", "Ghost")]))
+        actions, edges = expand_agent_graph(a, "root", loader=lambda n: None)
+        # the action survives so it is never silently dropped...
+        self.assertEqual([x.target_type for x in actions], ["agent"])
+        # ...and it is reported as a WARN, because that agent's reach is unknown
+        sev = [(f.rule, f.severity) for f in analyze_agent_graph_edges(edges)]
+        self.assertEqual(sev, [("PS515", "WARN")])
+
+    def test_cycle_is_reported_not_followed(self):
+        from agent_analyzer import expand_agent_graph
+        world = {}
+        world["A"] = self._cfg("A", [self._act("to_b", "agent", "B")])
+        world["B"] = self._cfg("B", [self._act("to_a", "agent", "A")])   # cycle
+        a = parse_agent_config(world["A"])
+        actions, edges = expand_agent_graph(a, "root", loader=lambda n: world.get(n))
+        notes = [n for _c, _e, ok, n in edges if not ok]
+        self.assertTrue(any("cycle" in n for n in notes))
+
+    def test_depth_limit_leaves_an_unresolved_edge_not_a_clean_one(self):
+        from agent_analyzer import expand_agent_graph, analyze_agent_graph_edges
+        world = {c: self._cfg(c, [self._act(f"to_{n}", "agent", n)])
+                 for c, n in [("B", "C"), ("C", "D"), ("D", "E")]}
+        world["E"] = self._cfg("E", [self._act("e_read", "apex", "EClass")])
+        a = parse_agent_config(self._cfg("A", [self._act("to_b", "agent", "B")]))
+        _actions, edges = expand_agent_graph(a, "root", loader=lambda n: world.get(n),
+                                             max_depth=2)
+        unresolved = [n for _c, _e, ok, n in edges if not ok]
+        self.assertTrue(any("depth limit" in n for n in unresolved))
+        # the truncated edge must WARN, never read as clean
+        self.assertIn(("PS515", "WARN"),
+                      [(f.rule, f.severity) for f in analyze_agent_graph_edges(edges)])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

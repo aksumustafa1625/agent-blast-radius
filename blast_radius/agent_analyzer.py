@@ -58,6 +58,100 @@ def parse_agent_config(config: dict) -> AgentConfig:
     )
 
 
+def expand_agent_graph(agent: AgentConfig, source_root: str, loader=None,
+                       max_depth: int = 3):
+    """Flatten an agent-to-agent graph into ONE action list.
+
+    An agent can invoke another agent (`agentforce://X`). Analysing only the
+    entry agent reports the sub-agent as a single opaque action and hides its
+    entire data surface — in a multi-agent org that is the largest possible
+    under-report. So the graph is walked and every reachable agent's actions are
+    spliced in, renamed `SubAgent :: action`, BEFORE any reach/permission work
+    happens. Everything downstream (reach, record modes, analysis, report) then
+    operates on the true aggregate blast radius with no changes.
+
+    Honest by construction:
+      * a delegation we CANNOT resolve stays an `agent` action -> PS515 unknown,
+        never silently dropped and never silently treated as clean;
+      * a cycle (A -> B -> A) stops at the repeat and is reported, not followed;
+      * `max_depth` bounds the walk; hitting it leaves the edge unresolved (PS515)
+        rather than pretending the reach ends there.
+
+    `loader(name) -> config dict | None` resolves a sub-agent's config. Returns
+    (actions, edges) where edges is [(caller, callee, resolved: bool, note)].
+    """
+    edges = []
+    out: List[AgentAction] = []
+    visited = {agent.name}
+
+    def _walk(cfg: AgentConfig, depth: int, prefix: str):
+        for act in cfg.actions:
+            if act.target_type != "agent":
+                out.append(AgentAction(name=f"{prefix}{act.name}",
+                                       target_type=act.target_type,
+                                       target=act.target) if prefix else act)
+                continue
+
+            callee = act.target or act.name
+            if callee in visited:
+                edges.append((cfg.name, callee, False, "cycle - already analysed"))
+                out.append(act)                       # keep it -> PS515
+                continue
+            if depth >= max_depth:
+                edges.append((cfg.name, callee, False,
+                              f"depth limit {max_depth} reached"))
+                out.append(act)
+                continue
+            sub_cfg = None
+            if loader:
+                try:
+                    raw = loader(callee)
+                    sub_cfg = parse_agent_config(raw) if raw else None
+                except Exception as e:                # noqa: BLE001 - stay honest
+                    edges.append((cfg.name, callee, False, f"load failed: {e}"))
+                    out.append(act)
+                    continue
+            if not sub_cfg:
+                edges.append((cfg.name, callee, False, "config not found locally"))
+                out.append(act)                       # unresolved -> PS515
+                continue
+
+            visited.add(callee)
+            edges.append((cfg.name, callee, True, "expanded"))
+            _walk(sub_cfg, depth + 1, f"{callee} :: ")
+
+    _walk(agent, 0, "")
+    return out, edges
+
+
+def analyze_agent_graph_edges(edges) -> List[Finding]:
+    """PS515 for every agent-to-agent delegation. An expanded edge is INFO (its
+    reach is already merged into this report); an unresolved one is a WARN
+    honest-unknown, because that agent's data surface is genuinely not analysed."""
+    findings = []
+    for caller, callee, resolved, note in edges:
+        if resolved:
+            findings.append(Finding(
+                "PS515", "INFO", f"{caller} -> agent {callee}",
+                f"Delegates to agent '{callee}', whose actions are expanded into this "
+                "report.",
+                "An agent that invokes another agent inherits that agent's data reach. "
+                "The findings below therefore cover the whole graph, not just the entry "
+                "agent — action names are prefixed with the agent they came from.",
+                "Confirm the delegation is intended; the sub-agent's escalations are "
+                "this agent's escalations too."))
+        else:
+            findings.append(Finding(
+                "PS515", "WARN", f"{caller} -> agent {callee}",
+                f"Delegates to agent '{callee}', whose reach was NOT analysed ({note}).",
+                "That agent runs with its own actions and its own data surface. This "
+                "report therefore UNDERSTATES the true blast radius by whatever that "
+                "agent can reach. This is an honest unknown, not a clean result.",
+                f"Scan '{callee}' as its own entry point, or make its config available "
+                "locally so the graph can be expanded."))
+    return findings
+
+
 # Documented behaviour of common standard/managed actions. Source is not
 # parseable, but the behaviour IS documented, so we can name the data-to-model
 # channel instead of a blanket "opaque". Honest: only well-known actions are
@@ -112,11 +206,28 @@ def analyze_agent(agent: AgentConfig, source_root: str, perms,
                   classification: dict, object_sharing: dict,
                   triggers_by_object: dict = None,
                   apex_backend: str = "auto",
-                  script_ir: dict = None) -> List[ActionSummary]:
+                  script_ir: dict = None,
+                  graph_edges=None) -> List[ActionSummary]:
     """`script_ir` (Agent Script only) closes the last hop of the Authority Path:
-    it lets PS52x prove an Apex field is interpolated into the model's prompt."""
+    it lets PS52x prove an Apex field is interpolated into the model's prompt.
+
+    `graph_edges` (from expand_agent_graph) carries the agent-to-agent delegations,
+    reported as PS515 — INFO when the sub-agent's actions were merged in, WARN when
+    its reach could not be analysed and this report therefore understates."""
     summaries: List[ActionSummary] = []
+
+    if graph_edges:
+        summaries.append(ActionSummary(
+            f"{agent.name} (agent graph)", "agent", None, False, [], [],
+            analyze_agent_graph_edges(graph_edges)))
+
     for action in agent.actions:
+        # An `agent` target that survived expansion is one we could NOT resolve;
+        # PS515 above already reports it honestly, so it must not also fall through
+        # to the generic opaque PS507 and be double-counted as a mystery action.
+        if action.target_type == "agent":
+            continue
+
         if action.target_type == "apex":
             path = _apex_path(source_root, action.target)
             if not os.path.exists(path):

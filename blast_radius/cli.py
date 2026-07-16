@@ -21,7 +21,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import org_loaders  # noqa: E402
-from agent_analyzer import analyze_agent, parse_agent_config  # noqa: E402
+from agent_analyzer import (analyze_agent, expand_agent_graph,  # noqa: E402
+                            parse_agent_config)
 from agent_metadata_loader import load_agent_config  # noqa: E402
 from apex_introspect import parse_apex  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
@@ -199,6 +200,24 @@ def main():
                                 channel=args.channel, resolver=resolver)
     agent = parse_agent_config(cfg)
 
+    # Flatten any agent-to-agent delegation FIRST, so everything after this point
+    # (source retrieve, reach, record modes, classification, counts, analysis) sees
+    # the whole graph's actions rather than one opaque "calls another agent" box.
+    def _sub_agent_cfg(name):
+        try:
+            return load_agent_config(root, name, running_user=ru_label,
+                                     channel=args.channel, resolver=resolver)
+        except Exception:
+            return None                    # unresolved -> stays a PS515 unknown
+
+    expanded, graph_edges = expand_agent_graph(
+        agent, root, loader=_sub_agent_cfg if not args.agent_script else None)
+    if graph_edges:
+        agent.actions = expanded
+        merged = sum(1 for _c, _e, ok, _n in graph_edges if ok)
+        print(f"agent graph: {len(graph_edges)} delegation(s), {merged} expanded "
+              f"-> {len(expanded)} action(s) total")
+
     # The action targets are known now; pull just their source if it isn't local.
     if not args.no_retrieve:
         _retrieve_action_sources(agent, root, args.org)
@@ -228,7 +247,8 @@ def main():
     perms = EffectivePermissions(snapshot)
 
     summaries = analyze_agent(agent, root, perms, classification, sharing, triggers,
-                              apex_backend=args.apex_backend, script_ir=script_ir)
+                              apex_backend=args.apex_backend, script_ir=script_ir,
+                              graph_edges=graph_edges)
     coverage = classification_coverage(summaries, classification, visible)
 
     counts = None

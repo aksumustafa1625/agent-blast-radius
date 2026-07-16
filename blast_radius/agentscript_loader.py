@@ -75,7 +75,12 @@ def extract(agent_path: str, timeout: float = 60.0) -> dict:
 
 # Schemes whose source we can actually introspect. Everything else is opaque.
 # `prompt://` is a GenAiPromptTemplate - read declaratively for its record merge.
-_SOURCE_SCHEMES = {"apex": "apex", "flow": "flow", "prompt": "prompt"}
+# `agentforce://X` is an agent invoking ANOTHER agent. Left as "standard" it
+# collapsed into a generic opaque PS507 — which hid the sub-agent's entire blast
+# radius, the single largest under-report possible in a multi-agent org. It gets
+# its own kind so the graph can be expanded (see agent_analyzer.expand_agent_graph).
+_SOURCE_SCHEMES = {"apex": "apex", "flow": "flow", "prompt": "prompt",
+                   "agentforce": "agent"}
 
 
 def to_analyzer_config(ir: dict, running_user: str, channel: str = "agent") -> dict:
