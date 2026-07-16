@@ -1,28 +1,33 @@
 # Agent Blast Radius — shift-left authority gate.
-# On every PR that touches Apex/Flow/agents, compute the agent's blast radius,
-# comment the Escalation Gap on the PR, and fail the build on ERROR findings.
 #
-# Configure once:
-#   Secrets: SF_JWT_KEY, SF_CLIENT_ID, SF_USERNAME, SF_INSTANCE_URL  (JWT auth)
-#   Vars:    BLAST_RADIUS_AGENT, BLAST_RADIUS_PERMSET               (what to scan)
+# Two halves, deliberately separated:
+#
+#   1. ALWAYS runs, needs no org: unit tests, the accuracy benchmark, and the
+#      mutation score. This is the real gate — it is what proves the analyzer is
+#      correct, and it must never depend on someone having wired up an org.
+#
+#   2. OPTIONAL, needs a connected org: scan a live agent and comment the
+#      Escalation Gap on the PR. This is SKIPPED cleanly when the org secrets are
+#      absent, instead of failing the build. (It used to fail every push for
+#      exactly that reason.)
+#
+# To enable the live scan, add these repository secrets:
+#   SF_JWT_KEY, SF_CLIENT_ID, SF_USERNAME, SF_INSTANCE_URL   (JWT auth)
+# and optionally these repository variables:
+#   BLAST_RADIUS_AGENT, BLAST_RADIUS_PERMSET                 (what to scan)
 name: Agent Blast Radius
 
 on:
   pull_request:
-    paths: ['force-app/**', 'blast_radius/**', 'specs/**']
+    paths: ['force-app/**', 'blast_radius/**', 'specs/**', '.github/workflows/**']
   push:
     branches: [main]
   workflow_dispatch:
 
 jobs:
-  blast-radius:
+  analyze:
+    name: Analyzer correctness (no org required)
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    env:
-      AGENT: ${{ vars.BLAST_RADIUS_AGENT || 'HealthRecord_Assistant' }}
-      PERMSET: ${{ vars.BLAST_RADIUS_PERMSET || 'HR_Agent_Minimal' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,30 +46,78 @@ jobs:
         run: python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
 
       # A test count is not an accuracy claim. The benchmark measures per-rule
-      # precision/recall against hand-labelled cases, and the mutation run proves
-      # the corpus actually detects a broken analyzer (an escape = a blind spot).
+      # precision/recall against hand-labelled cases whose ground truth is stated
+      # per case; the mutation run proves the corpus actually detects a broken
+      # analyzer (an escape = a blind spot in the corpus, reported as a finding).
       - name: Agent Authority Benchmark (accuracy, not just green tests)
         run: python blast_radius/benchmark/run.py
 
       - name: Benchmark mutation score (does the corpus have teeth?)
         run: python blast_radius/benchmark/mutate.py
 
+  live-scan:
+    name: Live agent scan (skipped unless an org is configured)
+    runs-on: ubuntu-latest
+    needs: analyze
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
+      SF_USERNAME: ${{ secrets.SF_USERNAME }}
+      SF_INSTANCE_URL: ${{ secrets.SF_INSTANCE_URL }}
+      AGENT: ${{ vars.BLAST_RADIUS_AGENT }}
+      PERMSET: ${{ vars.BLAST_RADIUS_PERMSET }}
+    steps:
+      - name: Is an org configured?
+        id: cfg
+        run: |
+          if [ -n "$SF_CLIENT_ID" ] && [ -n "$SF_USERNAME" ] && [ -n "$AGENT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No org secrets configured — skipping the live scan. \
+            The analyzer's correctness gate (tests + benchmark + mutation) already ran."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ready == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          python-version: '3.12'
+
+      # sf CLI needs a Node its bundled undici supports; 20.20.x breaks it
+      # (webidl.util.markAsUncloneable is not a function).
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          node-version: '22'
+
+      - name: Install AST backend (apex-parser)
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm install --prefix blast_radius
+
       - name: Install Salesforce CLI
+        if: steps.cfg.outputs.ready == 'true'
         run: npm install --global @salesforce/cli
 
       - name: Authenticate the org (JWT)
+        if: steps.cfg.outputs.ready == 'true'
         run: |
           printf '%s' "${{ secrets.SF_JWT_KEY }}" > jwt.key
           sf org login jwt \
-            --client-id "${{ secrets.SF_CLIENT_ID }}" \
+            --client-id "$SF_CLIENT_ID" \
             --jwt-key-file jwt.key \
-            --username "${{ secrets.SF_USERNAME }}" \
-            --instance-url "${{ secrets.SF_INSTANCE_URL }}" \
+            --username "$SF_USERNAME" \
+            --instance-url "$SF_INSTANCE_URL" \
             --alias ciOrg --set-default
           rm -f jwt.key
 
       - name: Compute blast radius (fail on ERROR)
         id: scan
+        if: steps.cfg.outputs.ready == 'true'
         continue-on-error: true
         run: |
           python blast_radius/cli.py \
@@ -78,7 +131,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report
-        if: always()
+        if: steps.cfg.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: blast-radius-report
@@ -87,7 +140,7 @@ jobs:
             report.html
 
       - name: Comment the Escalation Gap on the PR
-        if: github.event_name == 'pull_request' && always()
+        if: steps.cfg.outputs.ready == 'true' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -115,7 +168,7 @@ jobs:
             });
 
       - name: Gate — fail the build on ERROR findings
-        if: steps.scan.outcome == 'failure'
+        if: steps.cfg.outputs.ready == 'true' && steps.scan.outcome == 'failure'
         run: |
           echo "::error::Agent Blast Radius found ERROR-level escalations. \
           Enforce user mode (WITH USER_MODE / as user), upgrade to API v67, or \
