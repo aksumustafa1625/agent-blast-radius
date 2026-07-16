@@ -234,7 +234,57 @@ function outputVarsIn(scope, outTypes) {
 // (e.g. 'summary' for `r.summary = ...`), or '*' when the whole record/return
 // value leaves the method. The sink name is what lets the Agent Script layer
 // join this to `set @variables.x = @outputs.summary`.
-function classifyFlow(node, outVars) {
+const MAX_ALIAS_DEPTH = 3;
+
+// The identifier a local declaration binds: `String s = rec.F` -> "s".
+function declaredName(declCtx) {
+  const id = firstChildOfType(declCtx, 'IdContext') || firstDescOfType(declCtx, 'IdContext');
+  return id ? text(id) : null;
+}
+
+/*
+ * `String s = rec.Field;` used to end the trace: the value was aliased into a
+ * local, so the verdict was `undetermined` = worst case = ERROR. That is the
+ * single biggest source of noise in real code, because DAO/helper style puts a
+ * local between every read and its use.
+ *
+ * So follow the alias FORWARD through its own uses instead of giving up.
+ * Soundness rules, in order of how badly each could hurt:
+ *   * The search scope is the enclosing METHOD. If there is no enclosing method
+ *     (e.g. a class-level field) we cannot see every use, so -> undetermined.
+ *     Getting this wrong would find "no uses" and wrongly conclude `internal` -
+ *     a silent false-clean, the worst bug this tool can have.
+ *   * `returned` wins immediately: one proven path to a sink is proof.
+ *   * A single `undetermined` use poisons the rest: we did NOT see every use.
+ *   * `internal` only when EVERY use was classified and none was a sink - the
+ *     same rule the intra-method model already promises.
+ *   * Depth-bounded (alias of an alias of an alias) -> undetermined at the limit.
+ * A reassignment (`s = other; out = s;`) still reports `returned`, which
+ * over-reports rather than under-reports. That direction is the safe one.
+ */
+function classifyAliasUses(declCtx, name, outVars, depth) {
+  const method = ancestorOfType(declCtx, 'MethodDeclarationContext');
+  if (!method || !name) return { flow: 'undetermined', sink: null };
+
+  const uses = [];
+  for (const t of ['IdPrimaryContext', 'IdContext']) {
+    for (const u of collect(method, t)) {
+      if (text(u) !== name) continue;
+      if (isDescendant(u, declCtx)) continue;      // the declaration itself
+      uses.push(u);
+    }
+  }
+  let sawUndetermined = false;
+  for (const u of uses) {
+    const r = classifyFlow(u, outVars, depth);
+    if (r.flow === 'returned') return r;           // proof beats everything
+    if (r.flow === 'undetermined') sawUndetermined = true;
+  }
+  if (sawUndetermined) return { flow: 'undetermined', sink: null };
+  return { flow: 'internal', sink: null };         // every use seen, none a sink
+}
+
+function classifyFlow(node, outVars, depth = 0) {
   let n = node.parentCtx;
   while (n) {
     const tn = typeName(n);
@@ -242,7 +292,7 @@ function classifyFlow(node, outVars) {
     if (tn === 'MethodCallContext' || tn === 'DotMethodCallContext') {
       return COLL_METHODS.has(callMethodName(n))
         ? { flow: 'returned', sink: '*' }
-        : { flow: 'undetermined', sink: null };
+        : { flow: 'undetermined', sink: null };    // passed to a method: not traced
     }
     if (tn === 'AssignExpressionContext') {
       const lhs = kids(n)[0];
@@ -253,7 +303,8 @@ function classifyFlow(node, outVars) {
       return { flow: 'undetermined', sink: null };  // reassigned - can't trace
     }
     if (tn === 'VariableDeclaratorContext' || tn === 'LocalVariableDeclarationContext') {
-      return { flow: 'undetermined', sink: null };  // `T v = rec.F` aliases the value
+      if (depth >= MAX_ALIAS_DEPTH) return { flow: 'undetermined', sink: null };
+      return classifyAliasUses(n, declaredName(n), outVars, depth + 1);
     }
     n = n.parentCtx;
   }

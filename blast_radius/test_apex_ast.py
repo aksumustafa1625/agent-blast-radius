@@ -138,13 +138,72 @@ class AuthorityPathTest(unittest.TestCase):
         self.assertEqual(f.severity, "WARN")            # downgraded, not silenced
         self.assertIn("not observed reaching the model", f.message)
 
-    def test_aliased_field_stays_worst_case(self):
-        # `String d = recs[0].Diagnosis__c; r.summary = d;` - the flow is real but
-        # not traced. SOUNDNESS: it must NOT be downgraded to internal.
-        self.assertEqual(_flow(ALIAS, "Diagnosis__c"), "undetermined")
+    def test_aliased_field_is_now_traced_through_the_local(self):
+        # `String d = recs[0].Diagnosis__c; r.summary = d;` used to stop the trace:
+        # the alias made it 'undetermined' = worst case. The flow was always real,
+        # we just could not see it. Following the alias forward through its uses
+        # now PROVES it, and names the sink - so the verdict is stronger evidence,
+        # not a downgrade: still ERROR, but "CONFIRMED" instead of "NOT TRACED".
+        self.assertEqual(_flow(ALIAS, "Diagnosis__c"), "returned")
         f = _ps506(ALIAS)
         self.assertEqual(f.severity, "ERROR")
-        self.assertIn("NOT TRACED", f.why)
+        self.assertIn("CONFIRMED", f.why)
+
+    def test_alias_tracking_soundness_boundaries(self):
+        """The alias trace may only ever make the verdict MORE precise. The one
+        way it could hurt is concluding 'internal' when a use was missed - a
+        silent false-clean. These lock the boundaries it must respect."""
+        import tempfile, textwrap
+        src = textwrap.dedent("""
+            public without sharing class AliasEdge {
+                public class Resp {
+                    @InvocableVariable public String summary;
+                    @InvocableVariable public List<String> items;
+                }
+                @InvocableMethod(label='p')
+                public static List<Resp> run(List<String> ids) {
+                    List<Resp> out = new List<Resp>();
+                    Resp r = new Resp();
+                    List<HealthRecord__c> recs = [SELECT A__c, B__c, C__c, D__c, E__c
+                                                  FROM HealthRecord__c];
+                    String a = recs[0].A__c;
+                    if (ids.size() > 0) { r.summary = a; }
+                    String b = recs[0].B__c;
+                    for (String i : ids) { r.items.add(b); }
+                    String c1 = recs[0].C__c;
+                    String c2 = c1;
+                    r.summary = c2;
+                    String d = recs[0].D__c;
+                    System.debug(d);
+                    String e = recs[0].E__c;
+                    out.add(r);
+                    return out;
+                }
+            }
+        """).strip()
+        with tempfile.TemporaryDirectory() as tmp:
+            classes = os.path.join(tmp, "classes")
+            os.makedirs(classes)
+            path = os.path.join(classes, "AliasEdge.cls")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(src)
+            with open(path + "-meta.xml", "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?><ApexClass '
+                        'xmlns="http://soap.sforce.com/2006/04/metadata">'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>')
+            reach = parse_apex(path, tmp, backend="ast")
+        op = [o for o in reach.operations if o.operation == "read"][0]
+        flow = op.field_flow or {}
+        # a sink inside a nested if is still a sink
+        self.assertEqual(flow.get("A__c"), "returned")
+        # so is a collection add inside a loop
+        self.assertEqual(flow.get("B__c"), "returned")
+        # an alias of an alias is followed to the sink
+        self.assertEqual(flow.get("C__c"), "returned")
+        # escaping into an unmodelled method must STAY worst case
+        self.assertEqual(flow.get("D__c"), "undetermined")
+        # declared and provably never used -> internal is correct, not a guess
+        self.assertEqual(flow.get("E__c"), "internal")
 
     def test_regex_backend_has_no_flow_and_stays_worst_case(self):
         # The fallback backend cannot trace flow -> worst case, never a downgrade.
