@@ -29,6 +29,21 @@ FAIRNESS - state the limits, they matter
 
     python blast_radius/benchmark/sfge_diff.py            # all runtime cases
     python blast_radius/benchmark/sfge_diff.py --keep     # keep generated sources
+
+NOT IN CI, ON PURPOSE - and the reason is not speed
+    It runs in ~42s, so cost was never the objection; the measurement said so and the
+    guess that it was "slow" was wrong. It is out because the `analyze` job has one
+    contract - prove the ANALYZER is correct, need no org, always run - and this
+    proves a COMPARATIVE CLAIM instead. Putting it in the gate would drag a
+    third-party Java engine into the critical path for evidence that does not change
+    per commit, and a red build there would usually mean *sfge changed*, not that we
+    broke something. Our own column against the org is already gated, by run.py.
+
+    Exit code follows from that: non-zero only when THIS TOOL contradicts the org.
+    If Salesforce fixes its v67 blindness tomorrow, that is good news and this must
+    not fail - but the claim in CLAUDE.md would then be stale, so re-run this before
+    repeating any of its numbers. A published number nobody re-measures is the same
+    stale-doc failure this repo has paid for more than once.
 """
 from __future__ import annotations
 
@@ -279,7 +294,12 @@ def main(argv=None):
         print("reach as THIS user - a version-aware, user-scoped analysis is measurably")
         print("more precise, and the org is what says so.")
         print("=" * 100)
-        return 0
+        # Exit on OUR column only. sfge's count moving is not our regression - if
+        # Salesforce fixes its v67 blindness tomorrow that is good news, and a build
+        # that went red over it would be punishing the wrong party. Ours moving above
+        # zero means this tool started contradicting a measurement, which is a real
+        # regression and the only thing here worth failing a build for.
+        return 1 if abr_wrong else 0
     finally:
         if args.keep:
             print(f"\ngenerated sources kept at: {root}")

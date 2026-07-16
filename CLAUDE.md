@@ -284,7 +284,14 @@ gets a blind spot the regex path doesn't have, or vice versa.
   TechnoStore (106 classes + 7 triggers, **100% pre-v67** → the legacy demo),
   Urla (no agent).
 - **CI**: `analyze` job (tests + benchmark + mutation) **needs no org and always
-  runs**; `live-scan` skips cleanly unless org secrets exist.
+  runs**; `live-scan` skips cleanly unless org secrets exist. **`sfge_diff` is
+  deliberately NOT in CI** — not for speed (measured: 42s), but because the gate's
+  contract is to prove the *analyzer* correct, while the differential proves a
+  *comparative claim* that doesn't change per commit; gating it would put a
+  third-party Java engine in the critical path and go red when *sfge* changes. It
+  exits non-zero only if **this tool** contradicts the org. **Re-run it before
+  repeating its numbers** — if sfge fixes its v67 blindness, our headline goes stale
+  and nothing else would tell us.
 
 ---
 
