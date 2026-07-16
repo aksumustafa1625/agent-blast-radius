@@ -208,11 +208,19 @@ class StripInaccessibleSanitizerTest(unittest.TestCase):
         self.assertIn(("PS512", "ERROR"), r)         # the sanitizer does nothing
         self.assertIn(("PS506", "ERROR"), r)         # so the escalation stays proven
 
-    def test_wrong_access_type_does_not_sanitize_a_read(self):
+    def test_wrong_access_type_errs_safe_and_is_not_a_proven_leak(self):
+        """The wrong AccessType is a bug, not a leak - and this test used to say the
+        opposite. It asserted PS506 ERROR on the belief that "UPDATABLE strips nothing
+        on a read". The runtime oracle refuted that in a live org on both branches:
+        without object Edit stripInaccessible THROWS, with it the field is STRIPPED.
+        FLS cannot grant Edit without Read, so unreadable implies un-updatable and any
+        used decision removes at least what READABLE would. WARN, not ERROR, because
+        we still cannot prove which list reaches the sink (see the class docstring)."""
         r = self._find(self.QUERY + " List<Blast_Test__c> s = "
                        "Security.stripInaccessible(AccessType.UPDATABLE, recs).getRecords();")
         self.assertIn(("PS512", "WARN"), r)
-        self.assertIn(("PS506", "ERROR"), r)         # UPDATABLE strips nothing on a read
+        self.assertIn(("PS506", "WARN"), r)
+        self.assertNotIn(("PS506", "ERROR"), r)
 
 
 class AsyncHandoffTest(unittest.TestCase):

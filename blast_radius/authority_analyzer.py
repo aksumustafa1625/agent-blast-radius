@@ -157,8 +157,19 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
     # prove WHICH list reaches the sink without alias tracking, so it never clears
     # a finding - it moves it from "proven escalation" to "sanitizer present, path
     # not proven" (severity = proof level, the same discipline as path=='internal').
-    strips_reads = bool(sanitizer and sanitizer.get("read_sanitized")
-                        and sanitizer.get("result_used"))
+    #
+    # The gate is result_used ALONE, not read_sanitized. It used to require
+    # AccessType.READABLE, which made us claim a proven escalation whenever a
+    # developer used UPDATABLE/CREATABLE on a read path. The runtime oracle refuted
+    # that in-org, on both branches of the only axis that could differ:
+    #   user without object Edit -> the call THROWS ("No access to entity")
+    #   user with object Edit    -> the field IS stripped ("row was retrieved via
+    #                               SOQL without querying the requested field")
+    # It generalises: Salesforce FLS cannot grant Edit without Read, so
+    # "not readable" is a subset of "not updatable"/"not creatable" - any AccessType
+    # strips at least what READABLE would. So a used decision never lets the field
+    # through, whatever the AccessType, and claiming otherwise was a false positive.
+    strips_reads = bool(sanitizer and sanitizer.get("result_used"))
     if sanitizer and not sanitizer.get("result_used"):
         # A stripInaccessible whose SObjectAccessDecision is never read is a no-op:
         # the original, unsanitized records are what the code goes on to use.
@@ -173,15 +184,23 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
             "`List<X> safe = Security.stripInaccessible(AccessType.READABLE, recs).getRecords();` "
             "and pass `safe` onward."))
     elif sanitizer and not sanitizer.get("read_sanitized"):
+        # Measured, not assumed - and the opposite of what this rule used to say.
+        # The wrong AccessType on a read path is a RELIABILITY bug, not a leak: the
+        # oracle showed it either throws outright or over-strips. Calling it a leak
+        # was a false positive; calling it harmless would be the mirror error.
         findings.append(Finding(
             "PS512", "WARN", f"{action} (Security.stripInaccessible)",
             f"Security.stripInaccessible is used with AccessType "
-            f"{'/'.join(sanitizer.get('access_types') or [])}, which does not sanitize "
-            "fields on a READ path.",
-            "Only AccessType.READABLE strips fields the running user cannot read. A "
-            "CREATABLE/UPDATABLE decision protects a write, not the data returned to "
-            "the caller.",
-            "Add a READABLE pass for the records the action returns."))
+            f"{'/'.join(sanitizer.get('access_types') or [])} on a READ path, which is "
+            "the wrong check for this data - though it errs safe.",
+            "Measured in-org: a CREATABLE/UPDATABLE decision does NOT leak the field. "
+            "It throws outright ('No access to entity') when the running user lacks "
+            "object Edit, and otherwise strips the field anyway - Salesforce cannot "
+            "grant Edit without Read, so anything unreadable is also un-updatable. "
+            "The risk is an action that breaks, or quietly drops fields the user was "
+            "entitled to see, not one that leaks.",
+            "Use AccessType.READABLE for records the action returns, so the check "
+            "matches the intent and only unreadable fields are removed."))
     for u in units:
         # PS508 - cross-class delegation whose chain goes deeper than one level
         if u.operation == "crosslink":

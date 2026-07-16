@@ -148,7 +148,16 @@ CASES = [
          apex=_cls("List<Blast_Test__c> r = [SELECT Id FROM Blast_Test__c];", "with"),
          expect=set(), truth="platform-doc",
          why="Id has no FieldPermissions row and is always readable; flagging it "
-             "would be a guaranteed false positive on almost every query."),
+             "would be a guaranteed false positive on almost every query.",
+         # The shape forces USER_MODE although the case itself is v58. Deliberate:
+         # under v58's system mode FLS is bypassed for EVERY field, so Id coming
+         # back would prove nothing about Id. The premise worth measuring is that Id
+         # survives FLS *enforcement* - that is what makes not flagging it correct.
+         runtime=dict(sharing="with", clause=None, expect_read=True,
+                      body="            List<Blast_Test__c> r = [SELECT Id FROM Blast_Test__c "
+                           "WITH USER_MODE LIMIT 1];\n"
+                           "            if (r.isEmpty()) return 'NO_ROWS';\n"
+                           "            return 'READ=' + r[0].Id;")),
 
     # ------------------------------------------------------------- honest unknown
     dict(id="unknown-dynamic-soql", api=58.0,
@@ -221,9 +230,28 @@ CASES = [
          apex=_cls(_READ + " List<Blast_Test__c> s = "
                    "Security.stripInaccessible(AccessType.UPDATABLE, r).getRecords();",
                    "without"),
-         expect={"PS501", "PS506", "PS512"}, truth="platform-doc",
-         why="UPDATABLE strips nothing on a read path, so the escalation stays proven.",
-         expect_severity={"PS512": "WARN", "PS506": "ERROR"}),
+         expect={"PS501", "PS506", "PS512"}, truth="experiment:oracle",
+         # THE CASE THAT CAUGHT US. The label used to read "UPDATABLE strips nothing
+         # on a read path, so the escalation stays proven" - believed from the docs,
+         # never measured - and on that basis PS506 fired ERROR. The oracle refuted it
+         # on both branches: with no object Edit the call THROWS; with object Edit the
+         # field is STRIPPED. Neither leaks. Our ERROR was a false positive, and the
+         # rule now gates on result_used alone. Kept at WARN rather than removed
+         # because we still cannot prove WHICH list reaches the sink without alias
+         # tracking - sanitizer present, path unproven, exactly what WARN means.
+         why="Measured in-org: stripInaccessible(UPDATABLE) on a read path does NOT "
+             "leak the field - it throws without object Edit, and strips the field "
+             "with it (FLS cannot grant Edit without Read, so unreadable implies "
+             "un-updatable). It errs safe. WARN because the sanitized list is present "
+             "but we cannot prove it, not the original, is what reaches the model.",
+         runtime=dict(sharing="without", clause=None, expect_read=False,
+                      body="            List<Blast_Test__c> r = [SELECT Customer_IBAN__c "
+                           "FROM Blast_Test__c LIMIT 1];\n"
+                           "            if (r.isEmpty()) return 'NO_ROWS';\n"
+                           "            List<Blast_Test__c> s = Security.stripInaccessible(\n"
+                           "                AccessType.UPDATABLE, r).getRecords();\n"
+                           "            return 'READ=' + s[0].Customer_IBAN__c;"),
+         expect_severity={"PS512": "WARN", "PS506": "WARN"}),
 
     # ------------------------------------------------------------ async / events
     dict(id="async-platform-event", api=67.0,
@@ -244,20 +272,33 @@ CASES = [
          why="Negative guard: a plain action must not attract an async warning."),
 
     # ------------------------------------------------------------------- writes
+    # The three write cases carry the same precedence law as the reads, on the OTHER
+    # axis (object CRUD, not FLS). Their runtime shape therefore runs as a user with
+    # no Create at all - see oracle.py for why that user cannot be the reader.
     dict(id="write-v58-plain-insert", api=58.0,
          apex=_cls("insert new Blast_Test__c(Name='x');", "with"),
-         expect={"PS503"}, truth="reasoned",
-         why="Legacy DML defaults to system mode; user_minimal has no create."),
+         expect={"PS503"}, truth="experiment:oracle",
+         why="Legacy DML defaults to system mode; user_minimal has no create. "
+             "Measured: the insert LANDS for a user holding no Create at all.",
+         runtime=dict(kind="write", sharing="with", clause=None, expect_write=True)),
 
     dict(id="write-as-user-is-clean", api=58.0,
          apex=_cls("insert as user new Blast_Test__c(Name='x');", "with"),
-         expect=set(), truth="platform-doc",
-         why="`as user` enforces CRUD even at v58 - the clause beats the version."),
+         expect=set(), truth="experiment:oracle",
+         why="`as user` enforces CRUD even at v58 - the clause beats the version. "
+             "Measured: the same insert that lands without the clause is blocked.",
+         runtime=dict(kind="write", sharing="with", clause="as user", expect_write=False)),
 
     dict(id="write-v67-plain-is-clean", api=67.0,
          apex=_cls("insert new Blast_Test__c(Name='x');", "with"),
-         expect=set(), truth="experiment:E2",
-         why="v67 DML defaults to user mode."),
+         expect=set(), truth="experiment:oracle",
+         # Was labelled experiment:E2, which was borrowed evidence: E2 measured a
+         # v58/v67 READ (5 rows vs 0) and never wrote anything, so it could not
+         # speak for DML's default. The oracle now measures the write itself.
+         why="v67 DML defaults to user mode. Measured directly: the insert is "
+             "blocked at v67 and lands at v58. E2 never wrote, so it never "
+             "evidenced this - the oracle does.",
+         runtime=dict(kind="write", sharing="with", clause=None, expect_write=False)),
 ]
 
 
