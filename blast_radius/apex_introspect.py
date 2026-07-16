@@ -216,6 +216,64 @@ class ApexReach:
     dynamic_soql: bool = False
     backend: str = "regex"             # "ast" when parsed via the real parse tree
     referenced: Optional[List[str]] = None
+    # Security.stripInaccessible: the real FLS sanitizer. See _sanitizer().
+    sanitizer: Optional[dict] = None
+    # async/event/callout hand-offs that leave the analysed transaction (PS514).
+    async_handoffs: List[str] = field(default_factory=list)
+
+
+# Security.stripInaccessible(AccessType.READABLE, recs) is the platform's real FLS
+# sanitizer: it returns an SObjectAccessDecision whose .getRecords() are stripped of
+# fields the running user cannot see. Ignoring it produces false positives on
+# correctly-written code (a common AppExchange pattern). But it only sanitizes if
+# (a) the AccessType matches the operation and (b) the code actually USES the
+# decision's records instead of the original list - discarding the return is a
+# well-known no-op bug.
+_STRIP_INACCESSIBLE = re.compile(
+    r"\bSecurity\s*\.\s*stripInaccessible\s*\(\s*AccessType\s*\.\s*(\w+)", re.IGNORECASE)
+_GET_RECORDS = re.compile(r"\.\s*getRecords\s*\(", re.IGNORECASE)
+
+
+def _sanitizer(source: str) -> Optional[dict]:
+    """Detect Security.stripInaccessible usage in a class.
+
+    Returns {access_types: [...], read_sanitized: bool, result_used: bool} or None.
+    This is deliberately CLASS-scoped, not path-scoped: proving that the sanitized
+    list (and not the original) is what reaches the sink needs alias tracking we do
+    not have. So this never clears a finding - it only lets the analyzer report an
+    honest 'sanitizer present, path not proven' instead of a proven escalation."""
+    types = [m.group(1).upper() for m in _STRIP_INACCESSIBLE.finditer(source)]
+    if not types:
+        return None
+    return {
+        "access_types": sorted(set(types)),
+        # only READABLE strips fields on a READ path
+        "read_sanitized": "READABLE" in types,
+        # the decision's records must actually be used, else the call is a no-op
+        "result_used": bool(_GET_RECORDS.search(source)),
+    }
+
+
+# Async / event hand-offs. Each of these ENDS the analysable transaction: the work
+# continues in a separate execution context whose reach this analyzer does not
+# follow. Silently ignoring them is the worst kind of false negative for a security
+# tool - the agent's real blast radius can grow after the hand-off - so each is
+# surfaced as an explicit honest-unknown edge (PS514) rather than dropped.
+_ASYNC_HANDOFFS = [
+    ("platform event", re.compile(r"\bEventBus\s*\.\s*publish\s*\(", re.IGNORECASE)),
+    ("@future method", re.compile(r"@future\b", re.IGNORECASE)),
+    ("Queueable job", re.compile(r"\bSystem\s*\.\s*enqueueJob\s*\(", re.IGNORECASE)),
+    ("Batch job", re.compile(r"\bDatabase\s*\.\s*executeBatch\s*\(", re.IGNORECASE)),
+    ("scheduled job", re.compile(r"\bSystem\s*\.\s*schedule(?:Batch)?\s*\(", re.IGNORECASE)),
+    ("HTTP callout", re.compile(r"\bnew\s+HttpRequest\s*\(|\bHttp\s*\(\s*\)\s*\.\s*send\s*\(",
+                               re.IGNORECASE)),
+]
+
+
+def _async_handoffs(source: str) -> List[str]:
+    """Kinds of async/event/callout hand-off this class performs. Each one is a
+    boundary where the agent's reach may continue in a context we do not analyse."""
+    return [label for label, rx in _ASYNC_HANDOFFS if rx.search(source)]
 
 
 def _sharing_record_default(sharing: str) -> tuple[Optional[bool], Optional[str]]:
@@ -310,6 +368,8 @@ def parse_apex_source(source: str, api_version: Optional[float],
             note=None if obj else "DML target object undetermined"))
 
     reach.operations.extend(_sosl_operations(source, api_version, sharing))
+    reach.sanitizer = _sanitizer(source)
+    reach.async_handoffs = _async_handoffs(source)
     return reach
 
 
@@ -359,11 +419,14 @@ def _parse_file(cls_path: str, backend: str = "auto") -> ApexReach:
     if backend in ("auto", "ast") and apex_ast.ast_available():
         try:
             reach = _reach_from_ir(apex_ast.extract_ir(cls_path), api, name)
-            # SOSL is not walked by the AST extractor; add it from the source so
-            # neither backend has a silent SOSL blind spot (parsed once, in Python).
+            # SOSL and the stripInaccessible sanitizer are not walked by the AST
+            # extractor; read them from the source so neither backend has a silent
+            # blind spot (parsed once, in Python, and shared by both paths).
             with open(cls_path, encoding="utf-8") as f:
-                reach.operations.extend(
-                    _sosl_operations(_strip_comments(f.read()), api, reach.sharing))
+                src = _strip_comments(f.read())
+            reach.operations.extend(_sosl_operations(src, api, reach.sharing))
+            reach.sanitizer = _sanitizer(src)
+            reach.async_handoffs = _async_handoffs(src)
             return reach
         except Exception:
             if backend == "ast":

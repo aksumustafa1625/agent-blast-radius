@@ -175,6 +175,82 @@ class SelectorFollowTest(unittest.TestCase):
         self.assertIn("PS508", rules)
 
 
+class StripInaccessibleSanitizerTest(unittest.TestCase):
+    """Security.stripInaccessible is the platform's real FLS sanitizer. Ignoring it
+    flags correct code (false positive); trusting it blindly would hide a real leak
+    (false negative). The rule: it never CLEARS a finding - it caps severity at WARN
+    and says the path is unproven - and a discarded/wrong-AccessType decision is
+    itself a finding (PS512)."""
+
+    GDPR = {"Blast_Test__c.Customer_IBAN__c": {"complianceGroup": "GDPR;PII"}}
+    SHARING = {"Blast_Test__c": "Private"}
+    QUERY = "List<Blast_Test__c> recs = [SELECT Customer_IBAN__c FROM Blast_Test__c];"
+
+    def _find(self, body):
+        perms = load_perms("user_minimal.json")
+        src = "public without sharing class X { void m(){ %s } }" % body
+        return {(f.rule, f.severity) for f in
+                analyze_apex(parse_apex_source(src, 58.0, "X"), perms, self.GDPR, self.SHARING)}
+
+    def test_without_sanitizer_the_escalation_is_proven(self):
+        r = self._find(self.QUERY)
+        self.assertIn(("PS506", "ERROR"), r)
+        self.assertNotIn("PS512", {rule for rule, _ in r})
+
+    def test_readable_sanitizer_caps_severity_but_never_clears(self):
+        r = self._find(self.QUERY + " List<Blast_Test__c> safe = "
+                       "Security.stripInaccessible(AccessType.READABLE, recs).getRecords();")
+        self.assertIn(("PS506", "WARN"), r)          # unproven, not clean
+        self.assertNotIn(("PS506", "ERROR"), r)      # no longer asserted as proven
+
+    def test_discarded_decision_is_a_no_op_bug(self):
+        r = self._find(self.QUERY + " Security.stripInaccessible(AccessType.READABLE, recs);")
+        self.assertIn(("PS512", "ERROR"), r)         # the sanitizer does nothing
+        self.assertIn(("PS506", "ERROR"), r)         # so the escalation stays proven
+
+    def test_wrong_access_type_does_not_sanitize_a_read(self):
+        r = self._find(self.QUERY + " List<Blast_Test__c> s = "
+                       "Security.stripInaccessible(AccessType.UPDATABLE, recs).getRecords();")
+        self.assertIn(("PS512", "WARN"), r)
+        self.assertIn(("PS506", "ERROR"), r)         # UPDATABLE strips nothing on a read
+
+
+class AsyncHandoffTest(unittest.TestCase):
+    """PS514: async/event/callout work leaves the analysed transaction. Silently
+    dropping it is the worst false negative a security tool can have - the agent's
+    real reach can grow after the hand-off - so each is an explicit unknown edge."""
+
+    def _rules(self, body):
+        perms = load_perms("user_minimal.json")
+        src = "public with sharing class X { void m(){ %s } }" % body
+        return {(f.rule, f.severity) for f in
+                analyze_apex(parse_apex_source(src, 67.0, "X"), perms, {}, {})}
+
+    def test_platform_event_publish_is_flagged(self):
+        self.assertIn(("PS514", "WARN"), self._rules("EventBus.publish(events);"))
+
+    def test_queueable_and_batch_are_flagged(self):
+        self.assertIn(("PS514", "WARN"), self._rules("System.enqueueJob(new J());"))
+        self.assertIn(("PS514", "WARN"), self._rules("Database.executeBatch(new B());"))
+
+    def test_callout_is_flagged(self):
+        self.assertIn(("PS514", "WARN"), self._rules("HttpRequest req = new HttpRequest();"))
+
+    def test_plain_action_has_no_handoff(self):
+        r = self._rules("Integer i = 1;")
+        self.assertNotIn("PS514", {rule for rule, _ in r})
+
+    def test_real_action_publishing_an_event_is_caught(self):
+        # Our own flagship demo class hands off to a platform event whose
+        # subscriber this analyzer does not follow - it must say so.
+        path = os.path.join(HERE, "..", "force-app", "main", "default", "classes",
+                            "SendPaymentRemindersAction.cls")
+        if not os.path.exists(path):
+            self.skipTest("TechnoStore demo class not present")
+        from apex_introspect import parse_apex
+        self.assertIn("platform event", parse_apex(path).async_handoffs)
+
+
 class BeforeAfterFixTest(unittest.TestCase):
     """The tool doesn't just FIND escalations - it VERIFIES the fix. Mirrors the
     real SendPaymentRemindersAction before/after: adding WITH USER_MODE to a

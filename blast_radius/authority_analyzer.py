@@ -138,9 +138,40 @@ def _classified(classification: Dict[str, dict], full: str, short: str) -> Optio
 def _analyze_units(action: str, units: List[AccessUnit], perms,
                    classification: Dict[str, dict],
                    object_sharing: Dict[str, str],
-                   triggers_by_object: Dict[str, list] = None) -> List[Finding]:
+                   triggers_by_object: Dict[str, list] = None,
+                   sanitizer: Dict = None) -> List[Finding]:
     triggers_by_object = triggers_by_object or {}
     findings: List[Finding] = []
+
+    # Security.stripInaccessible is the platform's real FLS sanitizer. We cannot
+    # prove WHICH list reaches the sink without alias tracking, so it never clears
+    # a finding - it moves it from "proven escalation" to "sanitizer present, path
+    # not proven" (severity = proof level, the same discipline as path=='internal').
+    strips_reads = bool(sanitizer and sanitizer.get("read_sanitized")
+                        and sanitizer.get("result_used"))
+    if sanitizer and not sanitizer.get("result_used"):
+        # A stripInaccessible whose SObjectAccessDecision is never read is a no-op:
+        # the original, unsanitized records are what the code goes on to use.
+        findings.append(Finding(
+            "PS512", "ERROR", f"{action} (Security.stripInaccessible)",
+            "Security.stripInaccessible is called but its SObjectAccessDecision is "
+            "never read (no .getRecords()), so nothing is actually sanitized.",
+            "stripInaccessible does not mutate the list you pass in - it RETURNS a "
+            "decision holding sanitized copies. Discarding it leaves the original, "
+            "unsanitized records in use, so the code looks protected but is not.",
+            "Use the returned decision: "
+            "`List<X> safe = Security.stripInaccessible(AccessType.READABLE, recs).getRecords();` "
+            "and pass `safe` onward."))
+    elif sanitizer and not sanitizer.get("read_sanitized"):
+        findings.append(Finding(
+            "PS512", "WARN", f"{action} (Security.stripInaccessible)",
+            f"Security.stripInaccessible is used with AccessType "
+            f"{'/'.join(sanitizer.get('access_types') or [])}, which does not sanitize "
+            "fields on a READ path.",
+            "Only AccessType.READABLE strips fields the running user cannot read. A "
+            "CREATABLE/UPDATABLE decision protects a write, not the data returned to "
+            "the caller.",
+            "Add a READABLE pass for the records the action returns."))
     for u in units:
         # PS508 - cross-class delegation whose chain goes deeper than one level
         if u.operation == "crosslink":
@@ -250,10 +281,20 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
             flows_out = path != "internal"          # 'internal' is PROVEN not to
             reaches_model = reaches_model and flows_out
 
+            # A READABLE stripInaccessible whose records are used may already strip
+            # this field. We cannot prove the sanitized list (not the original) is
+            # what flows to the sink, so this is an honest unknown, not a clean:
+            # it caps the severity at WARN and says so, instead of asserting a
+            # proven escalation on code that is probably correct.
+            san_note = (" This class calls Security.stripInaccessible(READABLE) and uses the "
+                        "result, which may already strip this field; the analyzer cannot prove "
+                        "whether the sanitized list or the original reaches the output, so this "
+                        "is reported as unproven rather than clean." if strips_reads else "")
+
             if beyond_user and tag:
                 # A field only used internally is still a system-mode over-read,
                 # but it was not observed reaching the model -> WARN, not ERROR.
-                sev = "WARN" if path == "internal" else "ERROR"
+                sev = "WARN" if (path == "internal" or strips_reads) else "ERROR"
                 verb = ("is read in system mode and reaches the model"
                         if path == "returned" else
                         "is read in system mode but was not observed reaching the model"
@@ -263,16 +304,16 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                     "PS506", sev, f"{action} -> {full}",
                     f"GDPR/PII field {full} {verb}, but the running user has no FLS on it.",
                     f"ComplianceGroup {tag}. A field the running user cannot see can reach the "
-                    f"LLM and the end user's screen. {_PATH_NOTE[path]}",
+                    f"LLM and the end user's screen. {_PATH_NOTE[path]}{san_note}",
                     "Remove the field from the query/output, or enforce FLS "
                     "(WITH USER_MODE / Security.stripInaccessible)."))
             elif beyond_user:
-                sev = "WARN" if path == "internal" else "ERROR"
+                sev = "WARN" if (path == "internal" or strips_reads) else "ERROR"
                 findings.append(Finding(
                     "PS502", sev, f"{action} -> {full}",
                     f"Field {full} is read in system mode; the running user has no FLS on it.",
                     f"In system mode Apex ignores FLS, so the field's data can reach the agent. "
-                    f"{_PATH_NOTE[path]}",
+                    f"{_PATH_NOTE[path]}{san_note}",
                     "Enforce FLS (WITH USER_MODE / Security.stripInaccessible)."))
             elif tag and reaches_model:
                 findings.append(Finding(
@@ -288,7 +329,24 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
 def analyze_apex(reach, perms, classification, object_sharing,
                  triggers_by_object=None) -> List[Finding]:
     findings = _analyze_units(reach.class_name, units_from_apex(reach),
-                              perms, classification, object_sharing, triggers_by_object)
+                              perms, classification, object_sharing, triggers_by_object,
+                              sanitizer=getattr(reach, "sanitizer", None))
+
+    # PS514 - async/event/callout hand-off: the transaction ends here and the work
+    # continues in a context this analyzer does not follow. The agent's real blast
+    # radius may be LARGER than this report. Never silently dropped.
+    for kind in getattr(reach, "async_handoffs", []) or []:
+        findings.append(Finding(
+            "PS514", "WARN", f"{reach.class_name} ({kind})",
+            f"This action hands off to a {kind}; the reach of that separate execution "
+            "context is NOT analysed here.",
+            "Async and event-driven work runs in its own transaction, often in system "
+            "mode and under a different user, so the agent's true data surface can be "
+            "larger than the reach shown in this report. This is an honest unknown "
+            "edge, not a proven leak.",
+            f"Review what the {kind} does downstream (subscriber, job, or endpoint) and "
+            "scan the classes it invokes as their own entry points."))
+
     if reach.api_version is not None and reach.api_version < 67:
         findings.append(Finding(
             "PS511", "INFO", f"{reach.class_name} (API v{reach.api_version})",
