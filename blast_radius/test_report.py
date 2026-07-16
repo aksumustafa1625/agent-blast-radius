@@ -290,3 +290,55 @@ class CircleInvariantTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class FingerprintBindsTheApiVersionTest(unittest.TestCase):
+    """The analysed class's apiVersion binds - it DRIVES the verdict.
+
+    v58 and v67 resolve the same source oppositely (E2/E2b), so two reports whose
+    only difference is the apiVersion are two different analyses and must not share a
+    fingerprint. It was already bound per action; nothing tested it, so nothing would
+    have caught it being dropped - the gap a task spec from an external reviewer
+    correctly asked about.
+
+    Bound PER ACTION rather than as one org-wide number, because a real agent's
+    actions sit at different versions and a single max would erase exactly the
+    difference this tool exists to report.
+    """
+
+    def _summary(self, api, name="A"):
+        return ActionSummary(name, "apex", api, True, ["X__c"], ["X__c.f"], [])
+
+    def test_a_different_api_version_moves_the_fingerprint(self):
+        v58 = fingerprint("ag", "u", "c", [self._summary(58.0)])
+        v67 = fingerprint("ag", "u", "c", [self._summary(67.0)])
+        self.assertTrue(v58 and v67, "empty fingerprints would pass this vacuously")
+        self.assertNotEqual(v58, v67)
+
+    def test_the_same_api_version_reproduces(self):
+        a = fingerprint("ag", "u", "c", [self._summary(58.0)])
+        b = fingerprint("ag", "u", "c", [self._summary(58.0)])
+        self.assertEqual(a, b)
+
+    def test_every_action_carries_its_own_version(self):
+        """A mid-migration agent has actions at DIFFERENT versions - that is the whole
+        point of the tool - so each one must count, not a single org-wide number.
+
+        The first draft of this test asserted that flipping two same-named actions kept
+        the fingerprint stable. It was the TEST that was wrong: actions sort by name, a
+        stable sort keeps input order for equal keys, and real action names are unique
+        anyway. Asserting a property the code never claimed would have been my
+        assumption, not a measurement."""
+        mixed = fingerprint("ag", "u", "c",
+                            [self._summary(58.0, "A"), self._summary(67.0, "B")])
+        both58 = fingerprint("ag", "u", "c",
+                             [self._summary(58.0, "A"), self._summary(58.0, "B")])
+        self.assertTrue(mixed and both58)
+        self.assertNotEqual(mixed, both58, "the second action's version must count too")
+
+    def test_action_order_does_not_matter(self):
+        # Same actions, listed the other way round: the same analysis, so the same
+        # fingerprint. Otherwise the seal would move for a reason that is not a change.
+        a, b = self._summary(58.0, "A"), self._summary(67.0, "B")
+        self.assertEqual(fingerprint("ag", "u", "c", [a, b]),
+                         fingerprint("ag", "u", "c", [b, a]))

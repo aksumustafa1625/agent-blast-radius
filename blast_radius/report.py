@@ -393,8 +393,19 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
 
     L.append("---")
     L.append("Produced by static analysis. No agent was invoked. 0 Flex Credits.")
-    L.append(f"Bound to fingerprint `{fp}`; regenerate if agent config, any analysed "
-             "Apex/Flow, or permission metadata changes.")
+    # The seal names the TOOL, not just the inputs. A verdict is only reproducible
+    # against the tool that made it: change a rule and the same input yields a
+    # different verdict, so an auditor told to "regenerate this" with a newer analyzer
+    # and handed a matching fingerprint would be reading a false guarantee. The
+    # analyzer digest is a hash of the rule/extractor source, so it cannot be forgotten
+    # the way a hand-bumped version number can.
+    L.append(f"Bound to fingerprint `{fp}`, which seals both the INPUTS (agent config, "
+             "the analysed Apex/Flow, the permission snapshot, and what the analysis "
+             "identity could see) and the TOOL that produced this verdict "
+             f"(analyzer `{analyzer_version()}`, parser "
+             f"`{apex_ast.parser_version() or 'none - regex fallback'}`; each analysed "
+             "class's own apiVersion is bound per action, since it decides the "
+             "verdict). Regenerate if any of these change.")
     # SAY WHAT THE SEAL DOES NOT COVER, on the same page as the seal.
     #
     # An external reviewer put it exactly right: the distinction was "in your head,

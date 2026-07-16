@@ -727,8 +727,18 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     if org_health:
         parts.append(org_health)
 
+    # Same wording as the markdown footer, and for the same reason: the seal names the
+    # TOOL, not just the inputs. A verdict is only reproducible against the tool that
+    # made it - a matching fingerprint from a newer analyzer would be a false guarantee.
+    from apex_ast import parser_version as _pv
+    from report import analyzer_version as _av
     parts.append(f'<div class="foot">Produced by static analysis. No agent was invoked. '
-                 f'0 Flex Credits. Bound to fingerprint {_esc(fp)}; regenerate if the agent '
-                 f'config, any analysed Apex/Flow, or permission metadata changes.</div>')
+                 f'0 Flex Credits. Bound to fingerprint {_esc(fp)}, which seals both the '
+                 f'INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, '
+                 f'and what the analysis identity could see) and the TOOL that produced '
+                 f'this verdict (analyzer {_esc(_av())}, parser '
+                 f'{_esc(_pv() or "none - regex fallback")}; each analysed class\'s own '
+                 f'apiVersion is bound per action, since it decides the verdict). '
+                 f'Regenerate if any of these change.</div>')
     parts.append('</div>')
     return "\n".join(parts)

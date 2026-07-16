@@ -135,7 +135,7 @@ blast_radius/
   benchmark/                corpus.py + run.py + mutate.py + oracle.py (runtime
                             oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
-  test_*.py                 162 tests
+  test_*.py                 211 tests
 ```
 
 **Both extraction backends feed the SAME precedence core.** When adding a reach
@@ -268,7 +268,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 ## 8. Proof surface — what backs the claims
 
-- **162 unit tests.**
+- **211 unit tests.**
 - **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): 23 hand-labelled
   cases → **100% precision/recall on this corpus**, and **8/8 mutation score**
   (break the analyzer on purpose; the corpus catches it).
@@ -293,8 +293,12 @@ gets a blind spot the regex path doesn't have, or vice versa.
   column is how a differential flatters whoever wrote it.
 - **Determinism**: proven live — two runs, byte-identical md+html (same sha256).
   The fingerprint binds the **static analysis**, not the live COUNTs — and it binds
-  the analyzer itself: a sha256 of the rule/extractor source plus the parser version,
-  so a rule change cannot silently reuse an old fingerprint.
+  **the tool that produced it**: a sha256 of the rule/extractor source, the parser
+  version, what the analysis identity could see, the backend, and each class's own
+  apiVersion per action. A verdict is only reproducible against the tool that made it,
+  and the report footer now says so rather than leaving it implicit. Meta-tests pin
+  every field, and the control was **verified to fail**: drop a field from the payload
+  and the test that claims to catch it goes red.
 - **Four real orgs**: HospitalOrg (lab + live agent), HanseWatt (all v67 → clean),
   TechnoStore (106 classes + 7 triggers, **100% pre-v67** → the legacy demo),
   Urla (no agent).
@@ -363,21 +367,24 @@ the fingerprint binding the analyzer's own source hash + parser version.
    fixture user; a Flow proxy would measure Flow→invocable and drag in the Flow's own
    `runInMode`, answering a question nobody asked. Until then `enforces_sharing=None`
    for a declaration-less pre-v67 class is **the right answer**, not a placeholder.
-5. **Backend confidence** — **the premise was wrong, and reading the disagreements
-   closed them.** This used to read "regex findings should carry lower severity than
-   AST ones". A differential over 104 real classes refuted it (neither backend
-   dominates), and then every contradiction it found turned out to be a bug in one
-   backend or the other. All fixed. **Identical ops 62 → 82 of 104; OVERCLAIM,
-   MISSED and NOISE all 0.**
-   **What remains is only DEGRADED (22 of 104): regex says `None` where AST resolves**
-   — an honest PS504 instead of a PS503. That is not a TODO, it is the shape of the
-   fallback: regex has **no scope** and cannot get one without a parse tree, which is
-   *why* AST is the default and what the report's backend note discloses.</p>
-   The bugs it found are worth remembering, all measured on live code (§7):
-   the AST's missing `FieldDeclarationContext`; the regex's subquery `FROM`; DML
-   straight on a query (`delete [SELECT ...]` — **both** backends); a name declared
-   with two types resolving to the wrong object; and comments-before-strings
-   corrupting a URL and erasing a real `update`.
+5. **Backend confidence — CLOSED.** Both halves are done and measured, so this is
+   here as a record, not a task. *Severity:* the premise ("regex findings should carry
+   lower severity") was **refuted** by a differential over 104 real classes — neither
+   backend dominates, every contradiction it found was a bug in one of them, and all
+   are fixed (identical ops 62→82/104; OVERCLAIM, MISSED, NOISE all **0**). *Fingerprint:*
+   it now seals the **tool**, not just the inputs — `analyzer` (a sha256 of the rule and
+   extractor source), `parser`, `coverage` (what the analysis identity could see), the
+   `backend`, and each analysed class's own `apiVersion` **per action**.
+   **`schema_version` was deliberately NOT added**, though a task spec asked for it: the
+   rule schema *is* `authority_analyzer.py`, which the analyzer digest already hashes,
+   so a separate constant would be redundant **and hand-maintained** — someone changes a
+   rule, forgets to bump it, and the constant lies. That is the exact failure the digest
+   exists to prevent; adding it would trade a mechanism that cannot be forgotten for one
+   that can. Same reason `analyzer` is a hash rather than a `__version__` string.
+   **What actually remains** is not a TODO: regex has **no scope** and cannot get one
+   without a parse tree — that is *why* AST is the default and what the report's backend
+   note discloses. Residual disagreement is **DEGRADED 22/104**: regex honestly says
+   `None` where AST resolves.
 6. **Formula/roll-up field inputs — E12 is BLOCKED, and say so.** An external review
    raised it and it is real *and concrete*: **11 of Invoice's 93 fields are formulas,
    and the flagship demo action reads one** (`TotalAmountWithTax`). PS516 now reports
