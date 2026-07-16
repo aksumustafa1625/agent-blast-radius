@@ -118,6 +118,14 @@ def _sosl_operations(source: str, api_version, sharing) -> list:
 # DML extraction (for PS509 trigger-cascade). We resolve the target object where
 # statically determinable - inline construction or a simple typed variable.
 _LIST_DECL = re.compile(r"\bList\s*<\s*([A-Za-z0-9_]+)\s*>\s*([A-Za-z_]\w*)", re.IGNORECASE)
+# `Invoice[] x = ...` - Apex's array syntax for a list, and just as common as
+# `List<Invoice> x`. _OBJ_DECL only knows a fixed set of standard objects (Invoice is
+# not among them), so this shape resolved to None and a provable PS503 degraded to an
+# honest-unknown PS504. `X[] y` is unambiguously a list-of-X declaration, so the type
+# can be taken from any name - unlike a bare `X y`, where a regex cannot tell an
+# sObject from an Apex class. Found by an external review; the AST backend already
+# got it right, which is what made it a DEGRADED row rather than a wrong answer.
+_ARRAY_DECL = re.compile(r"\b([A-Za-z_]\w*)\s*\[\s*\]\s+([A-Za-z_]\w*)\s*[=;]")
 _OBJ_DECL = re.compile(
     r"\b([A-Za-z0-9_]+__c|Account|Contact|Case|Lead|Opportunity|Task|User)\s*(?:\[\s*\])?\s+"
     r"([A-Za-z_]\w*)\s*[=;]", re.IGNORECASE)
@@ -225,6 +233,8 @@ def _variable_types(source: str) -> dict:
     # statement (which _OBJ_DECL would otherwise misread as a "User x;" decl).
     types = {}
     for m in _LIST_DECL.finditer(source):
+        types.setdefault(m.group(2).lower(), m.group(1))
+    for m in _ARRAY_DECL.finditer(source):
         types.setdefault(m.group(2).lower(), m.group(1))
     for m in _OBJ_DECL.finditer(source):
         types.setdefault(m.group(2).lower(), m.group(1))

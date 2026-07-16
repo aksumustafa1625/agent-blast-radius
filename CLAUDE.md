@@ -251,6 +251,13 @@ gets a blind spot the regex path doesn't have, or vice versa.
 - **Relationship fields must not be re-prefixed.** `_qualify()` keeps
   `BillToContact.Email` verbatim and only prefixes direct fields. Getting this wrong
   broke the concentric-circle invariant (`outer == inner + gap`).
+- **Never write regex/escapes through a shell heredoc.** It cost five incidents in one
+  session: `
+` arrives as a real newline, and `` arrives as a real **backspace
+  (0x08)**. The last one is the nastiest — `_ARRAY_DECL` silently matched nothing while
+  `print(pattern)` rendered it as identical to a working pattern, because a control
+  character does not display. Only `repr()` exposed it. **Use the Write/Edit tools for
+  anything containing a backslash, and compare patterns with `repr`, never by eye.**
 - Windows: console is cp1252 — **use ASCII in CLI output** (`[OK]`, not `✔`).
   PowerShell `$pid` is read-only. Use `sf` CLI, not the MCP tools, for deploys.
 - **Run foreign-org scans from THIS DX project dir**, not the other org's folder.

@@ -465,3 +465,36 @@ class SecurityEnforcedAxesTest(unittest.TestCase):
         # The trap: reading SECURITY_ENFORCED as "user mode" would clear the record
         # axis on a `without sharing` class and hide a real PS501.
         self.assertEqual(self._axes("without"), (False, True))
+
+
+class ArrayDeclaredDmlTargetTest(unittest.TestCase):
+    """`Invoice[] x` is a list declaration, and its DML target must resolve.
+
+    Raised by an external review ("typed DML inference may break in some edges") and
+    it was right: _OBJ_DECL only knows a fixed set of standard objects, Invoice is not
+    among them, so `Invoice[] x = ...; insert x;` gave sobject=None and a provable
+    PS503 degraded to an honest-unknown PS504. `X[] y` is unambiguously a list-of-X,
+    so the type can be taken from ANY name here - unlike a bare `X y`, where a regex
+    cannot tell an sObject from an Apex class and must not guess.
+
+    The AST backend already got this right, which is exactly why it showed up as a
+    DEGRADED row in the differential rather than as a wrong answer.
+    """
+
+    def _dml(self, body, api=58.0):
+        return [(o.operation, o.sobject)
+                for o in parse_apex_source("public class C { void m(){ %s } }" % body, api).operations
+                if o.operation != "read"]
+
+    def test_array_declaration_resolves(self):
+        self.assertEqual(self._dml("Invoice[] x = new Invoice[0]; insert x;"),
+                         [("insert", "Invoice")])
+
+    def test_generic_list_still_resolves(self):
+        self.assertEqual(self._dml("List<Invoice> x = new List<Invoice>(); insert x;"),
+                         [("insert", "Invoice")])
+
+    def test_an_untyped_sobject_is_still_not_guessed(self):
+        # `SObject` names no object. Unknown beats confidently wrong.
+        self.assertEqual(self._dml("SObject x = new Account(); insert x;"),
+                         [("insert", None)])
