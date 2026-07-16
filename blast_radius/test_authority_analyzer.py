@@ -201,6 +201,65 @@ class BeforeAfterFixTest(unittest.TestCase):
         self.assertEqual(len(self._gap(after)), 0, "after WITH USER_MODE the gap must be 0")
 
 
+class SoslAndDynamicReadTest(unittest.TestCase):
+    """Reads whose object/fields aren't fully known must never be silently clean.
+    SOSL was previously not modeled at all (a blind spot); dynamic SOQL and
+    RETURNING-less SOSL must both surface PS504."""
+
+    GDPR = {"Blast_Test__c.Customer_IBAN__c": {"complianceGroup": "GDPR;PII"}}
+    SHARING = {"Blast_Test__c": "Private"}
+
+    def _rules(self, src, api):
+        perms = load_perms("user_minimal.json")
+        return {f.rule for f in analyze_apex(parse_apex_source(src, api, "X"),
+                                             perms, self.GDPR, self.SHARING)}
+
+    def test_dynamic_soql_surfaces_ps504(self):
+        # Regression: a dynamic query with an unknown object must still warn.
+        r = self._rules("public class D { void m(){ List<SObject> x = Database.query(q); } }", 58.0)
+        self.assertIn("PS504", r)
+
+    def test_sosl_without_returning_is_ps504(self):
+        r = self._rules("public class S { void m(){ var x = [FIND :q IN ALL FIELDS]; } }", 58.0)
+        self.assertIn("PS504", r)
+
+    def test_sosl_returning_gdpr_field_v58_fires_ps506(self):
+        src = ("public without sharing class S { void m(){ "
+               "var x = [FIND :q IN ALL FIELDS RETURNING Blast_Test__c(Customer_IBAN__c)]; } }")
+        self.assertIn("PS506", self._rules(src, 58.0))
+
+    def test_sosl_returning_gdpr_field_v67_is_clean(self):
+        src = ("public without sharing class S { void m(){ "
+               "var x = [FIND :q IN ALL FIELDS RETURNING Blast_Test__c(Customer_IBAN__c)]; } }")
+        self.assertNotIn("PS506", self._rules(src, 67.0))
+        self.assertNotIn("PS502", self._rules(src, 67.0))
+
+
+class TriggerHandlerDelegationTest(unittest.TestCase):
+    """PS509 must not be fooled by a v67 trigger that delegates its DML to a
+    pre-v67 handler class - the DML runs in the handler's (system) mode."""
+
+    SRC = "public with sharing class C { void m(){ insert as user new Casc_Parent__c(Name='x'); } }"
+
+    def _ps509(self, trig):
+        perms = load_perms("user_minimal.json")
+        fs = analyze_apex(parse_apex_source(self.SRC, 67.0, "C"), perms, {}, {},
+                          {"Casc_Parent__c": [trig]})
+        return [(f.severity) for f in fs if f.rule == "PS509"]
+
+    def test_v67_trigger_pre_v67_handler_warns(self):
+        self.assertEqual(self._ps509(
+            {"name": "T", "apiVersion": 67, "handler_min_api": 60.0}), ["WARN"])
+
+    def test_v67_trigger_v67_handler_is_clean(self):
+        self.assertEqual(self._ps509(
+            {"name": "T", "apiVersion": 67, "handler_min_api": 67.0}), [])
+
+    def test_legacy_trigger_still_errors(self):
+        self.assertEqual(self._ps509(
+            {"name": "T", "apiVersion": 58, "handler_min_api": None}), ["ERROR"])
+
+
 class PrecedenceTest(unittest.TestCase):
     """The credibility fixture (spec v2 §12): the tool must NOT cry wolf. These
     encode the precedence law - (1) explicit operation clause > (2) apiVersion

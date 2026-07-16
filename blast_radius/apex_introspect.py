@@ -49,6 +49,71 @@ _DYNAMIC = re.compile(r"\bDatabase\.(?:query|queryWithBinds|countQuery|getQueryL
                       re.IGNORECASE)
 _MODE_CLAUSE = re.compile(r"\bWITH\s+(USER_MODE|SYSTEM_MODE|SECURITY_ENFORCED)\b",
                           re.IGNORECASE)
+# SOSL: [FIND 'x' IN ... RETURNING Object(fields WHERE ...), Object2(fields)].
+# SOSL obeys the SAME mode precedence as SOQL (system mode bypasses FLS), so a
+# pre-v67 SOSL that RETURNs a field the user can't see is a real escalation. A
+# SOSL with no RETURNING (or an unparseable one) is honest-unknown -> PS504.
+_SOSL = re.compile(r"\[\s*FIND\b(.*?)\]", re.IGNORECASE | re.DOTALL)
+_SOSL_RETURNING = re.compile(r"\bRETURNING\b(.*)$", re.IGNORECASE | re.DOTALL)
+_SOSL_STOP = re.compile(r"\b(?:WHERE|ORDER\s+BY|LIMIT|OFFSET|USING)\b", re.IGNORECASE)
+
+
+def _parse_sosl_returning(text: str):
+    """Parse a SOSL RETURNING clause into [(object, fields, complete)]. Splits on
+    top-level commas so a WHERE/ORDER inside an object group doesn't break it."""
+    tokens, depth, buf = [], 0, ""
+    for ch in text:
+        if ch == "(":
+            depth += 1; buf += ch
+        elif ch == ")":
+            depth -= 1; buf += ch
+        elif ch == "," and depth == 0:
+            tokens.append(buf); buf = ""
+        else:
+            buf += ch
+    if buf.strip():
+        tokens.append(buf)
+    out = []
+    for tok in tokens:
+        tok = tok.strip()
+        if not tok:
+            continue
+        pm = re.match(r"([A-Za-z0-9_]+)\s*\((.*)\)\s*$", tok, re.DOTALL)
+        if pm:
+            obj = pm.group(1)
+            fld_part = _SOSL_STOP.split(pm.group(2))[0]
+            fields = [f.strip() for f in fld_part.split(",") if f.strip()]
+            out.append((obj, fields, True))
+        else:
+            om = re.match(r"([A-Za-z0-9_]+)\s*$", tok)
+            if om:                       # `RETURNING Object` with no field list -> Id only
+                out.append((om.group(1), [], True))
+    return out
+
+
+def _sosl_operations(source: str, api_version, sharing) -> list:
+    ops = []
+    for body in _SOSL.findall(source):
+        clause_m = _MODE_CLAUSE.search(body)
+        resolved = _resolve(clause_m.group(1) if clause_m else None, api_version, sharing)
+        ret = _SOSL_RETURNING.search(body)
+        if not ret:
+            ops.append(ApexOperation(
+                operation="read", sobject=None, fields=[], fields_complete=False,
+                resolved=resolved,
+                note="PS504: SOSL without RETURNING - reach undetermined"))
+            continue
+        objs = _parse_sosl_returning(ret.group(1))
+        if not objs:
+            ops.append(ApexOperation(
+                operation="read", sobject=None, fields=[], fields_complete=False,
+                resolved=resolved, note="PS504: SOSL RETURNING could not be parsed"))
+            continue
+        for obj, fields, complete in objs:
+            ops.append(ApexOperation(
+                operation="read", sobject=obj, fields=fields, fields_complete=complete,
+                resolved=resolved, note=None if complete else "SOSL RETURNING incomplete"))
+    return ops
 
 # DML extraction (for PS509 trigger-cascade). We resolve the target object where
 # statically determinable - inline construction or a simple typed variable.
@@ -244,6 +309,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
                                             if (api_version or 0) >= 67 else "API v<=66 default"))),
             note=None if obj else "DML target object undetermined"))
 
+    reach.operations.extend(_sosl_operations(source, api_version, sharing))
     return reach
 
 
@@ -292,7 +358,13 @@ def _parse_file(cls_path: str, backend: str = "auto") -> ApexReach:
     name = os.path.basename(cls_path).replace(".cls", "")
     if backend in ("auto", "ast") and apex_ast.ast_available():
         try:
-            return _reach_from_ir(apex_ast.extract_ir(cls_path), api, name)
+            reach = _reach_from_ir(apex_ast.extract_ir(cls_path), api, name)
+            # SOSL is not walked by the AST extractor; add it from the source so
+            # neither backend has a silent SOSL blind spot (parsed once, in Python).
+            with open(cls_path, encoding="utf-8") as f:
+                reach.operations.extend(
+                    _sosl_operations(_strip_comments(f.read()), api, reach.sharing))
+            return reach
         except Exception:
             if backend == "ast":
                 raise

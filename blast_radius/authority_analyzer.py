@@ -155,6 +155,7 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
         if u.operation in _DML_OPS and u.sobject:
             for trig in triggers_by_object.get(u.sobject, []):
                 av = trig.get("apiVersion")
+                hav = trig.get("handler_min_api")
                 if av is not None and av < 67:
                     findings.append(Finding(
                         "PS509", "ERROR", f"{action} -> {u.sobject}",
@@ -165,6 +166,20 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                         "action can cascade into writes the running user cannot perform.",
                         f"Upgrade trigger '{trig.get('name')}' to API v67+, or enforce user mode "
                         "in its handler / gate the cascade."))
+                elif hav is not None and hav < 67:
+                    # The trigger itself is v67+, but it DELEGATES to a pre-v67 handler
+                    # class. If that handler performs the DML, it runs in system mode
+                    # regardless of the trigger's version - the trigger version hides it.
+                    findings.append(Finding(
+                        "PS509", "WARN", f"{action} -> {u.sobject}",
+                        f"DML ({u.operation}) on {u.sobject}: the active trigger "
+                        f"'{trig.get('name')}' is v{av if av is not None else '?'} but delegates "
+                        f"to a pre-v67 handler class (v{hav:g}).",
+                        "A v67 trigger looks safe, but a handler class it calls runs its own DML "
+                        "in the handler's mode; a pre-v67 handler defaults to system mode, so the "
+                        "cascade can still escalate. The trigger's own version hides this.",
+                        f"Verify which class performs the DML; upgrade the pre-v67 handler to "
+                        "API v67+ or enforce user mode in it."))
             # PS503 - write escalation: system-mode DML on an object the user can't write
             need = {"insert": "create", "create": "create", "update": "edit",
                     "upsert": "edit", "delete": "delete"}.get(u.operation)
@@ -184,6 +199,17 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                         f"Enforce user mode (`{u.operation} as user` / AccessLevel.USER_MODE) or "
                         "grant the permission intentionally and document it."))
             continue
+        # PS504 - honest unknown: an incomplete read (dynamic SOQL, SOSL without
+        # RETURNING, unresolved reach) is surfaced even when the object itself is
+        # unknown, so it is never silently dropped. Fires before the sobject guard
+        # below (an op with no known object would otherwise be skipped entirely).
+        if u.operation == "read" and not u.fields_complete:
+            findings.append(Finding(
+                "PS504", "WARN", f"{action} -> {u.sobject or '?'}",
+                f"Reach for this operation could not be fully determined ({u.source}).",
+                "A silent false-clean is worse than an honest unknown.",
+                "Review manually; consider WITH USER_MODE so runtime enforces access."))
+
         if u.operation != "read" or not u.sobject:
             continue
 
@@ -255,14 +281,6 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                     f"Classified data entering the LLM context is a data-minimization concern "
                     f"even when the running user is authorized to see it. {_PATH_NOTE[path]}",
                     "Confirm this field is required for the action's stated purpose."))
-
-        # PS504 - honest unknown
-        if not u.fields_complete:
-            findings.append(Finding(
-                "PS504", "WARN", f"{action} -> {u.sobject or '?'}",
-                f"Reach for this operation could not be fully determined ({u.source}).",
-                "A silent false-clean is worse than an honest unknown.",
-                "Review manually; consider WITH USER_MODE so runtime enforces access."))
     # one escalation = one finding, even when two SOQL statements read the same field
     return dedupe_findings(findings)
 

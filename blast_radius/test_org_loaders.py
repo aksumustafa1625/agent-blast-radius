@@ -12,8 +12,24 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from org_loaders import _derive_user_visible  # noqa: E402
+from org_loaders import _derive_user_visible, _trigger_handler_refs  # noqa: E402
 from permission_resolver import ObjectAccess  # noqa: E402
+
+
+class TriggerHandlerRefsTest(unittest.TestCase):
+    """PS509 handler follow: extract the classes a trigger delegates to."""
+
+    def test_extracts_new_and_static_refs(self):
+        body = ("trigger T on Invoice (after insert) { "
+                "InvoiceHandler.handle(Trigger.new); "
+                "new BillingService().post(); }")
+        refs = _trigger_handler_refs(body)
+        self.assertIn("InvoiceHandler", refs)
+        self.assertIn("BillingService", refs)
+
+    def test_empty_body_is_safe(self):
+        self.assertEqual(_trigger_handler_refs(None), set())
+        self.assertEqual(_trigger_handler_refs(""), set())
 
 
 class DeriveUserVisibleTest(unittest.TestCase):

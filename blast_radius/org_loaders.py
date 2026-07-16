@@ -8,6 +8,7 @@ Each is a thin `sf data query` wrapper; nothing here invokes an agent.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from typing import Dict, Iterable, List, Optional
 
@@ -95,22 +96,62 @@ def sharing(objects: Iterable[str], target_org: Optional[str] = None) -> Dict[st
     return out
 
 
+_TRIGGER_REF = re.compile(r"\bnew\s+([A-Z][A-Za-z0-9_]*)\s*\(|\b([A-Z][A-Za-z0-9_]*)\s*\.")
+
+
+def _trigger_handler_refs(body: Optional[str]) -> set:
+    """Class names a trigger references (its handler classes). Best-effort regex:
+    `new X(` or `X.method(`. Used to catch DML that the trigger delegates."""
+    if not body:
+        return set()
+    names = set()
+    for m in _TRIGGER_REF.finditer(body):
+        n = m.group(1) or m.group(2)
+        if n:
+            names.add(n)
+    return names
+
+
 def active_triggers(objects: Iterable[str], target_org: Optional[str] = None) -> Dict[str, list]:
-    """{'Object': [{name, apiVersion}]} of active Apex triggers on the given
-    objects. Used by PS509: a pre-v67 trigger's plain DML runs system mode
-    regardless of the initiating action's access level (E6)."""
+    """{'Object': [{name, apiVersion, handler_min_api}]} of active Apex triggers on
+    the given objects. Used by PS509: a pre-v67 trigger's plain DML runs system mode
+    regardless of the initiating action's access level (E6). `handler_min_api` is the
+    minimum apiVersion among the classes the trigger DELEGATES to (its handler),
+    because a v67 trigger that hands the DML to a pre-v67 handler still escalates -
+    the DML runs in the handler class's mode, which the trigger's own version hides."""
     objs = set(objects)
     if not objs:
         return {}
-    rows = _sf("SELECT Name, ApiVersion, EntityDefinition.QualifiedApiName "
+    rows = _sf("SELECT Name, ApiVersion, Body, EntityDefinition.QualifiedApiName "
                "FROM ApexTrigger WHERE Status = 'Active'", tooling=True, target_org=target_org)
+    rows = [r for r in rows if (r.get("EntityDefinition") or {}).get("QualifiedApiName") in objs]
+
+    # one batch lookup of every referenced handler class's apiVersion
+    refs: set = set()
+    for r in rows:
+        refs |= _trigger_handler_refs(r.get("Body"))
+    class_api: Dict[str, float] = {}
+    if refs:
+        try:
+            crows = _sf("SELECT Name, ApiVersion FROM ApexClass WHERE Name IN "
+                        + _in(sorted(refs)), tooling=True, target_org=target_org)
+            for c in crows:
+                if c.get("ApiVersion") is not None:
+                    class_api[c["Name"]] = float(c["ApiVersion"])
+        except RuntimeError:
+            pass                                   # handler follow is best-effort
+
     out: Dict[str, list] = {}
     for r in rows:
         obj = (r.get("EntityDefinition") or {}).get("QualifiedApiName")
-        if obj in objs:
-            av = r.get("ApiVersion")
-            out.setdefault(obj, []).append(
-                {"name": r.get("Name"), "apiVersion": int(av) if av is not None else None})
+        av = r.get("ApiVersion")
+        handler_versions = [class_api[n] for n in _trigger_handler_refs(r.get("Body"))
+                            if n in class_api]
+        out.setdefault(obj, []).append({
+            "name": r.get("Name"),
+            "apiVersion": int(av) if av is not None else None,
+            "handler_min_api": min(handler_versions) if handler_versions else None,
+        })
     return out
 
 
