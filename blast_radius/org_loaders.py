@@ -65,6 +65,26 @@ def _label_rows(obj: str, target_org):
                target_org=target_org)
 
 
+def _rel_root(field_path: str, objects) -> Optional[str]:
+    """The relationship name in a reached field path, or None for a direct field.
+
+    Accepts BOTH spellings the codebase uses. `report._qualify` leaves a relationship
+    field alone (`BillToContact.Email`) and prefixes only direct fields
+    (`Invoice.Status`), which is what cli._reached_fields passes. But a caller that
+    prefixes anyway (`Invoice.BillToContact.Email`) used to disable relationship
+    resolution ENTIRELY and without a word: the old code took `split('.')[0]`, got the
+    ROOT object, found it in `objects`, and filtered the path out - so every
+    cross-object label went missing and PS506 stayed quiet. A silent false clean
+    triggered by nothing more than how a caller spells a field."""
+    parts = field_path.split(".")
+    if len(parts) < 2:
+        return None                       # a bare field name: nothing to traverse
+    if parts[0] in objects:
+        # `Invoice.BillToContact.Email` -> BillToContact; `Invoice.Status` -> direct
+        return parts[1] if len(parts) >= 3 else None
+    return parts[0]
+
+
 def _relationship_targets(obj: str, target_org) -> Dict[str, str]:
     """{relationshipName: targetObject} for `obj`'s single-target lookups.
 
@@ -128,8 +148,7 @@ def classification(objects: Iterable[str], target_org: Optional[str] = None,
 
     # Relationship paths the reach actually uses: `BillToContact.Email` where
     # `BillToContact` is not itself a reached object.
-    rel_paths = {f.split(".")[0] for f in (fields or [])
-                 if "." in f and f.split(".")[0] not in objects}
+    rel_paths = {r for r in (_rel_root(f, objects) for f in (fields or [])) if r}
     if not rel_paths:
         return labels, visible
 

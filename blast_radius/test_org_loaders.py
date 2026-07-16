@@ -12,7 +12,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from org_loaders import _derive_user_visible, _trigger_handler_refs  # noqa: E402
+from org_loaders import _rel_root, _derive_user_visible, _trigger_handler_refs  # noqa: E402
 from permission_resolver import ObjectAccess  # noqa: E402
 
 
@@ -73,3 +73,32 @@ class DeriveUserVisibleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class RelationshipRootTest(unittest.TestCase):
+    """Which relationship a reached field path traverses - both spellings.
+
+    `report._qualify` leaves a relationship field alone (`BillToContact.Email`) and
+    prefixes only direct fields, which is what cli._reached_fields passes. A caller
+    that prefixed anyway (`Invoice.BillToContact.Email`) used to disable relationship
+    resolution ENTIRELY and silently: the old code read `split('.')[0]`, got the root
+    object, found it among the reached objects, and dropped the path - so the target
+    object's GDPR labels were never loaded and PS506 stayed quiet. A false clean
+    caused by nothing but how a caller spells a field.
+    """
+
+    OBJECTS = {"Invoice", "Account"}
+
+    def test_unqualified_relationship_path(self):
+        self.assertEqual(_rel_root("BillToContact.Email", self.OBJECTS), "BillToContact")
+
+    def test_qualified_relationship_path_resolves_the_same(self):
+        self.assertEqual(_rel_root("Invoice.BillToContact.Email", self.OBJECTS),
+                         "BillToContact")
+
+    def test_a_direct_field_traverses_nothing(self):
+        self.assertIsNone(_rel_root("Invoice.Status", self.OBJECTS))
+        self.assertIsNone(_rel_root("Status", self.OBJECTS))
+
+    def test_a_relationship_on_another_reached_object(self):
+        self.assertEqual(_rel_root("Account.Owner.Name", self.OBJECTS), "Owner")

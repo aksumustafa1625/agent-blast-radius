@@ -225,9 +225,20 @@ gets a blind spot the regex path doesn't have, or vice versa.
   mirror, not an oracle. Labels are hand-written with a `truth` field.
 - **`--permission-set` is not a person.** It models a hypothetical user holding
   exactly one set — no profile, no other sets, no group. The report says so.
-- **Cross-object fields can't be classified.** The classification loader keys labels
-  `Object.Field` per reached object, so `BillToContact.Email` (really `Contact.Email`)
-  never matches. Pick a **direct** field of the reached object for PS506 demos.
+- **Cross-object fields ARE classified — this note used to say they weren't.** It
+  told the next reader to "pick a direct field for PS506 demos", i.e. to avoid a
+  feature that works: `classification(fields=...)` resolves a relationship through
+  `FieldDefinition.ReferenceTo` and loads the target object's labels (tested in
+  `test_authority_analyzer`). On TechnoStore, `BillToContact.Email` comes back
+  classified `Confidential` — it just carries no complianceGroup, because the ORG
+  never tagged it GDPR. That is the org's data, not a gap.
+  **The real trap is the spelling.** `classification` takes fields as `_qualify`
+  spells them: a relationship path unqualified (`BillToContact.Email`). Passing
+  `Invoice.BillToContact.Email` used to disable relationship resolution silently —
+  a false clean caused by nothing but a caller's spelling. `_rel_root` now accepts
+  both. **Still genuinely open: POLYMORPHIC lookups** (`referenceTo: [Group, User]`),
+  deliberately skipped — we cannot say which object a row points at, so the honest
+  answer is to leave it unclassified rather than pick one and be confidently wrong.
 - **Relationship fields must not be re-prefixed.** `_qualify()` keeps
   `BillToContact.Email` verbatim and only prefixes direct fields. Getting this wrong
   broke the concentric-circle invariant (`outer == inner + gap`).
@@ -344,7 +355,11 @@ the fingerprint binding the analyzer's own source hash + parser version.
    straight on a query (`delete [SELECT ...]` — **both** backends); a name declared
    with two types resolving to the wrong object; and comments-before-strings
    corrupting a URL and erasing a real `update`.
-6. **Relationship/polymorphic classification** (see §7).
+6. **Polymorphic classification** — a lookup with more than one `referenceTo` target
+   is skipped, so its fields stay unclassified. Deliberate and honest (we cannot know
+   which object a given row points at), but it IS a coverage hole: a GDPR field behind
+   a polymorphic lookup is invisible to PS506. Single-target relationships **are**
+   resolved (§7).
 7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.
 
