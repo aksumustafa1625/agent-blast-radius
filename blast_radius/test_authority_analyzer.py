@@ -331,9 +331,34 @@ class TriggerHandlerDelegationTest(unittest.TestCase):
         self.assertEqual(self._ps509(
             {"name": "T", "apiVersion": 67, "handler_min_api": 67.0}), [])
 
-    def test_legacy_trigger_still_errors(self):
+    def test_legacy_trigger_without_a_proven_write_is_only_a_boundary(self):
+        # Severity = proof level. A legacy trigger's mere existence is a boundary,
+        # not an escalation: it may perform no DML at all. Claiming ERROR here was
+        # the false positive an independent review flagged.
         self.assertEqual(self._ps509(
-            {"name": "T", "apiVersion": 58, "handler_min_api": None}), ["ERROR"])
+            {"name": "T", "apiVersion": 58, "handler_min_api": None, "dml_ops": []}), ["WARN"])
+
+    def test_legacy_trigger_with_a_proven_escalating_write_errors(self):
+        # Its own body inserts an object the running user cannot create -> proven.
+        self.assertEqual(self._ps509(
+            {"name": "T", "apiVersion": 58, "handler_min_api": None,
+             "dml_ops": [("insert", "Casc_Child__c")]}), ["ERROR"])
+
+    def test_legacy_trigger_writing_what_the_user_may_write_is_not_an_escalation(self):
+        perms_snap = {
+            "runningUser": "u", "channel": "agent",
+            "systemPermissions": {"ViewAllData": False, "ModifyAllData": False},
+            "objectPermissions": [{"parent": "PermSet:X", "sobjectType": "Casc_Child__c",
+                                   "read": True, "create": True, "edit": True, "delete": True,
+                                   "viewAllRecords": False, "modifyAllRecords": False}],
+            "fieldPermissions": [],
+        }
+        perms = EffectivePermissions(perms_snap)
+        fs = analyze_apex(parse_apex_source(self.SRC, 67.0, "C"), perms, {}, {},
+                          {"Casc_Parent__c": [{"name": "T", "apiVersion": 58,
+                                               "handler_min_api": None,
+                                               "dml_ops": [("insert", "Casc_Child__c")]}]})
+        self.assertEqual([f.severity for f in fs if f.rule == "PS509"], ["WARN"])
 
 
 class PrecedenceTest(unittest.TestCase):

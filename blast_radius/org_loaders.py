@@ -151,8 +151,26 @@ def active_triggers(objects: Iterable[str], target_org: Optional[str] = None) ->
             "name": r.get("Name"),
             "apiVersion": int(av) if av is not None else None,
             "handler_min_api": min(handler_versions) if handler_versions else None,
+            # The cascade's actual write sink, read from the trigger's own body.
+            # Without this, PS509 can only say "a legacy trigger exists"; with it we
+            # can say whether that trigger really performs DML the user cannot.
+            "dml_ops": _trigger_dml_ops(r.get("Body")),
         })
     return out
+
+
+def _trigger_dml_ops(body: Optional[str]) -> list:
+    """[(verb, object)] the trigger's own body performs. Empty means no DML was
+    observed IN THE TRIGGER (it may still delegate to a handler - that is what
+    handler_min_api covers), so PS509 must not claim a proven cascade."""
+    if not body:
+        return []
+    try:
+        from apex_introspect import _dml_operations, _strip_comments
+        return [(verb, obj) for verb, obj, _mode in _dml_operations(_strip_comments(body))
+                if obj]
+    except Exception:
+        return []
 
 
 # Org-wide-default sharing models under which a user with object Read sees every

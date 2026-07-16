@@ -17,6 +17,9 @@ from typing import Dict, List, Optional
 
 _CLASSIFIED_TAGS = ("GDPR", "PII", "HIPAA", "PCI", "CCPA")
 _DML_OPS = {"insert", "update", "upsert", "delete", "undelete", "create"}
+# Which object permission a DML verb requires (shared by PS503 and PS509).
+_DML_NEED = {"insert": "create", "create": "create", "update": "edit",
+             "upsert": "edit", "delete": "delete"}
 _SEV_RANK = {"ERROR": 0, "WARN": 1, "INFO": 2}
 
 
@@ -188,15 +191,48 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                 av = trig.get("apiVersion")
                 hav = trig.get("handler_min_api")
                 if av is not None and av < 67:
-                    findings.append(Finding(
-                        "PS509", "ERROR", f"{action} -> {u.sobject}",
-                        f"DML ({u.operation}) on {u.sobject}, which has an active trigger "
-                        f"'{trig.get('name')}' at API v{av} (< v67).",
-                        "A pre-v67 trigger's plain DML runs in system mode regardless of the "
-                        "initiating action's access level (verified in E6). A clean user-mode "
-                        "action can cascade into writes the running user cannot perform.",
-                        f"Upgrade trigger '{trig.get('name')}' to API v67+, or enforce user mode "
-                        "in its handler / gate the cascade."))
+                    # Severity = proof level. A legacy trigger's mere EXISTENCE is a
+                    # boundary, not an escalation: it may not perform DML at all, or
+                    # may write only what the user could write anyway. Claim ERROR
+                    # only when the trigger's own body performs DML on an object the
+                    # running user has no permission for - that is the proven cascade.
+                    escalating = []
+                    for verb, tobj in (trig.get("dml_ops") or []):
+                        need = _DML_NEED.get(verb)
+                        if not need:
+                            continue
+                        oa = perms.object_access(tobj)
+                        if not {"create": oa.create, "edit": oa.edit, "delete": oa.delete}[need]:
+                            escalating.append(f"{verb} {tobj}")
+                    if escalating:
+                        findings.append(Finding(
+                            "PS509", "ERROR", f"{action} -> {u.sobject}",
+                            f"DML ({u.operation}) on {u.sobject} fires trigger "
+                            f"'{trig.get('name')}' (API v{av} < v67), whose own body performs "
+                            f"{', '.join(escalating)} — which the running user cannot.",
+                            "A pre-v67 trigger's plain DML runs in system mode regardless of the "
+                            "initiating action's access level (verified in E6). A clean user-mode "
+                            "action cascades into a write the running user cannot perform. The "
+                            "write sink was read from the trigger's own body, so this is proven, "
+                            "not inferred from the version alone.",
+                            f"Upgrade trigger '{trig.get('name')}' to API v67+, enforce user mode "
+                            "in it (`insert as user`), or gate the cascade."))
+                    else:
+                        observed = trig.get("dml_ops")
+                        why = ("its body performs DML the running user could perform anyway"
+                               if observed else
+                               "no DML was observed in its own body (it may delegate to a "
+                               "handler, or perform none)")
+                        findings.append(Finding(
+                            "PS509", "WARN", f"{action} -> {u.sobject}",
+                            f"DML ({u.operation}) on {u.sobject} fires trigger "
+                            f"'{trig.get('name')}' at API v{av} (< v67) — a legacy cascade "
+                            "boundary, but no escalating write was proven.",
+                            f"A pre-v67 trigger runs its DML in system mode, so this is a real "
+                            f"boundary to review; however {why}, so this is flagged as a boundary "
+                            "rather than a proven escalation.",
+                            f"Review what '{trig.get('name')}' writes downstream; upgrade it to "
+                            "API v67+ to remove the legacy default entirely."))
                 elif hav is not None and hav < 67:
                     # The trigger itself is v67+, but it DELEGATES to a pre-v67 handler
                     # class. If that handler performs the DML, it runs in system mode
@@ -212,8 +248,7 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                         f"Verify which class performs the DML; upgrade the pre-v67 handler to "
                         "API v67+ or enforce user mode in it."))
             # PS503 - write escalation: system-mode DML on an object the user can't write
-            need = {"insert": "create", "create": "create", "update": "edit",
-                    "upsert": "edit", "delete": "delete"}.get(u.operation)
+            need = _DML_NEED.get(u.operation)
             if need and u.enforces_fls in (False, None):
                 oa = perms.object_access(u.sobject)
                 allowed = {"create": oa.create, "edit": oa.edit, "delete": oa.delete}[need]
