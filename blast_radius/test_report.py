@@ -167,6 +167,45 @@ class RecordReachTest(unittest.TestCase):
         self.assertIn("CRUD escalation", md)
 
 
+class BackendBindsTheFingerprintTest(unittest.TestCase):
+    """The report promises: "bound to fingerprint X; regenerate if the agent config,
+    any analysed Apex/Flow, or permission metadata changes". None of those changes
+    when the EXTRACTOR changes - yet the AST backend traces the Authority Path and
+    the regex fallback cannot, so the same class is WARN under one and ERROR under
+    the other. A fingerprint that ignored that certified two different verdicts as
+    the same analysis. Severity is the tool's confidence claim, so it binds too."""
+
+    def _summary(self, backend, findings):
+        from authority_analyzer import Finding
+        return ActionSummary("A", "apex", 58.0, True, ["X__c"], ["X__c.F__c"],
+                             [Finding(*f) for f in findings], backend=backend)
+
+    def test_backend_changes_the_fingerprint(self):
+        f = ("PS506", "ERROR", "A -> X__c.F__c", "m", "w", "x")
+        ast = fingerprint("A", "u", "c", [self._summary("ast", [f])])
+        rgx = fingerprint("A", "u", "c", [self._summary("regex", [f])])
+        self.assertNotEqual(ast, rgx)
+
+    def test_severity_changes_the_fingerprint(self):
+        err = self._summary("ast", [("PS506", "ERROR", "A -> X__c.F__c", "m", "w", "x")])
+        warn = self._summary("ast", [("PS506", "WARN", "A -> X__c.F__c", "m", "w", "x")])
+        self.assertNotEqual(fingerprint("A", "u", "c", [err]),
+                            fingerprint("A", "u", "c", [warn]))
+
+    def test_identical_analysis_still_reproduces(self):
+        a = self._summary("ast", [("PS506", "ERROR", "A -> X__c.F__c", "m", "w", "x")])
+        b = self._summary("ast", [("PS506", "ERROR", "A -> X__c.F__c", "m", "w", "x")])
+        self.assertEqual(fingerprint("A", "u", "c", [a]), fingerprint("A", "u", "c", [b]))
+
+    def test_report_names_the_weaker_backend(self):
+        from report_html import _backend_note
+        note = _backend_note([self._summary("regex", [])])
+        self.assertIn("regex extractor", note)
+        self.assertIn("weaker evidence", note)
+        clean = _backend_note([self._summary("ast", [])])
+        self.assertIn("real parse tree", clean)
+
+
 class CircleInvariantTest(unittest.TestCase):
     """P2: the concentric-circle counts must reconcile (outer == inner + gap).
     The bug was a field-naming skew: the reachable set double-prefixed a

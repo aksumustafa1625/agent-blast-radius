@@ -184,6 +184,11 @@ def main():
                          "and falls back to regex; 'ast' forces it; 'regex' forces the fallback")
     ap.add_argument("--fail-on", choices=["ERROR", "WARN", "none"], default="none",
                     help="exit non-zero if any finding is at or above this severity (for CI gates)")
+    ap.add_argument("--require-ast", action="store_true",
+                    help="refuse the regex fallback: exit non-zero if any Apex action "
+                         "could not be read from a real parse tree. The fallback cannot "
+                         "trace the Authority Path, so its findings are weaker evidence - "
+                         "use this for a production gate")
     ap.add_argument("--no-org-health", action="store_true",
                     help="skip the whole-org health section (API-version debt, god-mode "
                          "grants, permissive OWD) appended to the foot of the report")
@@ -283,6 +288,19 @@ def main():
                               apex_backend=args.apex_backend, script_ir=script_ir,
                               graph_edges=graph_edges)
     coverage = classification_coverage(summaries, classification, visible)
+
+    # An evidence-grade gate. The regex fallback cannot trace the Authority Path,
+    # so it holds every field at worst case: the same class reads WARN under the AST
+    # and ERROR under regex. A production gate may reasonably refuse the weaker read
+    # rather than act on it.
+    if args.require_ast:
+        weak = sorted(s.name for s in summaries
+                      if s.kind == "apex" and s.backend not in (None, "ast"))
+        if weak:
+            print(f"FAILED --require-ast: {len(weak)} action(s) fell back to the regex "
+                  f"extractor ({', '.join(weak)}). Their findings are weaker evidence. "
+                  f"Install Node and run `npm install --prefix blast_radius`.")
+            sys.exit(2)
 
     counts = None
     if args.include_counts:

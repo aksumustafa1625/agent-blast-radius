@@ -501,6 +501,33 @@ def _authority_path(chain: dict, rule: str) -> str:
     return "\n".join(p)
 
 
+def _backend_note(actions) -> str:
+    """Not every finding carries the same evidence. The AST backend traces the
+    Authority Path; the regex fallback cannot, so everything it sees stays at
+    worst case - the SAME class is WARN under one and ERROR under the other. A
+    reader deciding what to fix deserves to know which one produced their report,
+    so say it plainly rather than letting the two look identical."""
+    apex = [a for a in actions if a.kind == "apex" and a.backend]
+    if not apex:
+        return ""
+    fallback = sorted({a.name for a in apex if a.backend != "ast"})
+    if not fallback:
+        return ('<p class="censnote"><b>Evidence grade:</b> every Apex action was read '
+                'from a real parse tree, so the Authority Path is traced and a finding '
+                'downgraded to WARN was <i>proven</i> not to reach the model &mdash; not '
+                'merely unobserved.</p>')
+    return ('<div class="clean" style="border-left:4px solid var(--warn);font-size:13px">'
+            f'<b>Evidence grade &mdash; {len(fallback)} action(s) fell back to the regex '
+            'extractor</b> ('
+            + ", ".join(f'<code>{_esc(n)}</code>' for n in fallback) + '). That backend '
+            'cannot trace the Authority Path, so every field it sees is held at worst case: '
+            'these findings are <b>weaker evidence</b>, and some ERRORs here would likely be '
+            'WARNs under the AST. Install Node + <code>npm install --prefix blast_radius</code> '
+            'for the stronger read, or run with <code>--require-ast</code> to refuse the '
+            'fallback outright. The fingerprint binds the backend, so the two runs are never '
+            'certified as the same analysis.</div>')
+
+
 def _api_posture(actions) -> str:
     """A first-class 'security posture by API version' panel, shown near the top
     because it is the single strongest at-a-glance risk signal: pre-v67 classes
@@ -609,6 +636,9 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     posture = _api_posture(actions)
     if posture:
         parts.append(posture)
+    backend_note = _backend_note(actions)
+    if backend_note:
+        parts.append(backend_note)
 
     # hero: the two-circle escalation gap when there IS one; a calm "within bounds"
     # panel when there isn't (an empty "0" circle reads as broken, not as good news)

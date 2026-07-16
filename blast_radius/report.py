@@ -50,6 +50,12 @@ class ActionSummary:
     objects: List[str]
     fields: List[str]
     findings: List = field(default_factory=list)
+    # Which extractor produced this reach. It belongs in the report AND in the
+    # fingerprint: the AST backend traces the Authority Path, the regex fallback
+    # cannot, so the SAME class can be WARN under one and ERROR under the other.
+    # A fingerprint that ignores it would certify two different verdicts as the
+    # same analysis. See fingerprint().
+    backend: Optional[str] = None
 
 
 def summarize_flow(reach, findings, name=None) -> ActionSummary:
@@ -72,7 +78,8 @@ def summarize_apex(reach, findings, name=None) -> ActionSummary:
     flds = sorted({_qualify(o.sobject, fl)
                    for o in reach.operations if o.sobject for fl in o.fields})
     system = any(o.resolved.is_escalation_capable for o in reach.operations if o.operation == "read")
-    return ActionSummary(name or reach.class_name, "apex", reach.api_version, system, objs, flds, findings)
+    return ActionSummary(name or reach.class_name, "apex", reach.api_version, system,
+                         objs, flds, findings, backend=getattr(reach, "backend", None))
 
 
 def summarize_prompt(reach, findings, name=None) -> ActionSummary:
@@ -178,8 +185,15 @@ def fingerprint(agent: str, running_user: str, channel: Optional[str],
             {
                 "name": a.name, "kind": a.kind, "api": a.api_version,
                 "system": a.system_mode,
+                # The extractor is part of the analysis, not a detail: the regex
+                # fallback cannot trace the Authority Path, so it reports the same
+                # class at a different severity. Two runs that disagree on ERROR vs
+                # WARN must not share a fingerprint.
+                "backend": a.backend,
                 "objects": sorted(a.objects), "fields": sorted(a.fields),
-                "findings": sorted(f"{f.rule}:{f.where}" for f in a.findings),
+                # severity is the tool's confidence claim - a verdict that moves
+                # from WARN to ERROR is a different result, so it binds too.
+                "findings": sorted(f"{f.rule}:{f.severity}:{f.where}" for f in a.findings),
             }
             for a in sorted(actions, key=lambda x: x.name)
         ],
