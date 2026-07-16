@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlannerBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>TechnoStore Revenue Assistant for sales representatives.</description>
+    <localTopicLinks>
+        <genAiPluginName>agent_router_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopicLinks>
+        <genAiPluginName>ambiguous_question_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopicLinks>
+        <genAiPluginName>escalation_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopicLinks>
+        <genAiPluginName>off_topic_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopicLinks>
+        <genAiPluginName>revenue_analytics_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopicLinks>
+        <genAiPluginName>send_payment_reminders_16jaj0000025v69</genAiPluginName>
+    </localTopicLinks>
+    <localTopics>
+        <fullName>ambiguous_question_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Redirect conversation to relevant topics when user request is too ambiguous</description>
+        <developerName>ambiguous_question_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.</description>
+            <developerName>instruction0_179aj000003GTyo</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTyo</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localDeveloperName>ambiguous_question</localDeveloperName>
+        <masterLabel>Ambiguous Question</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <localTopics>
+        <fullName>revenue_analytics_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Provide revenue analytics via Apex action using days_back.</description>
+        <developerName>revenue_analytics_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.</description>
+            <developerName>instruction0_179aj000003GTyp</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTyp</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localActionLinks>
+            <functionName>GetRevenueSummaryAction_179aj000003GTyp</functionName>
+        </localActionLinks>
+        <localActions>
+            <fullName>GetRevenueSummaryAction_179aj000003GTyp</fullName>
+            <description>Returns Stripe revenue summary for the last N days, including totals, invoice counts, and outstanding receivables.</description>
+            <developerName>GetRevenueSummaryAction_179aj000003GTyp</developerName>
+            <invocationTarget>GetRevenueSummaryAction</invocationTarget>
+            <invocationTargetType>apex</invocationTargetType>
+            <isConfirmationRequired>false</isConfirmationRequired>
+            <isIncludeInProgressIndicator>false</isIncludeInProgressIndicator>
+            <localDeveloperName>GetRevenueSummaryAction</localDeveloperName>
+            <masterLabel>Get Revenue Summary Action</masterLabel>
+        </localActions>
+        <localDeveloperName>revenue_analytics</localDeveloperName>
+        <masterLabel>Revenue Analytics</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <localTopics>
+        <fullName>agent_router_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Welcome the user and determine the appropriate subagent based on user input</description>
+        <developerName>agent_router_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.
+
+{{state.AgentScriptInternal_agent_instructions}}</description>
+            <developerName>instruction0_179aj000003GTyn</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTyn</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localDeveloperName>agent_router</localDeveloperName>
+        <masterLabel>Agent Router</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <localTopics>
+        <fullName>off_topic_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Redirect conversation to relevant topics when user request goes off-topic</description>
+        <developerName>off_topic_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.</description>
+            <developerName>instruction0_179aj000003GTys</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTys</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localDeveloperName>off_topic</localDeveloperName>
+        <masterLabel>Off Topic</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <localTopics>
+        <fullName>send_payment_reminders_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Send Stripe payment reminder emails for unpaid invoices via Apex action.</description>
+        <developerName>send_payment_reminders_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.</description>
+            <developerName>instruction0_179aj000003GTyq</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTyq</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localActionLinks>
+            <functionName>SendPaymentRemindersAction_179aj000003GTyq</functionName>
+        </localActionLinks>
+        <localActions>
+            <fullName>SendPaymentRemindersAction_179aj000003GTyq</fullName>
+            <description>Sends Stripe payment reminder emails for unpaid invoices based on the provided scope (Invoice DocumentNumber or &apos;all&apos;).</description>
+            <developerName>SendPaymentRemindersAction_179aj000003GTyq</developerName>
+            <invocationTarget>SendPaymentRemindersAction</invocationTarget>
+            <invocationTargetType>apex</invocationTargetType>
+            <isConfirmationRequired>false</isConfirmationRequired>
+            <isIncludeInProgressIndicator>false</isIncludeInProgressIndicator>
+            <localDeveloperName>SendPaymentRemindersAction</localDeveloperName>
+            <masterLabel>Send Payment Reminders Action</masterLabel>
+        </localActions>
+        <localDeveloperName>send_payment_reminders</localDeveloperName>
+        <masterLabel>Send Payment Reminders</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <localTopics>
+        <fullName>escalation_16jaj0000025v69</fullName>
+        <canEscalate>false</canEscalate>
+        <description>Handles requests from users who want to transfer or escalate their conversation to a live human agent.</description>
+        <developerName>escalation_16jaj0000025v69</developerName>
+        <genAiPluginInstructions>
+            <description>You are TechnoStore Revenue Assistant for sales reps. You support two tasks: 1) send Stripe payment reminders and 2) provide revenue analytics. You work with Salesforce Revenue Cloud Invoice object and related Stripe payments. Be concise, professional, and action-oriented.</description>
+            <developerName>instruction0_179aj000003GTyr</developerName>
+            <language>en_US</language>
+            <masterLabel>instruction0_179aj000003GTyr</masterLabel>
+            <sortOrder>1</sortOrder>
+        </genAiPluginInstructions>
+        <language>en_US</language>
+        <localDeveloperName>escalation</localDeveloperName>
+        <masterLabel>Escalation</masterLabel>
+        <pluginType>Topic</pluginType>
+    </localTopics>
+    <masterLabel>TechnoStore Revenue Assistant</masterLabel>
+    <plannerType>Atlas__ConcurrentMultiAgentOrchestration</plannerType>
+</GenAiPlannerBundle>

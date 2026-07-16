@@ -6,15 +6,35 @@ that surface exceeds the running user's own permissions or reaches a field the o
 labelled GDPR / PII.**
 
 The headline number is the **Escalation Gap**: the fields the agent's *code* can reach
-beyond its *user*. No agent is ever invoked; every input is a free metadata read; it runs
-on every commit.
+beyond its *user*. No agent is ever invoked; no Flex Credits are consumed; it runs on
+every commit and fails the build on ERROR.
 
-> **Honest framing.** This is a reference implementation built on my own initiative, not
-> client work. The analyzer, the six in-org experiments, the 47 unit tests, and the live
-> report against the deployed HealthRecord Assistant agent are all real, produced in a
-> Developer Edition org at zero Flex Credits. The health-records domain is fictional demo
-> data. Record-level leakage is reported as posture, not exact counts; dynamic SOQL is an
-> honest unknown, never a silent pass.
+And on an agent authored in Salesforce's open-source **Agent Script**, it does not stop at
+*reachability* — it follows the value all the way into the prompt:
+
+```
+[PS522] GDPR/PII field HealthRecord__c.Diagnosis__c is interpolated into the
+        model's prompt at line 125, and the running user has no FLS on it.
+
+  Traced:  HealthRecord__c.Diagnosis__c
+             → @outputs.summary            (Apex: SOQL → @InvocableVariable)
+             → @variables.record_summary   (.agent line 128)
+             → prompt                      (.agent line 125)
+
+  This is not inferred reachability — every hop is a node in a parse tree.
+```
+
+That path is **provably absent from the compiled agent metadata** (searched in full:
+zero occurrences), so a metadata-based scanner cannot produce it at all.
+
+> **Honest framing.** A reference implementation built on my own initiative, not client
+> work. The analyzer, the in-org experiments, the **97 unit tests**, the live agent
+> *authored in Agent Script and published to the org*, and the report against it are all
+> real, produced in a Developer Edition org at zero Flex Credits. The health-records domain
+> is fictional demo data. Record counts are live `COUNT()` queries and are reported as
+> `n/a` — never estimated — when record visibility is sharing-dependent. Dynamic SOQL, an
+> untraceable data flow, and an opaque managed action are all *honest unknowns*, never a
+> silent pass.
 >
 > Full case study: **[mustafaaksu.dev/en/projects/agent-blast-radius](https://mustafaaksu.dev/en/projects/agent-blast-radius)**
 
@@ -60,38 +80,64 @@ are deployed metadata in this repo — the proof is re-runnable.
 ## The pipeline
 
 ```
-metadata ─► reach readers ─────► authority_analyzer ─► report
-            apex_introspect      × permission_resolver   Escalation Gap
-            flow_introspect      × ComplianceGroup        + PS5xx findings
-            agent_metadata_loader  labels                 (deterministic,
-                                                           fingerprint-bound)
+agent config ─► reach readers ─────► authority_analyzer ─► report
+  .agent  (Agent Script,   apex_introspect   × permission_resolver   Escalation Gap
+           official parser)  ← real Apex AST × ComplianceGroup labels  + PS5xx findings
+  or GenAi metadata        flow_introspect                            (deterministic,
+                                                                       fingerprint-bound)
 ```
 
-All in [`blast_radius/`](blast_radius/) — see its [README](blast_radius/README.md) for the
-module map and the PS5xx rule table (PS501 system-mode read on a Private object, PS506
-GDPR field past the user's FLS, PS504 honest-unknown, PS510 Flow system mode, …).
+Apex reach is read from a **real parse tree** (ANTLR `apex-parser`), with the regex
+extractor kept as an honest fallback when Node is absent. An `.agent` file is read with
+**Salesforce's own open-source parser** — so the action's `apex://` target is resolved
+straight from the file, with no Tooling API lookup. Both input paths are supported, because
+Agent Builder agents still compile to GenAiPlugin metadata.
+
+All in [`blast_radius/`](blast_radius/) — module map and the full PS5xx rule table there
+(PS501 record-scope expansion, PS506 GDPR field past the user's FLS, PS522 the traced
+prompt interpolation, PS504 honest-unknown, PS510 Flow system mode, …).
 
 ## Run it
 
 ```bash
-# 47 unit tests — all green
+# 97 unit tests — all green (AST/Agent-Script suites skip cleanly without Node)
 python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
 
-# the live agent report (Markdown + HTML dashboard)
-# see blast_radius/live_agent_report.md / .html — committed evidence
+# audit any authenticated org's agent — GenAi metadata path
+python blast_radius/cli.py --agent <PlannerBundle> --permission-set <PermSet>
+
+# …or the Agent Script path, which additionally proves the data → prompt chain
+python blast_radius/cli.py --agent-script path/to/My_Agent.agent \
+       --permission-set <PermSet> --include-counts --fail-on ERROR
 ```
 
 ## What the live run found
 
-Pointed at the deployed **HealthRecord Assistant** agent (its GenAi metadata is in
-`force-app/`), the report needs one line to justify the tool:
+The org runs **HealthRecord Assistant AS** — a real Agentforce agent *authored in Agent
+Script*, compiled by Salesforce's own validator and published with `sf agent publish`. The
+report needs one line to justify the tool:
 
 > **Escalation Gap: 1 field — 1 GDPR-labelled.**
 
-A pre-v67 action class reads a Private object in system mode (**PS501**), and
-`HealthRecord__c.Diagnosis__c` — `ComplianceGroup: PII;GDPR;HIPAA` — reaches the model
-although the running user has **no field-level access** to it (**PS506**). The safe twin
-(`GetHealthRecordSummarySafe`, v67 + USER_MODE) shows the same feature with a clean report.
+A pre-v67 action class reads a Private object in system mode (**PS501**);
+`HealthRecord__c.Diagnosis__c` — `ComplianceGroup: PII;GDPR;HIPAA` — is read past the
+running user's FLS (**PS506**); and the value is *traced* into the model's prompt at a
+specific line (**PS522**). The safe twin (`GetHealthRecordSummarySafe`, v67 + `USER_MODE`)
+shows the same feature with a clean report — no false positive.
+
+Run against the same live agent, the metadata path and the Agent Script path agree on
+PS501/PS506/PS511. Only the Agent Script path can produce PS522 — because the data→prompt
+chain does not survive compilation.
+
+## An upstream find
+
+Wiring Salesforce's official Agent Script SDK in surfaced a packaging bug: the main entry
+of `@sf-agentscript/agentforce` (npm `latest`) cannot be imported at all — it is compiled
+against a newer `@sf-agentscript/language` than its own manifest pins, and three published
+packages are affected. Reported with a reproduction and root-cause analysis
+([issue #71](https://github.com/salesforce/agentscript/issues/71)) and fixed upstream with a
+post-publish smoke test that installs every published package into a clean directory and
+imports it ([PR #72](https://github.com/salesforce/agentscript/pull/72)).
 
 ## Related projects
 

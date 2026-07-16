@@ -44,5 +44,35 @@ class RealAgentMetadataTest(unittest.TestCase):
         self.assertTrue(any("EmployeeCopilot" in a["invocationTarget"] for a in std))
 
 
+AS_BUNDLE = "HealthRecord_Assistant_AS_v1"
+AS_BUNDLE_PATH = os.path.join(SOURCE_ROOT, "genAiPlannerBundles", AS_BUNDLE,
+                              AS_BUNDLE + ".genAiPlannerBundle")
+
+
+class AgentScriptCompiledBundleTest(unittest.TestCase):
+    """Regression: an agent compiled from Agent Script inlines its topics and
+    actions in the planner bundle (<localTopics>/<localActions>) instead of
+    referencing separate GenAiPlugin files. The loader used to see zero actions
+    there and report 'no findings' - a FALSE CLEAN, the one outcome this tool
+    exists to prevent."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.path.exists(AS_BUNDLE_PATH):
+            raise unittest.SkipTest("Agent Script agent not published/retrieved")
+        cls.cfg = load_agent_config(SOURCE_ROOT, AS_BUNDLE,
+                                    running_user="hr-agent-runtime-user", channel="agent")
+
+    def test_inline_topics_are_found(self):
+        self.assertTrue(self.cfg["topics"], "no topics parsed from the compiled bundle")
+
+    def test_inline_apex_action_resolves_without_any_tooling_lookup(self):
+        # No resolver was passed: the target is inline in the planner bundle.
+        actions = [a for t in self.cfg["topics"] for a in t["actions"]]
+        apex = [a for a in actions if a["invocationTargetType"] == "apex"]
+        self.assertTrue(any(a["invocationTarget"] == "GetHealthRecordSummary" for a in apex),
+                        f"apex action not resolved; got {actions}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

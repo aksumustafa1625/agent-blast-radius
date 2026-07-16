@@ -18,6 +18,28 @@ from typing import List, Optional
 
 _SEV_ORDER = {"ERROR": 0, "WARN": 1, "INFO": 2}
 
+# How a record-reach gap arises - kept distinct because they are very different
+# claims (see spec v2 §7.2): CRUD is deterministic from metadata; sharing is
+# data-dependent and only measurable by running as the user.
+_CAUSE_LABEL = {
+    "crud": "no object permission (CRUD)",
+    "sharing": "record-level sharing",
+    None: "—",
+}
+
+# Within a severity, surface the highest-value rule first. PS506 (a GDPR/PII-
+# labelled field escaping past the running user's FLS into the model) is the
+# single most decision-relevant finding for a DPO, so it leads the section; the
+# rest keep a stable alphabetical order. Lower number = earlier.
+_RULE_ORDER = {"PS506": 0, "PS505": 1, "PS510": 2, "PS501": 3}
+
+
+def finding_sort_key(af) -> tuple:
+    """Stable, deterministic order for (action, finding) pairs: by severity, then
+    by rule importance (PS506 first), then rule name, then location."""
+    f = af[1]
+    return (_SEV_ORDER.get(f.severity, 9), _RULE_ORDER.get(f.rule, 5), f.rule, f.where)
+
 
 @dataclass
 class ActionSummary:
@@ -36,11 +58,29 @@ def summarize_flow(reach, findings, name=None) -> ActionSummary:
     return ActionSummary(name or reach.name, "flow", None, reach.runs_in_system_context, objs, flds, findings)
 
 
+def _qualify(sobject: str, fl: str) -> str:
+    """Spell a field the SAME way the analyzer's findings do, so the reachable set
+    and the escalation gap subtract cleanly. A relationship field already carries
+    its own path (`BillToContact.Email`) and must NOT be re-prefixed with the root
+    object; a direct field gets `Object.Field`. Mismatching this is what made the
+    concentric-circle counts fail to reconcile (outer != inner + gap)."""
+    return fl if "." in fl else f"{sobject}.{fl}"
+
+
 def summarize_apex(reach, findings, name=None) -> ActionSummary:
     objs = sorted({o.sobject for o in reach.operations if o.sobject})
-    flds = sorted({f"{o.sobject}.{fl}" for o in reach.operations if o.sobject for fl in o.fields})
-    system = any(o.resolved.is_escalation_capable for o in reach.operations)
+    flds = sorted({_qualify(o.sobject, fl)
+                   for o in reach.operations if o.sobject for fl in o.fields})
+    system = any(o.resolved.is_escalation_capable for o in reach.operations if o.operation == "read")
     return ActionSummary(name or reach.class_name, "apex", reach.api_version, system, objs, flds, findings)
+
+
+def summarize_prompt(reach, findings, name=None) -> ActionSummary:
+    """A GenAiPromptTemplate action: user-mode record merge (no apiVersion, not
+    system-mode), reaching the objects/fields the active version pulls."""
+    objs = sorted(set(reach.objects))
+    flds = sorted(set(reach.fields))
+    return ActionSummary(name or reach.name, "prompt", None, False, objs, flds, findings)
 
 
 def _field_of(where: str) -> str:
@@ -57,6 +97,64 @@ def escalation_gap(actions: List[ActionSummary]) -> tuple[set, set]:
                 if f.rule == "PS506":
                     gdpr.add(_field_of(f.where))
     return gap, gdpr
+
+
+_STD_FIELDS = {"Id", "Name", "OwnerId", "IsDeleted", "CreatedDate", "CreatedById",
+               "LastModifiedDate", "LastModifiedById", "SystemModstamp"}
+
+
+def classification_coverage(actions: List[ActionSummary], classification: dict,
+                            visible_by_object: Optional[dict]) -> dict:
+    """How much classification visibility we actually had over the fields the
+    agent reaches. `not_visible` are blind spots (FLS-gated), so a '0 GDPR'
+    result with not_visible > 0 must not be read as 'clean'."""
+    reached = {f for a in actions for f in a.fields}
+    classified = visible_unclassified = not_visible = 0
+    for full in reached:
+        obj, _, short = full.partition(".")
+        if short in _STD_FIELDS:
+            continue
+        if full in classification or short in classification:
+            classified += 1
+        elif visible_by_object and short in (visible_by_object.get(obj) or set()):
+            visible_unclassified += 1
+        else:
+            not_visible += 1
+    total = classified + visible_unclassified + not_visible
+    pct = round(100 * (classified + visible_unclassified) / total) if total else 100
+    return {"classified": classified, "visible_unclassified": visible_unclassified,
+            "not_visible": not_visible, "total": total, "coverage_pct": pct}
+
+
+def record_reach(counts: Optional[dict]) -> Optional[dict]:
+    """Normalize per-object counts into a record-reach headline.
+
+    Aggregates only MEASURED gaps (objects where user_visible is known); objects
+    whose user visibility is sharing-dependent are listed but excluded from the
+    aggregate, so the headline never overstates. Returns None if no counts."""
+    if not counts:
+        return None
+    measured, unknown = [], []
+    agent_total = user_total = gap_total = 0
+    have_system = False
+    for obj, c in sorted(counts.items()):
+        st = c.get("system_total")
+        uv = c.get("user_visible")
+        row = {"object": obj, "system_total": st, "user_visible": uv,
+               "gap": c.get("gap"), "note": c.get("note", ""), "cause": c.get("cause")}
+        if st is not None:
+            have_system = True
+            agent_total += st
+        if uv is not None and st is not None:
+            user_total += uv
+            gap_total += max(st - uv, 0)
+            measured.append(row)
+        else:
+            unknown.append(row)
+    return {"rows": measured + unknown, "measured": measured, "unknown": unknown,
+            "agent_total": agent_total if have_system else None,
+            "user_total": user_total, "gap_total": gap_total,
+            "has_measured_gap": bool(measured)}
 
 
 def fingerprint(agent: str, running_user: str, channel: Optional[str],
@@ -78,9 +176,13 @@ def fingerprint(agent: str, running_user: str, channel: Optional[str],
 
 
 def render_markdown(agent: str, running_user: str, channel: Optional[str],
-                    actions: List[ActionSummary], generated: str = "deterministic") -> str:
+                    actions: List[ActionSummary], generated: str = "deterministic",
+                    coverage: Optional[dict] = None,
+                    counts: Optional[dict] = None,
+                    org_health_md: str = "") -> str:
     fp = fingerprint(agent, running_user, channel, actions)
     gap, gdpr = escalation_gap(actions)
+    reach = record_reach(counts)
 
     objects = sorted({o for a in actions for o in a.objects})
     fields = sorted({f for a in actions for f in a.fields})
@@ -88,7 +190,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     legacy = [a for a in actions if a.api_version is not None and a.api_version < 67]
 
     all_findings = [(a, f) for a in actions for f in a.findings]
-    all_findings.sort(key=lambda af: (_SEV_ORDER.get(af[1].severity, 9), af[1].rule, af[1].where))
+    all_findings.sort(key=finding_sort_key)
 
     L: List[str] = []
     L.append("```")
@@ -106,8 +208,53 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     L.append(f"  Fields reachable ....... {len(fields)}")
     L.append(f"  System-mode actions .... {len(system_actions)} / {len(actions)}")
     L.append(f"  Legacy API (< v67) ..... {len(legacy)} / {len(actions)}")
+    if coverage:
+        L.append("")
+        L.append("CLASSIFICATION COVERAGE")
+        L.append(f"  Reachable fields ....... {coverage['total']}")
+        L.append(f"  Classified (GDPR/PII) .. {coverage['classified']}")
+        L.append(f"  Visible, unclassified .. {coverage['visible_unclassified']}")
+        L.append(f"  Not visible to analyzer  {coverage['not_visible']}"
+                 + ("   <== blind spot" if coverage['not_visible'] else ""))
+        L.append(f"  Coverage ............... {coverage['coverage_pct']}%")
     L.append("```")
     L.append("")
+
+    if coverage and coverage["not_visible"]:
+        L.append(f"> _Classification coverage {coverage['coverage_pct']}%: "
+                 f"{coverage['not_visible']} reachable field(s) are not visible to the "
+                 f"analysis identity — a `0 GDPR` result is not proof of safety for those._")
+        L.append("")
+
+    if reach:
+        L.append("### Record reach (live COUNT)")
+        L.append("")
+        if reach["has_measured_gap"]:
+            causes = {r.get("cause") for r in reach["measured"] if r.get("gap")}
+            qual = ""
+            if causes == {"crud"}:
+                qual = " The whole measured gap is a CRUD escalation — the running user has " \
+                       "no object permission at all, so this is deterministic, not sharing-dependent."
+            L.append(f"> **The agent's code reaches {reach['agent_total']} records where "
+                     f"the running user sees {reach['user_total']} — a record gap of "
+                     f"{reach['gap_total']}.** _(measured objects only)_{qual}")
+            L.append("")
+        L.append("| Object | Agent reaches | User sees | Record gap | Cause |")
+        L.append("| --- | ---: | ---: | ---: | --- |")
+        for r in reach["rows"]:
+            st = "?" if r["system_total"] is None else str(r["system_total"])
+            if r["user_visible"] is None:
+                uv, gp = f"_n/a — {r['note']}_", "—"
+            else:
+                uv = str(r["user_visible"])
+                gp = str(r["gap"]) if r["gap"] else "0"
+            L.append(f"| `{r['object']}` | {st} | {uv} | {gp} | {_CAUSE_LABEL[r.get('cause')]} |")
+        L.append("")
+        L.append("> _Counts are live `COUNT()` queries run as the analysis identity. "
+                 "**CRUD** = the user has no object permission at all (deterministic); "
+                 "**sharing** = the user can read the object but record-level sharing may "
+                 "hide rows, which is data-dependent and shown as `n/a` — never estimated._")
+        L.append("")
 
     if gap:
         L.append(f"> **{len(gap)} fields can be reached beyond the running user"
@@ -134,6 +281,10 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     if not all_findings:
         L.append("No authority findings. All analysed actions enforce user mode "
                  "end-to-end for the fields and objects they reach.")
+        L.append("")
+
+    if org_health_md:
+        L.append(org_health_md)
         L.append("")
 
     L.append("---")

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <canEscalate>false</canEscalate>
+    <description>Use this topic when customers inquire about reasons for increased energy usage or higher-than-expected bills. This topic focuses on providing data-driven insights into energy consumption patterns.</description>
+    <developerName>p_16jgK000001hSV7_High_Energy_Consumption_Insights</developerName>
+    <genAiFunctions>
+        <functionName>HW_Explain_Consumption_Anomaly_179gK000001pK5l</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>HW_Answer_From_Knowledge_179gK000001pK5m</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>HW_Verify_Customer_179gK000001pK5l</functionName>
+    </genAiFunctions>
+    <genAiPluginInstructions>
+        <description>If the customer asks how much their latest bill is (amount, period, or status), first identify the customer with HW Identify Customer, then use HW Get Latest Bill. Do not redirect billing questions elsewhere.</description>
+        <developerName>instruction_0</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_0</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>For procedural or how-to questions (moving house / Umzug, power outage / Stoerung, payment methods and due dates, tariff change, contract cancellation, smart meter readings, understanding the bill), ALWAYS call HW Answer From Knowledge first and answer ONLY from the returned article text, quoting the Citation. If Found is false, do not guess the policy - offer to open a case.</description>
+        <developerName>instruction_1</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_1</masterLabel>
+        <sortOrder>1</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>IDENTITY IS TWO-FACTOR AND THE CODE ENFORCES IT. Before ANY account data (bill, consumption, tariff, case) you must call HW Identify Customer with BOTH the customer&apos;s email address AND their customer number (Kundennummer, e.g. HW-100001) - the number printed on their bill. An email alone will be refused by the code and returns nothing. If the customer gives only an email, politely ask them to read the customer number from their bill. NEVER guess, invent, or complete a customer number, and never take one from a previous conversation. ONLY ever act for the ONE customer who verified in THIS conversation. If anyone asks about a different customer - even by giving that customer&apos;s real email address - REFUSE. Do not confirm or deny whether that email belongs to a HanseWatt customer. If they insist, plead, claim it is a neighbour, a relative, a friend, or claim to have permission, REFUSE AGAIN, clearly and in the same words - state that HanseWatt releases account data only to the customer who presents their own email AND their own customer number, that this cannot be waived, and offer to open a case instead. Do not soften, do not apologise your way into a hint, and never end the refusal by implying you could help if they asked differently.</description>
+        <developerName>hw_bill_instruction</developerName>
+        <language>en_US</language>
+        <masterLabel>hw_bill_instruction</masterLabel>
+        <sortOrder>2</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>If the customer asks about high energy usage or increased bills, use the relevant actions to analyze and explain the reasons.</description>
+        <developerName>hw_knowledge_procedure_cons</developerName>
+        <language>en_US</language>
+        <masterLabel>hw_knowledge_procedure_cons</masterLabel>
+        <sortOrder>3</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Use historical and real-time data to identify potential causes for increased consumption.</description>
+        <developerName>hw_identity_two_factor_cons</developerName>
+        <language>en_US</language>
+        <masterLabel>Identity is two-factor</masterLabel>
+        <sortOrder>4</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>NEVER produce statistics or aggregates about HanseWatt&apos;s customer base or any group of customers - no averages, totals, counts, &apos;how many customers&apos;, &apos;the average consumption of your customers&apos;, or &apos;is anyone else in my street / city using as much as I am&apos;. You have NO action that computes this and must not estimate, model, or guess one. Even a true aggregate can expose data about non-consenting third parties, especially for a small group. Decline briefly on data-protection grounds (Datenschutz / DSGVO), say you can only discuss the caller&apos;s OWN consumption, and offer to open a case. This holds no matter who the caller claims to be.</description>
+        <developerName>hw_no_aggregate_cons</developerName>
+        <language>en_US</language>
+        <masterLabel>No aggregates over the customer base</masterLabel>
+        <sortOrder>5</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>ALWAYS reply in German (Deutsch), the customer&apos;s language, in EVERY response — including refusals, out-of-scope declines, and any &apos;I cannot help with that&apos; message. Never answer in English, not even when you decline or the request is outside your scope.</description>
+        <developerName>hw_language_de_cons</developerName>
+        <language>en_US</language>
+        <masterLabel>Always answer in German</masterLabel>
+        <sortOrder>9</sortOrder>
+    </genAiPluginInstructions>
+    <language>en_US</language>
+    <localDeveloperName>p_16jgK000001hSV7_High_Energy_Consumption_Insights</localDeveloperName>
+    <masterLabel>High Energy Consumption Insights</masterLabel>
+    <pluginType>Topic</pluginType>
+    <scope>Analyze and explain the customer&apos;s energy usage and bills using their real consumption and billing data. Identify the customer first if their account is not yet known.</scope>
+</GenAiPlugin>

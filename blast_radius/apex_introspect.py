@@ -15,12 +15,18 @@ Each is True / False / None, where None means "undetermined" (e.g. a class with
 no declaration inherits its caller's context - proven in E2). Undetermined is
 reported honestly, never silently treated as safe.
 
-Parsing strategy (honest about its limits): this is a disciplined extractor, not
-the Apex compiler. It reads apiVersion from the paired .cls-meta.xml, the sharing
-keyword from the class header, and inline `[SELECT ... ]` queries with their mode
-clauses. Dynamic SOQL (`Database.query` on a built string) and subqueries are
-flagged as undetermined (PS504), never guessed. A real AST (ANTLR apex-parser)
-or Salesforce Code Analyzer is the documented upgrade path.
+Parsing strategy: `parse_apex` uses a REAL parse tree by default - the ANTLR
+apex-parser via ast_extract.js (see apex_ast.py) - and falls back to the
+disciplined regex extractor below only when Node/the parser package is absent or
+a file fails to parse. Both backends emit the same reach; the precedence law
+(_resolve / _resolve_dml_fls) resolves execution mode identically regardless of
+backend. The regex extractor reads apiVersion from the paired .cls-meta.xml, the
+sharing keyword from the class header, and inline `[SELECT ...]` queries with
+their mode clauses; dynamic SOQL and subqueries it cannot enumerate are flagged
+undetermined (PS504), never guessed. The AST backend resolves these structurally
+(correct on multiline queries, subqueries, and SOQL-shaped text in strings or
+comments). `parse_apex_source` remains the pure regex entry point (inline source,
+no file); `parse_apex(path, backend=...)` selects auto|ast|regex.
 """
 
 from __future__ import annotations
@@ -29,6 +35,8 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional
+
+import apex_ast
 
 _CLASS_DECL = re.compile(
     r"\b(?:public|private|global|protected)\b[^;{]*?"
@@ -41,6 +49,64 @@ _DYNAMIC = re.compile(r"\bDatabase\.(?:query|queryWithBinds|countQuery|getQueryL
                       re.IGNORECASE)
 _MODE_CLAUSE = re.compile(r"\bWITH\s+(USER_MODE|SYSTEM_MODE|SECURITY_ENFORCED)\b",
                           re.IGNORECASE)
+
+# DML extraction (for PS509 trigger-cascade). We resolve the target object where
+# statically determinable - inline construction or a simple typed variable.
+_LIST_DECL = re.compile(r"\bList\s*<\s*([A-Za-z0-9_]+)\s*>\s*([A-Za-z_]\w*)", re.IGNORECASE)
+_OBJ_DECL = re.compile(
+    r"\b([A-Za-z0-9_]+__c|Account|Contact|Case|Lead|Opportunity|Task|User)\s*(?:\[\s*\])?\s+"
+    r"([A-Za-z_]\w*)\s*[=;]", re.IGNORECASE)
+_DML = re.compile(
+    r"\b(insert|update|upsert|delete|undelete)\s+(?:as\s+(user|system)\s+)?"
+    r"(?:new\s+([A-Za-z0-9_]+)\s*\(|([A-Za-z_]\w*))",
+    re.IGNORECASE)
+_DB_DML = re.compile(
+    r"\bDatabase\.(insert|update|upsert|delete|undelete)\s*\(\s*([A-Za-z_]\w*)", re.IGNORECASE)
+_ACCESS_LEVEL = re.compile(r"AccessLevel\.(USER|SYSTEM)_MODE", re.IGNORECASE)
+_COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
+
+
+def _strip_comments(source: str) -> str:
+    return _COMMENTS.sub(" ", source)
+
+
+def _variable_types(source: str) -> dict:
+    # First-wins: the real declaration is seen before a later `insert as user x`
+    # statement (which _OBJ_DECL would otherwise misread as a "User x;" decl).
+    types = {}
+    for m in _LIST_DECL.finditer(source):
+        types.setdefault(m.group(2).lower(), m.group(1))
+    for m in _OBJ_DECL.finditer(source):
+        types.setdefault(m.group(2).lower(), m.group(1))
+    return types
+
+
+def _dml_operations(source: str) -> list:
+    """(verb, sobject_or_None, mode) for each DML statement. mode is
+    'user'/'system' from `as user/system` or `AccessLevel.*`, else None."""
+    types = _variable_types(source)
+    out = []
+    for m in _DML.finditer(source):
+        verb = m.group(1).lower()
+        mode = (m.group(2) or "").lower() or None
+        obj = m.group(3) or types.get((m.group(4) or "").lower())
+        out.append((verb, obj, mode))
+    for m in _DB_DML.finditer(source):
+        al = _ACCESS_LEVEL.search(source[m.end():m.end() + 100])
+        mode = al.group(1).lower() if al else None
+        out.append((m.group(1).lower(), types.get(m.group(2).lower()), mode))
+    return out
+
+
+def _resolve_dml_fls(mode, api_version) -> Optional[bool]:
+    """Whether a DML operation enforces the user's CRUD/FLS (the write axis)."""
+    if mode == "user":
+        return True
+    if mode == "system":
+        return False
+    if api_version is not None and api_version >= 67:
+        return True
+    return False
 
 
 @dataclass
@@ -66,6 +132,14 @@ class ApexOperation:
     resolved: ResolvedMode
     dynamic: bool = False
     note: Optional[str] = None
+    # Authority Path (AST backend only): {field: 'returned'|'internal'|'undetermined'}
+    # - whether the field's VALUE actually flows to the @InvocableMethod output
+    # (the model). None (regex backend) means "not traced" -> worst case applies.
+    field_flow: Optional[dict] = None
+    # {field: [output field names]} - WHICH @InvocableVariable the value lands in
+    # ('*' = the whole record/return value leaves). This names the sink, which is
+    # what lets the Agent Script layer join it to `set @variables.x = @outputs.y`.
+    field_sinks: Optional[dict] = None
 
 
 @dataclass
@@ -75,6 +149,8 @@ class ApexReach:
     sharing: str                       # with | without | inherited | none
     operations: List[ApexOperation] = field(default_factory=list)
     dynamic_soql: bool = False
+    backend: str = "regex"             # "ast" when parsed via the real parse tree
+    referenced: Optional[List[str]] = None
 
 
 def _sharing_record_default(sharing: str) -> tuple[Optional[bool], Optional[str]]:
@@ -105,7 +181,7 @@ def _resolve(clause: Optional[str], api_version: Optional[float], sharing: str) 
     # api <= 66 (or unknown, treated as legacy): system mode for FLS; record
     # access follows the sharing keyword.
     rec, note = _sharing_record_default(sharing)
-    src = "apiVersion<=66 system default" if api_version is not None else "apiVersion unknown (assumed legacy)"
+    src = "API v<=66 system-mode default" if api_version is not None else "apiVersion unknown (assumed legacy)"
     return ResolvedMode(rec, False, src, note)
 
 
@@ -133,6 +209,7 @@ def _read_api_version(cls_path: str) -> Optional[float]:
 
 def parse_apex_source(source: str, api_version: Optional[float],
                       class_name: str = "<source>") -> ApexReach:
+    source = _strip_comments(source)
     m = _CLASS_DECL.search(source)
     sharing = m.group(1).lower() if m else "none"
 
@@ -159,13 +236,121 @@ def parse_apex_source(source: str, api_version: Optional[float],
             dynamic=True, note="PS504: dynamic SOQL - reach cannot be determined statically",
         ))
 
+    for verb, obj, mode in _dml_operations(source):
+        reach.operations.append(ApexOperation(
+            operation=verb, sobject=obj, fields=[], fields_complete=True,
+            resolved=ResolvedMode(None, _resolve_dml_fls(mode, api_version),
+                                  "dml " + (mode or ("v>=67 user default"
+                                            if (api_version or 0) >= 67 else "API v<=66 default"))),
+            note=None if obj else "DML target object undetermined"))
+
     return reach
 
 
-def parse_apex(cls_path: str) -> ApexReach:
-    source = open(cls_path, encoding="utf-8").read()
+def _reach_from_ir(ir: dict, api_version: Optional[float],
+                   class_name: str = None) -> ApexReach:
+    """Build an ApexReach from the AST extractor's IR, applying the SAME
+    precedence law (_resolve / _resolve_dml_fls) the regex path uses. Extraction
+    differs by backend; resolution is identical and shared."""
+    sharing = ir.get("sharing", "none")
+    reach = ApexReach(class_name=ir.get("class_name") or class_name or "<ast>",
+                      api_version=api_version, sharing=sharing, backend="ast",
+                      referenced=ir.get("referenced_classes"))
+    reach.dynamic_soql = bool(ir.get("dynamic_soql"))
+    for op in ir.get("operations", []):
+        kind = op.get("operation")
+        if kind == "read":
+            reach.operations.append(ApexOperation(
+                operation="read", sobject=op.get("sobject"),
+                fields=op.get("fields") or [],
+                fields_complete=bool(op.get("fields_complete")),
+                resolved=_resolve(op.get("mode"), api_version, sharing),
+                note=op.get("note"), field_flow=op.get("field_flow"),
+                field_sinks=op.get("field_sinks")))
+        else:  # a DML verb
+            mode = op.get("mode")
+            src = "dml " + (mode or ("v>=67 user default"
+                            if (api_version or 0) >= 67 else "API v<=66 default"))
+            reach.operations.append(ApexOperation(
+                operation=kind, sobject=op.get("sobject"), fields=[],
+                fields_complete=True,
+                resolved=ResolvedMode(None, _resolve_dml_fls(mode, api_version), src),
+                note=op.get("note")))
+    if reach.dynamic_soql:
+        reach.operations.append(ApexOperation(
+            operation="read", sobject=None, fields=[], fields_complete=False,
+            resolved=ResolvedMode(None, None, "dynamic SOQL", "reach undetermined"),
+            dynamic=True, note="PS504: dynamic SOQL - reach cannot be determined statically"))
+    return reach
+
+
+def _parse_file(cls_path: str, backend: str = "auto") -> ApexReach:
+    """Parse one .cls into an ApexReach (no cross-class follow). backend:
+    'auto' tries the AST and falls back to regex; 'ast' forces AST (raises on
+    failure); 'regex' forces the regex extractor."""
+    api = _read_api_version(cls_path)
     name = os.path.basename(cls_path).replace(".cls", "")
-    return parse_apex_source(source, _read_api_version(cls_path), class_name=name)
+    if backend in ("auto", "ast") and apex_ast.ast_available():
+        try:
+            return _reach_from_ir(apex_ast.extract_ir(cls_path), api, name)
+        except Exception:
+            if backend == "ast":
+                raise
+            # auto: fall through to the regex extractor
+    with open(cls_path, encoding="utf-8") as f:
+        return parse_apex_source(f.read(), api, class_name=name)
+
+
+# Referenced local class names: `new ClassName(` or `ClassName.method(`.
+_CLASS_REF = re.compile(r"\bnew\s+([A-Z][A-Za-z0-9_]*)\s*\(|\b([A-Z][A-Za-z0-9_]*)\.\w+\s*\(")
+
+
+def _referenced_classes(source: str) -> set:
+    names = set()
+    for m in _CLASS_REF.finditer(source):
+        names.add(m.group(1) or m.group(2))
+    return {n for n in names if n}
+
+
+def _refs_of(reach: ApexReach, cls_path: str) -> set:
+    """Referenced local class names: from the AST IR when available, else regex."""
+    if reach.referenced is not None:
+        return {c for c in reach.referenced if c}
+    with open(cls_path, encoding="utf-8") as f:
+        return _referenced_classes(_strip_comments(f.read()))
+
+
+def _follow_one_level(reach: ApexReach, source_root: str, own_name: str,
+                      own_path: str, backend: str = "auto"):
+    """fflib/selector reality: the query usually lives in a delegated class, not
+    the action. Follow ONE level - parse referenced local classes and merge their
+    reach into this action. Delegation that itself delegates further is flagged
+    PS508 (a crosslink marker), never silently dropped."""
+    classes_dir = os.path.join(source_root, "classes")
+    for cname in sorted(_refs_of(reach, own_path)):
+        if cname == own_name:
+            continue
+        cpath = os.path.join(classes_dir, cname + ".cls")
+        if not os.path.exists(cpath):
+            continue  # standard/managed/absent class - not analysable from source
+        sub = _parse_file(cpath, backend)
+        reach.operations.extend(sub.operations)  # attribute the selector's reach to the action
+        deeper = sorted({c for c in _refs_of(sub, cpath)
+                         if c not in (cname, own_name)
+                         and os.path.exists(os.path.join(classes_dir, c + ".cls"))})
+        if deeper:
+            reach.operations.append(ApexOperation(
+                operation="crosslink", sobject=cname, fields=[], fields_complete=False,
+                resolved=ResolvedMode(None, None,
+                                      f"{cname} delegates further to {', '.join(deeper)}"),
+                note="PS508: call chain beyond one level not followed"))
+
+
+def parse_apex(cls_path: str, source_root: str = None, backend: str = "auto") -> ApexReach:
+    reach = _parse_file(cls_path, backend)
+    if source_root:
+        _follow_one_level(reach, source_root, reach.class_name, cls_path, backend)
+    return reach
 
 
 if __name__ == "__main__":

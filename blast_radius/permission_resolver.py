@@ -1,9 +1,13 @@
-"""Effective CRUD/FLS for a running user (Agent Blast Radius, Milestone 1).
+"""CRUD/FLS grant snapshot for a running user (Agent Blast Radius, Milestone 1).
 
-A user's effective permission is the *union* of their profile, every assigned
-permission set, and every permission set group they belong to. Salesforce is
-additive: a permission is granted if ANY source grants it; a permission set can
-only add, never subtract (muting permission sets are a later refinement).
+This is a *grant snapshot*, not a complete effective-access computation. It is
+the additive union of the user's profile and assigned permission sets (a
+permission is granted if ANY source grants it). It deliberately does NOT yet
+model: permission set groups, muting permission sets, session-based activation,
+permission-set licences, restriction/scoping rules, role hierarchy, sharing
+rules, teams/territories/queues, manual or Apex-managed shares, or channel-
+dependent verified identity. Record visibility is treated as posture, not an
+exact runtime computation. Naming it a "grant snapshot" keeps the claim honest.
 
 This module is pure: it operates on a snapshot dict (see fixtures/) so it can be
 unit-tested without an org. Loading that snapshot from a live org via

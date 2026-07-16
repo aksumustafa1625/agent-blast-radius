@@ -59,5 +59,28 @@ class AgentOrchestrationTest(unittest.TestCase):
         self.assertNotIn("PS511", rules)
 
 
+class StandardActionCatalogTest(unittest.TestCase):
+    """A catalogued standard action gets its documented channel, not a blanket opaque."""
+
+    def _summary(self, target):
+        cfg = {"agent": "A", "runningUser": "u", "channel": "agent",
+               "topics": [{"name": "t", "actions": [
+                   {"name": "act", "invocationTargetType": "standard", "invocationTarget": target}]}]}
+        agent = parse_agent_config(cfg)
+        perms = EffectivePermissions(load("user_minimal.json"))
+        return analyze_agent(agent, SOURCE_ROOT, perms, {}, {})[0]
+
+    def test_known_knowledge_action_names_its_channel(self):
+        s = self._summary("EmployeeCopilot__AnswerQuestionsWithKnowledge")
+        f = next(f for f in s.findings if f.rule == "PS507")
+        self.assertIn("Knowledge", f.message)               # documented behaviour, not "opaque"
+        self.assertIn("data-to-model channel", f.fix)
+
+    def test_unknown_standard_action_stays_generic_opaque(self):
+        s = self._summary("Some__RandomManagedAction")
+        f = next(f for f in s.findings if f.rule == "PS507")
+        self.assertIn("standard/opaque action", f.message)  # honest: still unknown
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

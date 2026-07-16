@@ -15,7 +15,8 @@ import html
 import math
 from typing import List
 
-from report import ActionSummary, escalation_gap, fingerprint
+from report import (ActionSummary, escalation_gap, fingerprint, record_reach,
+                    finding_sort_key, _CAUSE_LABEL)
 
 _SEV = {"ERROR": "error", "WARN": "warn", "INFO": "info"}
 
@@ -23,7 +24,7 @@ _CSS = """
 <style>
   .abr { --bg:#f5f8fa; --surface:#ffffff; --ink:#0f1720; --muted:#5c6b7a;
     --line:#e3e9ef; --accent:#0e8f9c; --user:#3b6fe0; --gap:#e5484d;
-    --error:#d93a3f; --warn:#b5720a; --info:#64748b;
+    --error:#d93a3f; --warn:#b5720a; --info:#64748b; --proof:#1a9d6b;
     --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--ink); background:var(--bg); font-family:var(--sans);
@@ -32,15 +33,15 @@ _CSS = """
   @media (prefers-color-scheme:dark){ .abr{
     --bg:#0b1016; --surface:#141d26; --ink:#e6edf3; --muted:#8b9aa8;
     --line:#223041; --accent:#22b8cf; --user:#6aa0ff; --gap:#ff6b72;
-    --error:#ff6169; --warn:#e6a12b; --info:#8b9aa8; } }
+    --error:#ff6169; --warn:#e6a12b; --info:#8b9aa8; --proof:#2dd4a0; } }
   :root[data-theme="dark"] .abr{
     --bg:#0b1016; --surface:#141d26; --ink:#e6edf3; --muted:#8b9aa8;
     --line:#223041; --accent:#22b8cf; --user:#6aa0ff; --gap:#ff6b72;
-    --error:#ff6169; --warn:#e6a12b; --info:#8b9aa8; }
+    --error:#ff6169; --warn:#e6a12b; --info:#8b9aa8; --proof:#2dd4a0; }
   :root[data-theme="light"] .abr{
     --bg:#f5f8fa; --surface:#ffffff; --ink:#0f1720; --muted:#5c6b7a;
     --line:#e3e9ef; --accent:#0e8f9c; --user:#3b6fe0; --gap:#e5484d;
-    --error:#d93a3f; --warn:#b5720a; --info:#64748b; }
+    --error:#d93a3f; --warn:#b5720a; --info:#64748b; --proof:#1a9d6b; }
   .abr *{box-sizing:border-box}
   .abr .bar{font-family:var(--mono); font-size:12.5px; color:var(--muted);
     border:1px solid var(--line); border-radius:8px; background:var(--surface);
@@ -104,6 +105,113 @@ _CSS = """
   .abr .clean{background:color-mix(in srgb,var(--user) 9%,transparent);
     border:1px solid var(--line); border-radius:10px; padding:14px 16px;
     font-size:14px; color:var(--ink)}
+  .abr .recwrap{overflow-x:auto; margin:6px 0 8px}
+  .abr table.rec{width:100%; border-collapse:collapse; font-size:13.5px;
+    font-variant-numeric:tabular-nums}
+  .abr table.rec th,.abr table.rec td{padding:9px 12px; text-align:right;
+    border-bottom:1px solid var(--line)}
+  .abr table.rec th:first-child,.abr table.rec td:first-child{text-align:left;
+    font-family:var(--mono)}
+  .abr table.rec th{font-size:11px; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--muted); font-weight:600}
+  .abr table.rec td.gap{color:var(--gap); font-weight:650}
+  .abr table.rec td.na{color:var(--muted); font-style:italic; text-align:right}
+  .abr .recbar{display:flex; height:14px; border-radius:7px; overflow:hidden;
+    border:1px solid var(--line); background:var(--surface); min-width:120px}
+  .abr .recbar .u{background:var(--user)} .abr .recbar .g{background:var(--gap)}
+
+  /* plain-language stakeholder summary */
+  .abr .plain{border:1px solid var(--line); border-radius:14px; padding:20px 22px;
+    margin:20px 0 6px; background:var(--surface)}
+  .abr .plain .vhead{display:flex; align-items:center; gap:11px; margin-bottom:10px}
+  .abr .plain .badge{font-family:var(--mono); font-size:11.5px; font-weight:650;
+    letter-spacing:.04em; padding:4px 11px; border-radius:999px; white-space:nowrap}
+  .abr .plain.ok .badge{background:color-mix(in srgb,var(--user) 16%,transparent); color:var(--user)}
+  .abr .plain.warn .badge{background:color-mix(in srgb,var(--warn) 18%,transparent); color:var(--warn)}
+  .abr .plain.err .badge{background:color-mix(in srgb,var(--error) 16%,transparent); color:var(--error)}
+  .abr .plain.ok{border-left:5px solid var(--user)}
+  .abr .plain.warn{border-left:5px solid var(--warn)}
+  .abr .plain.err{border-left:5px solid var(--error)}
+  .abr .plain .vhead h3{margin:0; font-size:16.5px; font-family:var(--sans);
+    font-weight:650; text-wrap:balance}
+  .abr .plain p{font-size:14.5px; margin:0 0 9px; color:var(--ink)}
+  .abr .plain p:last-child{margin-bottom:0}
+  .abr .plain b{color:var(--ink)}
+  .abr .plain .sub2{font-size:12.5px; color:var(--muted); font-style:italic}
+  .abr .plain ul.pl{margin:2px 0 8px; padding-left:20px}
+  .abr .plain ul.pl li{font-size:14px; margin-bottom:5px}
+
+  /* remediation checklist */
+  .abr .remed{background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:6px 4px; margin:4px 0 8px}
+  .abr .remed .ritem{display:flex; gap:12px; padding:12px 16px;
+    border-bottom:1px solid var(--line)}
+  .abr .remed .ritem:last-child{border-bottom:none}
+  .abr .remed .box{flex:0 0 auto; width:18px; height:18px; border-radius:5px;
+    border:2px solid var(--muted); margin-top:1px}
+  .abr .remed .ritem.err .box{border-color:var(--error)}
+  .abr .remed .ritem.warn .box{border-color:var(--warn)}
+  .abr .remed .rbody{flex:1}
+  .abr .remed .rrule{font-family:var(--mono); font-size:11px; font-weight:650;
+    letter-spacing:.03em; margin-right:7px}
+  .abr .remed .ritem.err .rrule{color:var(--error)}
+  .abr .remed .ritem.warn .rrule{color:var(--warn)}
+  .abr .remed .rwhere{font-family:var(--mono); font-size:12.5px; color:var(--ink); font-weight:600}
+  .abr .remed .rfix{font-size:13.5px; margin-top:4px; color:var(--ink)}
+  .abr .remed .rfix b{color:var(--muted); font-weight:600; font-family:var(--mono);
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin-right:6px}
+
+  /* API-version posture */
+  .abr .posture{background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:18px 18px 16px; margin:4px 0 8px}
+  .abr .posture.err{border-color:color-mix(in srgb,var(--warn) 55%,var(--line));
+    background:color-mix(in srgb,var(--warn) 5%,var(--surface))}
+  .abr .posture.ok{border-color:color-mix(in srgb,var(--proof) 45%,var(--line))}
+  /* prominent headline: total + split */
+  .abr .ptop{display:flex; align-items:stretch; gap:20px; margin-bottom:14px;
+    flex-wrap:wrap}
+  .abr .ptotal{display:flex; flex-direction:column; justify-content:center;
+    align-items:center; text-align:center; padding:6px 18px 6px 2px;
+    border-right:1px solid var(--line); min-width:96px}
+  .abr .ptotal b{font-size:40px; line-height:1; color:var(--ink); font-weight:800;
+    font-variant-numeric:tabular-nums}
+  .abr .ptotal span{font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--muted); margin-top:6px}
+  .abr .psplit{display:flex; flex:1; gap:12px; flex-wrap:wrap; min-width:200px}
+  .abr .pseg{flex:1; min-width:150px; border-radius:10px; padding:11px 13px;
+    border:1px solid var(--line)}
+  .abr .pseg b{font-size:26px; line-height:1; font-variant-numeric:tabular-nums;
+    display:block; margin-bottom:3px}
+  .abr .pseg span{font-size:12px; color:var(--muted); display:block; line-height:1.35}
+  .abr .pseg.safe{background:color-mix(in srgb,var(--proof) 9%,transparent);
+    border-color:color-mix(in srgb,var(--proof) 30%,var(--line))}
+  .abr .pseg.safe b{color:var(--proof)}
+  .abr .pseg.legacy{background:color-mix(in srgb,var(--warn) 11%,transparent);
+    border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+  .abr .pseg.legacy b{color:var(--warn)}
+  .abr .pbar{display:flex; height:14px; border-radius:8px; overflow:hidden;
+    border:1px solid var(--line); margin:2px 0 12px}
+  .abr .pbar .safe{background:var(--proof)} .abr .pbar .legacy{background:var(--warn)}
+  .abr .pbar .unk{background:var(--line)}
+  .abr .posture .legrow{font-size:13px; margin:8px 0 0}
+  .abr .posture .legrow .cls{font-family:var(--mono); font-size:12px; color:var(--ink);
+    background:color-mix(in srgb,var(--warn) 12%,transparent); border-radius:5px;
+    padding:2px 7px; margin:0 6px 6px 0; display:inline-block}
+  .abr .posture .why{font-size:13px; color:var(--muted); margin:10px 0 0;
+    border-top:1px solid var(--line); padding-top:10px}
+  .abr .posture .why b{color:var(--ink)}
+  .abr .censnote{font-size:13px; color:var(--muted); margin:12px 0 0; max-width:760px}
+  .abr .censnote b{color:var(--ink)}
+
+  /* clean hero */
+  .abr .hero.allclear{grid-template-columns:auto 1fr; align-items:center}
+  .abr .checkmark{width:64px; height:64px; border-radius:50%;
+    background:color-mix(in srgb,var(--user) 16%,transparent);
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto}
+  .abr .checkmark svg{width:34px; height:34px}
+  .abr .hero.allclear h2.ch{margin:0 0 4px; font-family:var(--sans); font-size:20px;
+    font-weight:650; color:var(--ink); text-transform:none; letter-spacing:0; display:block}
+  .abr .hero.allclear .csub{font-size:14px; color:var(--muted); margin:0; max-width:60ch}
 </style>
 """
 
@@ -145,21 +253,243 @@ def _circle_svg(inner_n: int, outer_n: int, gap_n: int, gdpr_n: int) -> str:
     """
 
 
+def _record_section(reach) -> str:
+    if not reach:
+        return ""
+    p = ['<p class="eyebrow">Record reach — how many records the agent can read</p>']
+    if reach["has_measured_gap"]:
+        causes = {r.get("cause") for r in reach["measured"] if r.get("gap")}
+        qual = ''
+        if causes == {"crud"}:
+            qual = (' <span style="color:var(--muted)">The whole measured gap is a '
+                    '<b>CRUD escalation</b> — the user has no object permission at all, so it is '
+                    'deterministic, not sharing-dependent.</span>')
+        p.append(
+            f'<div class="clean" style="border-left:4px solid var(--gap)">'
+            f'The agent&rsquo;s code reaches <b>{reach["agent_total"]}</b> records where the '
+            f'running user sees <b>{reach["user_total"]}</b> &mdash; a record gap of '
+            f'<b>{reach["gap_total"]}</b>. <span style="color:var(--muted)">(measured objects only)</span>'
+            f'{qual}</div>')
+    p.append('<div class="recwrap"><table class="rec"><thead><tr>'
+             '<th>Object</th><th>Agent reaches</th><th>User sees</th>'
+             '<th>Record gap</th><th style="text-align:left">Cause</th>'
+             '<th style="width:26%">&nbsp;</th></tr></thead><tbody>')
+    for r in reach["rows"]:
+        st = "?" if r["system_total"] is None else str(r["system_total"])
+        cause_txt = _CAUSE_LABEL.get(r.get("cause"), "—")
+        if r["user_visible"] is None:
+            uv = f'<td class="na">n/a &middot; {_esc(r["note"])}</td>'
+            gp = '<td class="na">&mdash;</td>'
+            bar = ''
+        else:
+            uv = f'<td>{r["user_visible"]}</td>'
+            g = r["gap"] or 0
+            gp = f'<td class="gap">{g}</td>' if g else '<td>0</td>'
+            total = r["system_total"] or 0
+            if total:
+                upct = round(100 * r["user_visible"] / total)
+                bar = (f'<div class="recbar"><i class="u" style="width:{upct}%"></i>'
+                       f'<i class="g" style="width:{100 - upct}%"></i></div>')
+            else:
+                bar = ''
+        cause_cell = (f'<td style="text-align:left" class="{"na" if not r.get("cause") else ""}">'
+                      f'{_esc(cause_txt)}</td>')
+        p.append(f'<tr><td>{_esc(r["object"])}</td><td>{st}</td>{uv}{gp}{cause_cell}'
+                 f'<td>{bar}</td></tr>')
+    p.append('</tbody></table></div>')
+    p.append('<div class="clean" style="border-left:4px solid var(--info); font-size:12.5px">'
+             'Only objects the agent&rsquo;s code actually <b>reads</b> are counted here '
+             '(a create/insert target is a write, not a read of N records). Live '
+             '<code>COUNT()</code> run as the analysis identity; <b>n/a</b> marks record '
+             'visibility that is sharing/ownership dependent and cannot be measured without '
+             'running as the user &mdash; it is never estimated.</div>')
+    return "\n".join(p)
+
+
+_CHECK_SVG = ('<svg viewBox="0 0 24 24" fill="none" stroke="var(--user)" '
+              'stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
+              '<path d="M4 12.5l5 5L20 6"/></svg>')
+
+
+def _verdict(gap, gdpr, all_findings, reach) -> str:
+    """ok | warn | err - the overall posture, plain-language friendly."""
+    sev = {f.severity for _a, f in all_findings}
+    if "ERROR" in sev:
+        return "err"
+    if "WARN" in sev or (reach and reach.get("has_measured_gap")):
+        return "warn"
+    return "ok"
+
+
+def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
+                         n_actions, n_objects, n_fields, coverage) -> str:
+    """A plain-language box a non-engineer (a DPO, a manager) can read and act on.
+    No jargon: what we checked, the bottom line, what to do."""
+    level = _verdict(gap, gdpr, all_findings, reach)
+    badge = {"ok": "WITHIN BOUNDS", "warn": "NEEDS A LOOK", "err": "ACTION NEEDED"}[level]
+    head = {
+        "ok": "This agent's code stays within its user's permissions.",
+        "warn": "This agent is mostly clean, but one or two things are worth a look.",
+        "err": "This agent's code can reach data beyond what its user is allowed to see.",
+    }[level]
+
+    p = [f'<div class="plain {level}">',
+         f'<div class="vhead"><span class="badge">{badge}</span>'
+         f'<h3>{_esc(head)}</h3></div>']
+
+    # 1) what we checked, in plain terms
+    p.append(
+        f'<p>We inspected everything the code behind <b>{_esc(agent)}</b> can touch '
+        f'— <b>{n_actions}</b> action(s), reaching <b>{n_objects}</b> data object(s) '
+        f'and <b>{n_fields}</b> field(s) — and compared it against what its user is '
+        f'actually allowed to see. Nothing was run and no data left the org.</p>')
+
+    # 2) the bottom line
+    if level == "ok":
+        p.append('<p>For every field it reads, the agent’s code respects the user’s '
+                 'permissions end to end. <b>There is nothing to fix on the data-access side.</b></p>')
+    else:
+        if gdpr:
+            p.append(
+                f'<p>Its code can read <b>{len(gap)}</b> field(s) the user cannot see '
+                f'— <b>{len(gdpr)}</b> of them personal-data (GDPR) fields — and that '
+                f'data can reach the AI model. <b>This should be fixed before go-live.</b></p>')
+        elif gap:
+            p.append(
+                f'<p>Its code can read <b>{len(gap)}</b> field(s) that its user has no '
+                f'permission to see. None are GDPR-labelled, but it is still an access mismatch '
+                f'worth reviewing.</p>')
+
+    # 3) record reach, plainly
+    if reach and reach.get("has_measured_gap"):
+        p.append(
+            f'<p>On <b>records</b>: the agent’s code could read up to <b>{reach["agent_total"]}</b> '
+            f'record(s) where this user is normally allowed <b>{reach["user_total"]}</b>. That is a '
+            f'boundary to confirm — make sure those queries are limited to the right customer, '
+            f'not the whole table.</p>')
+
+    # 4) honest-coverage caveat, in plain words
+    if coverage and coverage.get("not_visible"):
+        p.append(
+            f'<p class="sub2">Note: {coverage["not_visible"]} field(s) were not visible to the '
+            f'account we scanned with, so a &ldquo;no personal data&rdquo; result is not a '
+            f'guarantee for those. Re-run with a broader-read user to close this gap.</p>')
+    elif coverage:
+        p.append('<p class="sub2">The scan could see every field the agent reaches '
+                 f'({coverage["coverage_pct"]}% classification coverage), so the personal-data '
+                 'result above is a real measurement, not a blind spot.</p>')
+
+    if level != "ok" and any(f.severity in ("ERROR", "WARN") for _a, f in all_findings):
+        p.append('<p class="sub2">The exact fixes are listed under <b>What to do next</b> below.</p>')
+
+    p.append('</div>')
+    return "\n".join(p)
+
+
+def _remediation(all_findings) -> str:
+    """The actionable half: every ERROR/WARN finding as a fix checklist item.
+    INFO findings are informational and deliberately not action items."""
+    items = [(a, f) for a, f in all_findings if f.severity in ("ERROR", "WARN")]
+    if not items:
+        return ""
+    p = ['<p class="eyebrow">What to do next</p>',
+         '<p class="sub" style="margin:0 0 12px">Each item below is a concrete fix. '
+         'Clear them and re-run; the report regenerates deterministically.</p>',
+         '<div class="remed">']
+    for _a, f in items:
+        cls = "err" if f.severity == "ERROR" else "warn"
+        p.append(
+            f'<div class="ritem {cls}"><div class="box"></div><div class="rbody">'
+            f'<span class="rrule">{_esc(f.rule)}</span>'
+            f'<span class="rwhere">{_esc(f.where)}</span>'
+            f'<div class="rfix"><b>Fix</b>{_esc(f.fix)}</div></div></div>')
+    p.append('</div>')
+    return "\n".join(p)
+
+
+def _api_posture(actions) -> str:
+    """A first-class 'security posture by API version' panel, shown near the top
+    because it is the single strongest at-a-glance risk signal: pre-v67 classes
+    default to system mode, so they bypass sharing/FLS unless the code adds an
+    explicit clause. Most real orgs are full of them. Deduplicated by class so
+    the counts are of distinct classes, not action references."""
+    # dedupe by action/class name so a class reached by two actions counts once
+    by_class = {}
+    for a in actions:
+        if a.api_version is not None:
+            by_class[a.name] = a.api_version
+    if not by_class:
+        return ""
+    total = len(by_class)
+    safe = sorted(n for n, v in by_class.items() if v >= 67)
+    legacy = sorted(((n, v) for n, v in by_class.items() if v < 67), key=lambda x: (x[1], x[0]))
+    ns, nl = len(safe), len(legacy)
+    sp = round(100 * ns / total)
+
+    level = "err" if nl else "ok"     # any legacy class -> amber posture
+    p = ['<p class="eyebrow">Security posture — by Apex API version</p>',
+         f'<div class="posture {level}">']
+
+    # prominent headline: total classes + the split
+    p.append(
+        '<div class="ptop">'
+        f'<div class="ptotal"><b>{total}</b><span>Apex '
+        f'class{"es" if total != 1 else ""}<br>analysed</span></div>'
+        '<div class="psplit">'
+        f'<div class="pseg safe"><b>{ns}</b> at API v67+ '
+        f'<span>secure-by-default (user mode)</span></div>'
+        f'<div class="pseg legacy"><b>{nl}</b> pre-v67 '
+        f'<span>system-mode default — sharing/FLS bypassed by default</span></div>'
+        '</div></div>')
+
+    p.append('<div class="pbar">'
+             + (f'<i class="safe" style="width:{sp}%"></i>' if ns else '')
+             + (f'<i class="legacy" style="width:{100 - sp}%"></i>' if nl else '')
+             + '</div>')
+
+    if legacy:
+        p.append('<div class="legrow">Pre-v67 classes: '
+                 + ''.join(f'<span class="cls">{_esc(n)} (v{v:g})</span>' for n, v in legacy)
+                 + '</div>')
+        p.append('<p class="why"><b>Why it matters:</b> a class written before API v67 '
+                 'defaults to <b>system mode</b> — its queries and writes bypass the running '
+                 'user’s sharing and field-level security unless the code adds an explicit '
+                 '<code>WITH USER_MODE</code> / <code>as user</code> clause. Upgrading the '
+                 'apiVersion flips that default, so orgs deliberately leave old classes as-is — '
+                 'and the risk is permanent until each is reviewed. Every pre-v67 class is also '
+                 'flagged individually (PS511).</p>')
+    else:
+        p.append('<p class="why">Every analysed Apex class runs at API v67 or later, so the '
+                 'platform enforces the running user’s access by default. This is the strong '
+                 'baseline; the findings still apply to explicit system-mode code, Flows and '
+                 'legacy triggers.</p>')
+    p.append('</div>')
+    return "\n".join(p)
+
+
 def render_html(agent: str, running_user: str, channel, actions: List[ActionSummary],
-                generated: str = "deterministic") -> str:
+                generated: str = "deterministic", coverage=None, counts=None,
+                org_health: str = "") -> str:
     fp = fingerprint(agent, running_user, channel, actions)
     gap, gdpr = escalation_gap(actions)
-    reached = {f for a in actions for f in a.fields}
+    reach = record_reach(counts)
+    # One canonical field set, one partition. Every gap field is by definition a
+    # field the code reads, so it must be part of `reached`; unioning gap in is a
+    # belt-and-braces guard against any residual naming skew. The invariant
+    # outer == inner + gap then holds exactly, so the concentric circles always
+    # reconcile (this is the numeric-honesty contract the whole tool sells).
+    reached = {f for a in actions for f in a.fields} | gap
     user_visible = reached - gap
     outer_n, inner_n = len(reached), len(user_visible)
+    assert outer_n == inner_n + len(gap), \
+        f"circle invariant broken: reached={outer_n} user={inner_n} gap={len(gap)}"
 
     objects = {o for a in actions for o in a.objects}
     system_actions = sum(1 for a in actions if a.system_mode)
     legacy = sum(1 for a in actions if a.api_version is not None and a.api_version < 67)
 
     all_findings = [(a, f) for a in actions for f in a.findings]
-    order = {"ERROR": 0, "WARN": 1, "INFO": 2}
-    all_findings.sort(key=lambda af: (order.get(af[1].severity, 9), af[1].rule, af[1].where))
+    all_findings.sort(key=finding_sort_key)
 
     parts: List[str] = [f'<title>Agent Blast Radius — {_esc(agent)}</title>', _CSS, '<div class="abr">']
 
@@ -176,34 +506,77 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     parts.append('<p class="sub">Static, zero-credit analysis of the agent\'s real '
                  'data-access surface at the execution-semantics layer.</p>')
 
-    # hero: gap number + circles
-    gap_word = "field" if len(gap) == 1 else "fields"
-    parts.append('<div class="hero"><div>')
-    parts.append(f'<div class="gapnum">{len(gap)}</div>')
-    parts.append(f'<div class="gaplabel"><b>{gap_word} reachable beyond the running user</b>'
-                 f'{f" — <b>{len(gdpr)}</b> GDPR-labelled." if gdpr else "."}</div>')
-    parts.append('<div class="legend">'
-                 '<span><i class="dot" style="background:var(--user)"></i>User sees</span>'
-                 '<span><i class="dot" style="background:var(--gap)"></i>Agent reaches / gap</span>'
-                 '</div>')
-    parts.append('</div><div>')
-    parts.append(_circle_svg(inner_n, outer_n, len(gap), len(gdpr)))
-    parts.append('</div></div>')
+    # plain-language summary a non-engineer (a DPO, a manager) can read and act on
+    parts.append(_stakeholder_summary(agent, gap, gdpr, all_findings, reach,
+                                      len(actions), len(objects), outer_n, coverage))
+
+    # API-version posture near the top: the single strongest at-a-glance risk signal,
+    # and the number companies most need to see (how many classes are still pre-v67)
+    posture = _api_posture(actions)
+    if posture:
+        parts.append(posture)
+
+    # hero: the two-circle escalation gap when there IS one; a calm "within bounds"
+    # panel when there isn't (an empty "0" circle reads as broken, not as good news)
+    if gap:
+        gap_word = "field" if len(gap) == 1 else "fields"
+        parts.append('<div class="hero"><div>')
+        parts.append(f'<div class="gapnum">{len(gap)}</div>')
+        parts.append(f'<div class="gaplabel"><b>{gap_word} reachable beyond the running user</b>'
+                     f'{f" — <b>{len(gdpr)}</b> GDPR-labelled." if gdpr else "."}</div>')
+        parts.append('<div class="legend">'
+                     '<span><i class="dot" style="background:var(--user)"></i>User sees</span>'
+                     '<span><i class="dot" style="background:var(--gap)"></i>Agent reaches / gap</span>'
+                     '</div>')
+        parts.append('</div><div>')
+        parts.append(_circle_svg(inner_n, outer_n, len(gap), len(gdpr)))
+        parts.append('</div></div>')
+    else:
+        rk = (' The wider record-reach boundary is summarised below.'
+              if reach and reach.get("has_measured_gap") else '')
+        parts.append(
+            '<div class="hero allclear">'
+            f'<div class="checkmark">{_CHECK_SVG}</div>'
+            '<div><h2 class="ch">No field escalation — the agent stays within its user.</h2>'
+            f'<p class="csub">Every field the agent&rsquo;s code reads is one its running user '
+            f'is already allowed to see.{rk}</p></div></div>')
 
     # stats
-    parts.append('<div class="stats">')
-    for n, k, flag in [
+    stat_rows = [
         (len(actions), "Actions", False),
         (len(objects), "Objects reachable", False),
         (outer_n, "Fields reachable", False),
         (f"{system_actions}/{len(actions)}", "System-mode", system_actions > 0),
-        (f"{legacy}/{len(actions)}", "Legacy API <v67", legacy > 0),
-    ]:
+    ]
+    if coverage:
+        stat_rows.append((f"{coverage['coverage_pct']}%", "Classification coverage",
+                          coverage['not_visible'] > 0))
+    parts.append('<div class="stats">')
+    for n, k, flag in stat_rows:
         parts.append(f'<div class="stat{" flag" if flag else ""}">'
                      f'<div class="n">{_esc(n)}</div><div class="k">{_esc(k)}</div></div>')
     parts.append('</div>')
 
-    # findings by severity
+    if coverage and coverage["not_visible"]:
+        parts.append(
+            f'<div class="clean" style="border-left:4px solid var(--warn)">'
+            f'Classification coverage {coverage["coverage_pct"]}%: '
+            f'{coverage["not_visible"]} reachable field(s) are not visible to the analysis '
+            f'identity. A &ldquo;0 GDPR&rdquo; result is not proof of safety for those fields.'
+            f'</div>')
+
+    section = _record_section(reach)
+    if section:
+        parts.append(section)
+
+    # the action list: concrete fixes, before the detailed evidence
+    remediation = _remediation(all_findings)
+    if remediation:
+        parts.append(remediation)
+
+    # findings by severity - the detailed evidence behind each item above
+    if all_findings:
+        parts.append('<p class="eyebrow" style="margin-top:30px">Findings in detail</p>')
     for sev in ("ERROR", "WARN", "INFO"):
         items = [af for af in all_findings if af[1].severity == sev]
         if not items:
@@ -221,6 +594,11 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     if not all_findings:
         parts.append('<div class="clean">No authority findings. Every analysed action '
                      'enforces user mode end-to-end for the objects and fields it reaches.</div>')
+
+    # org health: org-wide signals that don't concern THIS agent but a reviewer
+    # of the org should know (whole-org API-version debt, god-mode grants, OWD)
+    if org_health:
+        parts.append(org_health)
 
     parts.append(f'<div class="foot">Produced by static analysis. No agent was invoked. '
                  f'0 Flex Credits. Bound to fingerprint {_esc(fp)}; regenerate if the agent '

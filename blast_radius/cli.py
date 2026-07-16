@@ -26,36 +26,78 @@ from agent_metadata_loader import load_agent_config  # noqa: E402
 from apex_introspect import parse_apex  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
-from report import escalation_gap, render_markdown, summarize_apex, summarize_flow  # noqa: E402
+from report import (classification_coverage, escalation_gap,  # noqa: E402
+                    render_markdown)
 from report_html import render_html  # noqa: E402
 from snapshot_loader import build_snapshot  # noqa: E402
 
 
-def _retrieve(agent: str, target_org):
-    cmd = f'sf project retrieve start --metadata "GenAiPlannerBundle:{agent}" --metadata "GenAiPlugin"'
+def _sf_retrieve(metadata: list, target_org) -> bool:
+    if not metadata:
+        return True
+    cmd = "sf project retrieve start " + " ".join(f'--metadata "{m}"' for m in metadata)
     if target_org:
         cmd += f" --target-org {target_org}"
-    subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                   encoding="utf-8", errors="replace")
+    res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace")
+    return res.returncode == 0
 
 
-def _reached_objects(agent, source_root: str):
+def _retrieve(agent: str, target_org):
+    _sf_retrieve([f"GenAiPlannerBundle:{agent}", "GenAiPlugin"], target_org)
+
+
+def _retrieve_action_sources(agent, source_root: str, target_org):
+    """Pull ONLY the Apex classes / Flows this agent's actions actually invoke.
+
+    Without this the tool is useless against an org whose source is not already
+    checked out locally: the action targets resolve, but there is no .cls to
+    read, so every action becomes an honest 'source not found' (PS504). We
+    deliberately do not retrieve the whole org - just the reachable targets."""
+    want = []
+    for a in agent.actions:
+        if a.target_type == "apex":
+            if not os.path.exists(os.path.join(source_root, "classes", a.target + ".cls")):
+                want.append(f"ApexClass:{a.target}")
+        elif a.target_type == "flow":
+            if not os.path.exists(os.path.join(source_root, "flows",
+                                               a.target + ".flow-meta.xml")):
+                want.append(f"Flow:{a.target}")
+    if want:
+        print(f"retrieving action sources: {', '.join(want)}")
+        _sf_retrieve(want, target_org)
+
+
+def _reached_objects(agent, source_root: str, backend: str = "auto",
+                     read_only: bool = False):
+    """Objects the agent's actions touch. `read_only=True` returns only objects
+    the code READS - the ones where "reaches N records" is a meaningful record
+    count. A create/insert target is a write, not a read of N records, so it is
+    excluded from record-reach to keep that headline honest."""
     objects = set()
     for action in agent.actions:
         if action.target_type == "apex":
             path = os.path.join(source_root, "classes", action.target + ".cls")
             if os.path.exists(path):
-                objects.update(o.sobject for o in parse_apex(path).operations if o.sobject)
+                for o in parse_apex(path, source_root, backend=backend).operations:
+                    if o.sobject and (not read_only or o.operation == "read"):
+                        objects.add(o.sobject)
         elif action.target_type == "flow":
             path = os.path.join(source_root, "flows", action.target + ".flow-meta.xml")
             if os.path.exists(path):
-                objects.update(a.sobject for a in parse_flow(path).accesses if a.sobject)
+                for a in parse_flow(path).accesses:
+                    if a.sobject and (not read_only or a.operation == "read"):
+                        objects.add(a.sobject)
     return objects
 
 
 def main():
     ap = argparse.ArgumentParser(description="Compute an Agentforce agent's blast radius.")
-    ap.add_argument("--agent", required=True, help="GenAiPlannerBundle API name")
+    ap.add_argument("--agent", default=None, help="GenAiPlannerBundle API name")
+    ap.add_argument("--agent-script", default=None, metavar="PATH",
+                    help="path to an Agent Script .agent authoring bundle file; reads the "
+                         "action targets (apex://, flow://) straight from the file - no "
+                         "Tooling API lookup. Alternative to --agent.")
     ap.add_argument("--org", default=None, help="sf target org alias/username (default org if omitted)")
     ap.add_argument("--running-user", default=None, help="username to model as the running user")
     ap.add_argument("--permission-set", default=None, help="model the running user as this permission set")
@@ -63,39 +105,116 @@ def main():
     ap.add_argument("--channel", default="agent")
     ap.add_argument("--out", default=os.path.join("blast_radius", "report"))
     ap.add_argument("--no-retrieve", action="store_true", help="skip retrieving agent metadata")
+    ap.add_argument("--include-counts", action="store_true",
+                    help="run live COUNT() queries for a real record-reach headline "
+                         "(user sees N vs agent reaches M records); never fabricates numbers")
+    ap.add_argument("--apex-backend", choices=["auto", "ast", "regex"], default="auto",
+                    help="Apex reach extractor: 'auto' uses the real AST (apex-parser) "
+                         "and falls back to regex; 'ast' forces it; 'regex' forces the fallback")
+    ap.add_argument("--fail-on", choices=["ERROR", "WARN", "none"], default="none",
+                    help="exit non-zero if any finding is at or above this severity (for CI gates)")
+    ap.add_argument("--no-org-health", action="store_true",
+                    help="skip the whole-org health section (API-version debt, god-mode "
+                         "grants, permissive OWD) appended to the foot of the report")
     args = ap.parse_args()
 
     if not args.running_user and not args.permission_set:
         ap.error("provide --running-user or --permission-set")
+    if not args.agent and not args.agent_script:
+        ap.error("provide --agent (metadata) or --agent-script (.agent file)")
 
     root = args.source_root
-    if not args.no_retrieve:
-        print("retrieving agent metadata ...")
-        _retrieve(args.agent, args.org)
-
-    print("resolving agent config ...")
-    resolver = org_loaders.function_resolver(args.org)
     ru_label = args.running_user or f"(permission set: {args.permission_set})"
-    cfg = load_agent_config(root, args.agent, running_user=ru_label,
-                            channel=args.channel, resolver=resolver)
+
+    script_ir = None
+    if args.agent_script:
+        # Agent Script path: the action targets are IN the file. No retrieve,
+        # no Tooling API lookup. The IR also carries the data->prompt chain
+        # (@outputs -> @variables -> {! }) that PS52x traces.
+        import agentscript_loader
+        print(f"reading Agent Script: {args.agent_script}")
+        script_ir = agentscript_loader.extract(args.agent_script)
+        cfg = agentscript_loader.to_analyzer_config(script_ir, running_user=ru_label,
+                                                    channel=args.channel)
+        for scheme, name, line in agentscript_loader.reached_targets(script_ir):
+            print(f"  action target: {scheme}://{name}  (line {line})")
+    else:
+        if not args.no_retrieve:
+            print("retrieving agent metadata ...")
+            _retrieve(args.agent, args.org)
+        print("resolving agent config ...")
+        resolver = org_loaders.function_resolver(args.org)
+        cfg = load_agent_config(root, args.agent, running_user=ru_label,
+                                channel=args.channel, resolver=resolver)
     agent = parse_agent_config(cfg)
 
-    objects = _reached_objects(agent, root)
+    # The action targets are known now; pull just their source if it isn't local.
+    if not args.no_retrieve:
+        _retrieve_action_sources(agent, root, args.org)
+
+    import apex_ast
+    if args.apex_backend in ("auto", "ast"):
+        if apex_ast.ast_available():
+            backend_note = "ast (real parse tree)" if args.apex_backend == "ast" \
+                else "ast (auto; regex fallback ready)"
+        else:
+            backend_note = "regex (AST backend unavailable: node/apex-parser not found)"
+    else:
+        backend_note = "regex (forced)"
+    print(f"apex extractor: {backend_note}")
+
+    objects = _reached_objects(agent, root, args.apex_backend)
     print(f"objects reached: {sorted(objects) or '(none - opaque actions only)'}")
 
     print("loading classifications, sharing models, permissions ...")
-    classification = org_loaders.classification(objects, args.org)
+    classification, visible = org_loaders.classification(objects, args.org)
     sharing = org_loaders.sharing(objects, args.org)
+    triggers = org_loaders.active_triggers(objects, args.org)
     if args.permission_set:
         snapshot = org_loaders.snapshot_from_permset(args.permission_set, objects, args.org)
     else:
         snapshot = build_snapshot(args.running_user, sobjects=list(objects), channel=args.channel)
     perms = EffectivePermissions(snapshot)
 
-    summaries = analyze_agent(agent, root, perms, classification, sharing)
+    summaries = analyze_agent(agent, root, perms, classification, sharing, triggers,
+                              apex_backend=args.apex_backend, script_ir=script_ir)
+    coverage = classification_coverage(summaries, classification, visible)
 
-    md = render_markdown(agent.name, agent.running_user, agent.channel, summaries)
-    html = render_html(agent.name, agent.running_user, agent.channel, summaries)
+    counts = None
+    if args.include_counts:
+        print("counting records (live COUNT queries) ...")
+        # Record-reach is a READ concept: "how many records can the code read
+        # beyond the user". A create/insert target is not a read of N records, so
+        # count only the objects the code actually READS - honest by construction.
+        read_objects = _reached_objects(agent, root, args.apex_backend, read_only=True)
+        counts = org_loaders.record_counts(read_objects, sharing, perms, args.org)
+
+    # org health: whole-org signals (API-version debt, god-mode grants, OWD) that
+    # don't concern THIS agent but a reviewer of the org should see. Live mode only
+    # (needs Tooling/Data API); skipped for --agent-script / --no-retrieve local runs.
+    org_health_html = org_health_md = ""
+    if not args.no_org_health and not args.agent_script:
+        try:
+            import org_health
+            from report import escalation_gap
+            print("gathering org health (whole-org signals) ...")
+            health = org_health.gather_org_health(args.org)
+            # tie the org-wide posture back to THIS agent: its escalation gap and
+            # how much of its OWN action code is the pre-v67 root cause
+            gap_fields, _ = escalation_gap(summaries)
+            apex_actions = [s for s in summaries if s.api_version is not None]
+            legacy_actions = [s for s in apex_actions if s.api_version < 67]
+            ctx = dict(gap_n=len(gap_fields), agent_legacy=len(legacy_actions),
+                       agent_apex_total=len(apex_actions))
+            org_health_html = org_health.render_health_section(health, agent.name, **ctx)
+            org_health_md = org_health.render_health_md(health, agent.name, **ctx)
+        except Exception as e:
+            print(f"  (org health skipped: {e})")
+
+    md = render_markdown(agent.name, agent.running_user, agent.channel, summaries,
+                         coverage=coverage, counts=counts, org_health_md=org_health_md)
+    html = render_html(agent.name, agent.running_user, agent.channel, summaries,
+                       coverage=coverage, counts=counts, org_health=org_health_html)
     with open(args.out + ".md", "w", encoding="utf-8") as f:
         f.write(md)
     with open(args.out + ".html", "w", encoding="utf-8") as f:
@@ -105,13 +224,27 @@ def main():
     print("\n" + "=" * 60)
     print(f"AGENT: {agent.name}   RUNNING USER: {agent.running_user}")
     print(f"ESCALATION GAP: {len(gap)} field(s), {len(gdpr)} GDPR-labelled")
+    if counts:
+        from report import record_reach
+        rr = record_reach(counts)
+        if rr and rr["has_measured_gap"]:
+            print(f"RECORD REACH: agent reaches {rr['agent_total']} records, "
+                  f"user sees {rr['user_total']} (gap {rr['gap_total']}, measured objects)")
     findings = [f for s in summaries for f in s.findings]
+    order = {"ERROR": 0, "WARN": 1, "INFO": 2}
     for sev in ("ERROR", "WARN", "INFO"):
         n = sum(1 for f in findings if f.severity == sev)
         if n:
             print(f"  {sev}: {n}")
     print(f"reports written: {args.out}.md , {args.out}.html")
     print("=" * 60)
+
+    if args.fail_on != "none":
+        threshold = order[args.fail_on]
+        blocking = [f for f in findings if order.get(f.severity, 9) <= threshold]
+        if blocking:
+            print(f"FAILED: {len(blocking)} finding(s) at or above {args.fail_on}.")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

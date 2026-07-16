@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier>CaseSummary_2</activeVersionIdentifier>
+    <developerName>CaseSummary</developerName>
+    <masterLabel>CaseSummary</masterLabel>
+    <templateVersions>
+        <content>Summarise this case for the agent.
+Subject: {!$Input:record.Subject}
+Priority: {!$Input:record.Priority}</content>
+        <inputs>
+            <apiName>record</apiName>
+            <definition>sobject://Case</definition>
+            <referenceName>Input:record</referenceName>
+        </inputs>
+        <versionIdentifier>CaseSummary_2</versionIdentifier>
+    </templateVersions>
+    <templateVersions>
+        <content>Summarise this case.
+Subject: {!$Input:record.Subject}
+Internal notes: {!$Input:record.Internal_Notes__c}
+Reporter SSN: {!$Input:record.Reporter_SSN__c}</content>
+        <inputs>
+            <apiName>record</apiName>
+            <definition>sobject://Case</definition>
+            <referenceName>Input:record</referenceName>
+        </inputs>
+        <versionIdentifier>CaseSummary_1</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+</GenAiPromptTemplate>

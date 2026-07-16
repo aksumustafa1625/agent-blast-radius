@@ -1,0 +1,10 @@
+{
+  "name": "blast-radius-parsers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node parser bridges for Agent Blast Radius: real Apex AST (ANTLR) + Salesforce Agent Script (official tree-sitter parser).",
+  "dependencies": {
+    "@apexdevtools/apex-parser": "^5.1.0",
+    "@sf-agentscript/parser": "^4.0.1"
+  }
+}

@@ -13,7 +13,7 @@ from authority_analyzer import analyze_flow  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
 from report import (ActionSummary, escalation_gap, fingerprint,  # noqa: E402
-                    render_markdown, summarize_flow)
+                    record_reach, render_markdown, summarize_flow)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REAL_FLOW = os.path.join(HERE, "..", "force-app", "main", "default", "flows",
@@ -67,6 +67,12 @@ class DeterminismTest(unittest.TestCase):
         b = render_markdown("A", "u", "c", self.actions)
         self.assertEqual(a, b)
 
+    def test_html_is_byte_reproducible(self):
+        from report_html import render_html
+        a = render_html("A", "u", "c", self.actions)
+        b = render_html("A", "u", "c", self.actions)
+        self.assertEqual(a, b)
+
     def test_fingerprint_stable(self):
         f1 = fingerprint("A", "u", "c", self.actions)
         f2 = fingerprint("A", "u", "c", self.actions)
@@ -88,6 +94,86 @@ class CleanReportTest(unittest.TestCase):
         md = render_markdown("Agent", "user", "in-app", [clean])
         self.assertIn("No authority findings", md)
         self.assertIn("ESCALATION GAP ......... 0 fields", md)
+
+
+class RecordReachTest(unittest.TestCase):
+    """--include-counts headline: aggregates only MEASURED gaps, never estimates."""
+
+    COUNTS = {
+        "Blast_Test__c": {"system_total": 512, "user_visible": 0, "gap": 512,
+                          "note": "no object read", "cause": "crud"},
+        "Account": {"system_total": 300, "user_visible": 300, "gap": 0,
+                    "note": "OWD Read - user with read sees all", "cause": None},
+        "Case": {"system_total": 88, "user_visible": None, "gap": None,
+                 "note": "OWD Private - record-sharing dependent (run as the user to measure)",
+                 "cause": "sharing"},
+    }
+
+    def test_aggregate_excludes_unmeasured(self):
+        r = record_reach(self.COUNTS)
+        # agent_total sums every known system_total; user/gap only measured objects
+        self.assertEqual(r["agent_total"], 512 + 300 + 88)
+        self.assertEqual(r["user_total"], 0 + 300)
+        self.assertEqual(r["gap_total"], 512)
+        self.assertTrue(r["has_measured_gap"])
+        self.assertEqual(len(r["unknown"]), 1)   # the Private/unmeasured Case
+
+    def test_none_when_no_counts(self):
+        self.assertIsNone(record_reach(None))
+        self.assertIsNone(record_reach({}))
+
+    def test_markdown_shows_headline_and_na(self):
+        md = render_markdown("A", "u", "c", [], counts=self.COUNTS)
+        self.assertIn("Record reach", md)
+        self.assertIn("reaches 900 records", md)   # 512+300+88
+        self.assertIn("user sees 300", md)
+        self.assertIn("n/a", md)                   # the unmeasured Private object
+        self.assertIn("512", md)
+
+    def test_no_fabrication_for_private(self):
+        # The Private object's user visibility must never appear as a number.
+        md = render_markdown("A", "u", "c", [], counts=self.COUNTS)
+        case_row = [ln for ln in md.splitlines() if "`Case`" in ln][0]
+        self.assertIn("n/a", case_row)
+        self.assertNotIn("88 | 88", case_row)      # not claimed as user-visible
+
+    def test_cause_distinguishes_crud_from_sharing(self):
+        # P4: a "user sees 0" gap from missing object permission is a CRUD
+        # escalation, NOT a record-sharing statement - the report must say which.
+        md = render_markdown("A", "u", "c", [], counts=self.COUNTS)
+        blast_row = [ln for ln in md.splitlines() if "`Blast_Test__c`" in ln][0]
+        self.assertIn("no object permission (CRUD)", blast_row)
+        # and the headline names the CRUD cause when the whole measured gap is CRUD
+        self.assertIn("CRUD escalation", md)
+
+
+class CircleInvariantTest(unittest.TestCase):
+    """P2: the concentric-circle counts must reconcile (outer == inner + gap).
+    The bug was a field-naming skew: the reachable set double-prefixed a
+    relationship field ('Invoice.BillToContact.Email') while the finding spelled
+    it 'BillToContact.Email', so the sets wouldn't subtract. Lock the spelling."""
+
+    def test_relationship_field_is_not_reprefixed(self):
+        from report import _qualify
+        # relationship field already carries its path - keep it verbatim
+        self.assertEqual(_qualify("Invoice", "BillToContact.Email"), "BillToContact.Email")
+        # direct field gets the object prefix
+        self.assertEqual(_qualify("Invoice", "DocumentNumber"), "Invoice.DocumentNumber")
+
+    def test_reached_is_a_superset_of_the_gap(self):
+        # Build an action whose fields are spelled by summarize_apex's rule; the
+        # gap (from findings) must be a subset so outer == inner + gap holds.
+        from authority_analyzer import Finding
+        from report import _qualify
+        fields = sorted({_qualify("Invoice", f) for f in
+                         ["DocumentNumber", "BillToContactId", "BillToContact.Email"]})
+        gap_field = "BillToContact.Email"   # exactly how the PS502 `where` spells it
+        summary = ActionSummary("A", "apex", 60, True, ["Invoice"], fields,
+                                [Finding("PS502", "ERROR", f"A -> {gap_field}", "m", "w", "x")])
+        gap, _ = escalation_gap([summary])
+        reached = set(summary.fields) | gap
+        self.assertTrue(gap <= reached)
+        self.assertEqual(len(reached), len(reached - gap) + len(gap))
 
 
 if __name__ == "__main__":

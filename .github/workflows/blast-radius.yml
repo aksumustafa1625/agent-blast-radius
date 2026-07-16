@@ -1,0 +1,114 @@
+# Agent Blast Radius — shift-left authority gate.
+# On every PR that touches Apex/Flow/agents, compute the agent's blast radius,
+# comment the Escalation Gap on the PR, and fail the build on ERROR findings.
+#
+# Configure once:
+#   Secrets: SF_JWT_KEY, SF_CLIENT_ID, SF_USERNAME, SF_INSTANCE_URL  (JWT auth)
+#   Vars:    BLAST_RADIUS_AGENT, BLAST_RADIUS_PERMSET               (what to scan)
+name: Agent Blast Radius
+
+on:
+  pull_request:
+    paths: ['force-app/**', 'blast_radius/**', 'specs/**']
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  blast-radius:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      AGENT: ${{ vars.BLAST_RADIUS_AGENT || 'HealthRecord_Assistant' }}
+      PERMSET: ${{ vars.BLAST_RADIUS_PERMSET || 'HR_Agent_Minimal' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install AST backend (apex-parser)
+        run: npm install --prefix blast_radius
+
+      - name: Unit tests (the analyzer itself)
+        run: python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
+
+      - name: Authenticate the org (JWT)
+        run: |
+          printf '%s' "${{ secrets.SF_JWT_KEY }}" > jwt.key
+          sf org login jwt \
+            --client-id "${{ secrets.SF_CLIENT_ID }}" \
+            --jwt-key-file jwt.key \
+            --username "${{ secrets.SF_USERNAME }}" \
+            --instance-url "${{ secrets.SF_INSTANCE_URL }}" \
+            --alias ciOrg --set-default
+          rm -f jwt.key
+
+      - name: Compute blast radius (fail on ERROR)
+        id: scan
+        continue-on-error: true
+        run: |
+          python blast_radius/cli.py \
+            --agent "$AGENT" --permission-set "$PERMSET" \
+            --org ciOrg --fail-on ERROR --out report
+          {
+            echo '## 🎯 Agent Blast Radius'
+            echo '```'
+            sed -n '/ESCALATION GAP/,/^```/p' report.md | sed '/^```$/d'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blast-radius-report
+          path: |
+            report.md
+            report.html
+
+      - name: Comment the Escalation Gap on the PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('report.md')) return;
+            const md = fs.readFileSync('report.md', 'utf8');
+            const gap = (md.match(/ESCALATION GAP[^\n]*/) || ['Report generated'])[0];
+            const body = [
+              '### 🎯 Agent Blast Radius',
+              '',
+              '**' + gap.trim() + '**',
+              '',
+              '<details><summary>Full report</summary>',
+              '',
+              '```', md.slice(0, 60000), '```',
+              '</details>',
+              '',
+              '_Static, zero-credit analysis — no agent invoked, no Flex Credits._',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Gate — fail the build on ERROR findings
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::Agent Blast Radius found ERROR-level escalations. \
+          Enforce user mode (WITH USER_MODE / as user), upgrade to API v67, or \
+          fix the trigger apiVersion, then re-run."
+          exit 1
