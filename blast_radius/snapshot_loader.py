@@ -7,8 +7,28 @@ the resolver so the resolver stays pure and unit-testable.
 Effective permissions come from the union of the user's profile and every
 assigned permission set. In Salesforce a profile is itself a permission set
 (IsOwnedByProfile = true), and PermissionSetAssignment returns that row too, so
-querying assignments captures both. Permission set GROUPS are a later
-refinement (their aggregate permission set is not yet expanded here).
+querying assignments captures both.
+
+Permission set GROUPS are covered by this same query - VERIFIED in-org (E8, see
+below), not assumed. An earlier version of this docstring claimed they were "a
+later refinement, not yet expanded here"; that was wrong, and it misled an
+external reviewer into filing a critical finding against a gap that does not
+exist. The measurement:
+
+  * Every PermissionSetGroup has a platform-computed aggregate PermissionSet
+    (Type = 'Group', PermissionSetGroupId set).
+  * A group assignment's PermissionSetAssignment.PermissionSetId points at THAT
+    aggregate - so `SELECT PermissionSetId FROM PermissionSetAssignment` already
+    returns it alongside the plain permission sets.
+  * The aggregate carries the group's computed ObjectPermissions/FieldPermissions:
+    on TechnoStore's assigned AgentforceServiceAgentUserPsg, the aggregate's
+    ObjectPermissions equalled the union of its component permission sets exactly
+    (nothing missing, nothing extra).
+
+Since the platform computes that aggregate as (components MINUS muting), reading
+it also applies MUTING permission sets. That last step is architectural, not
+measured: no muting permission set existed in the test orgs, so it is an honest
+untested edge rather than a verified one.
 
 Usage:
     python blast_radius/snapshot_loader.py <username> [sobject1 sobject2 ...]

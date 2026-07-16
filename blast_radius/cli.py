@@ -166,7 +166,16 @@ def main():
         ap.error("provide --agent (metadata) or --agent-script (.agent file)")
 
     root = args.source_root
-    ru_label = args.running_user or f"(permission set: {args.permission_set})"
+    # Two very different identity models, and the report must not blur them:
+    #   --running-user   real effective access (profile + every assigned permission
+    #                    set, INCLUDING permission set groups via their computed
+    #                    aggregate - verified in E8, see snapshot_loader).
+    #   --permission-set a HYPOTHETICAL user holding exactly this one permission set
+    #                    and nothing else. Useful for "what would a minimally-granted
+    #                    agent user see", but it is a model, not a person: it has no
+    #                    profile, no other permission sets, no group.
+    ru_label = (args.running_user or
+                f"(hypothetical grant model - permission set: {args.permission_set})")
 
     script_ir = None
     if args.agent_script:
