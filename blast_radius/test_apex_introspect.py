@@ -233,17 +233,20 @@ class ClassFieldDmlTargetTest(unittest.TestCase):
         }
     }"""
 
-    def test_ast_resolves_shadowing_but_regex_cannot(self):
+    def test_ast_resolves_shadowing_and_regex_admits_it_cannot(self):
         """Where the backends genuinely differ - and why AST is the default.
 
         Apex resolves local > parameter > field, so `update user;` here is an Account.
-        The AST path gets it right because it collects locals before fields into a
-        first-wins map. The REGEX path cannot: it has no notion of scope at all, only
-        document order, and the field is written first. This is not a regression to
-        fix - it is the limit of matching text without a parse tree, and it is exactly
-        the asymmetry the report's backend note exists to disclose. Asserting the real
-        behaviour keeps that honest; asserting the behaviour we wish it had would hide
-        a false positive (PS503 against the wrong object) behind a green test.
+        The AST path gets it right; the REGEX path cannot, because it has no notion of
+        scope at all - that limit is the whole reason AST is the default, and no fix
+        without a parse tree exists.
+
+        What it must NOT do is name the WRONG object. This test used to assert exactly
+        that (regex reported `User`, the field's type), written down as an honest
+        record of a limitation. It was worse than a limitation: PS503 would accuse the
+        running user over an object the code never touches. Since a name declared with
+        two types is now dropped as ambiguous, the fallback says None -> PS504's honest
+        unknown. The limit is unchanged; the lie is gone.
         """
         with tempfile.TemporaryDirectory() as d:
             path = _write(d, "Prof", self.SHADOWED)
@@ -251,9 +254,9 @@ class ClassFieldDmlTargetTest(unittest.TestCase):
             if ast.backend != "ast":
                 self.skipTest("AST backend unavailable")
             self.assertEqual(self._dml(ast), [("update", "Account")])
-            # Measured, not desired: the regex fallback names the field's type.
-            self.assertEqual(self._dml(parse_apex(path, d, backend="regex")),
-                             [("update", "User")])
+            regex = self._dml(parse_apex(path, d, backend="regex"))
+            self.assertEqual(regex, [("update", None)], "regex must not guess a type")
+            self.assertNotIn(("update", "User"), regex, "the field's type is not in scope")
 
 
 class SubqueryAndBindScanTest(unittest.TestCase):
@@ -306,3 +309,114 @@ class SubqueryAndBindScanTest(unittest.TestCase):
         # it must NOT enumerate an aggregate select.
         src = "public without sharing class C { void m(){ Object o = [SELECT COUNT(Id) FROM Account]; } }"
         self.assertEqual(self._reads(src), [("Account", False)])
+
+
+class TextThatIsNotCodeTest(unittest.TestCase):
+    """A regex has to be told that a string is not code. Both halves cost a real bug.
+
+    Found by differential over 104 live classes, where these were the ONLY remaining
+    contradictions between the backends. Fixing them took identical ops 62 -> 82 of
+    104 and drove OVERCLAIM, MISSED and NOISE all to zero: the only asymmetry left is
+    regex admitting it does not know where the AST resolves, which is honest.
+    """
+
+    def _ops(self, src, api=58.0):
+        return [(o.operation, o.sobject)
+                for o in parse_apex_source(src, api).operations if o.operation != "read"]
+
+    def test_dml_shaped_text_in_a_string_is_not_an_operation(self):
+        # `'insert failed'` produced a phantom insert:None - an op describing no
+        # statement, which then read as an honest unknown nobody could act on.
+        self.assertEqual(
+            self._ops("public class C { void m(){ throw new E('insert failed'); } }"), [])
+
+    def test_publish_shaped_text_in_a_string_is_not_an_operation(self):
+        self.assertEqual(self._ops(
+            "public class C { void m(){ System.debug('EventBus.publish Foo__e'); } }"), [])
+
+    def test_a_url_in_a_string_does_not_eat_the_rest_of_the_line(self):
+        """THE ONE THAT MATTERS: `'https://x'` contains `//`.
+
+        Blanking comments before strings ate the rest of that line INCLUDING the
+        closing quote, leaving an odd number of quotes; every later quote then paired
+        with the wrong partner, so the "strings" became the gaps BETWEEN strings and
+        real code was blanked. Measured: it silently erased `update ordersToUpdate;`
+        from a live class - a write made invisible by the pass meant to remove noise.
+        """
+        src = ("public class C { void m(){ "
+               "String u = 'https://api.example.com/v1'; Account a; insert a; } }")
+        self.assertEqual(self._ops(src), [("insert", "Account")])
+
+    def test_an_escaped_quote_does_not_end_the_string(self):
+        # The Apex reads:  String s = 'it\'s here: insert nonsense';
+        # Taken as the terminator, the scanner would fall out of the literal mid-string
+        # and read `insert nonsense` as a statement.
+        src = ("public class C { void m(){ "
+               r"String s = 'it\'s here: insert nonsense';"
+               " Account a; insert a; } }")
+        self.assertEqual(self._ops(src), [("insert", "Account")])
+
+    def test_an_unterminated_string_blanks_the_rest_rather_than_misreading_it(self):
+        # Malformed input should lose reach, never invent it - the honest direction.
+        src = "public class C { void m(){ String s = 'oops; insert junk; } }"
+        self.assertEqual(self._ops(src), [])
+
+    def test_real_code_after_a_block_comment_survives(self):
+        src = "public class C { void m(){ /* insert junk */ Account a; insert a; } }"
+        self.assertEqual(self._ops(src), [("insert", "Account")])
+
+
+class DmlOnQueryTest(unittest.TestCase):
+    """`delete [SELECT Id FROM X];` - DML straight on a query, no variable between.
+
+    The pattern expected a name or `new X(`, so this write was invisible: only the
+    READ was reported and PS503/PS509 never saw the delete. A write we cannot see is
+    a write we cannot check. Idiomatic in cleanup and test teardown, and found on
+    real code - the AST had the same blind spot, resolving the verb but not the object.
+    """
+
+    def _ops(self, src, api=58.0):
+        return [(o.operation, o.sobject, o.resolved.enforces_fls)
+                for o in parse_apex_source(src, api).operations if o.operation != "read"]
+
+    def test_delete_on_a_query_resolves_the_object(self):
+        self.assertEqual(
+            self._ops("public class C { void m(){ delete [SELECT Id FROM Blast_Test__c]; } }"),
+            [("delete", "Blast_Test__c", False)])
+
+    def test_the_clause_still_beats_the_version(self):
+        # `as user` on DML-over-query obeys the same precedence law as anywhere else.
+        self.assertEqual(
+            self._ops("public class C { void m(){ update as user [SELECT Id FROM Account]; } }"),
+            [("update", "Account", True)])
+
+    def test_a_subquery_cannot_hijack_the_target(self):
+        # The same depth scanner the reads use: the DML target is the OUTER object.
+        self.assertEqual(
+            self._ops("public class C { void m(){ delete [SELECT Id, (SELECT Id FROM Contacts) "
+                      "FROM Account]; } }"),
+            [("delete", "Account", False)])
+
+
+class AmbiguousVariableTypeTest(unittest.TestCase):
+    """A name declared with two types must resolve to None, not to one of them.
+
+    This path has no scope, so `Order upd` in one method and `Account upd` in another
+    are one entry to it. First-wins named the WRONG object on a DML - measured on
+    SapInboundEventDispatcher, where an `update:Order` was reported as `update:Account`.
+    That is worse than naming none: PS503 would accuse the running user over an object
+    the code never touches. Unknown beats confidently wrong.
+    """
+
+    def test_same_name_two_types_yields_no_object(self):
+        src = ("public class C {"
+               " void a(){ Order upd = new Order(); update upd; }"
+               " void b(){ Account upd = new Account(); update upd; } }")
+        objs = {o.sobject for o in parse_apex_source(src, 58.0).operations
+                if o.operation == "update"}
+        self.assertEqual(objs, {None}, "an ambiguous name must not be guessed")
+
+    def test_an_unambiguous_name_still_resolves(self):
+        src = "public class C { void a(){ Account acc = new Account(); update acc; } }"
+        self.assertEqual([o.sobject for o in parse_apex_source(src, 58.0).operations
+                          if o.operation == "update"], ["Account"])

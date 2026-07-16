@@ -638,6 +638,13 @@ function dmlObject(stmt, varTypes) {
     const cn = firstChildOfType(creator, 'CreatedNameContext');
     if (cn) return baseType(text(cn));
   }
+  // `delete [SELECT Id FROM ProductRelatedComponent];` - DML straight on a query, no
+  // variable in between. The target IS the query's object. Without this the verb was
+  // seen but the object was not, downgrading a provable PS503/PS509 to an honest
+  // unknown - and the regex backend, having learned this shape first, was the more
+  // precise of the two on it.
+  const q = firstDescOfType(stmt, 'QueryContext');
+  if (q) return objectOfQuery(q);
   // operand is a plain variable: the ExpressionContext that is not the accessLevel
   for (const c of kids(stmt)) {
     const tn = typeName(c);

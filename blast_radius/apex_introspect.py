@@ -121,12 +121,32 @@ _LIST_DECL = re.compile(r"\bList\s*<\s*([A-Za-z0-9_]+)\s*>\s*([A-Za-z_]\w*)", re
 _OBJ_DECL = re.compile(
     r"\b([A-Za-z0-9_]+__c|Account|Contact|Case|Lead|Opportunity|Task|User)\s*(?:\[\s*\])?\s+"
     r"([A-Za-z_]\w*)\s*[=;]", re.IGNORECASE)
+# Any `SomeType name = ...` / `SomeType name;`, whatever the type. Used ONLY to spot
+# a name declared twice with different types - never to assign one, because a regex
+# cannot tell an sObject (`Order o`) from an Apex class (`Blob b`), and guessing is
+# how the wrong object ends up in a finding.
+_ANY_DECL = re.compile(
+    r"\b([A-Z][A-Za-z0-9_]*)"                                     # the type
+    r"(?:\s*<\s*(?:[A-Za-z0-9_]+\s*,\s*)?([A-Za-z0-9_]+)\s*>)?"   # List<X> / Map<K,V>
+    r"\s*(?:\[\s*\])?\s+([A-Za-z_]\w*)\s*[=;]")                   # the name
+# The `(?!as\b)` matters. Without it, `update as user [SELECT ...]` backtracks out of
+# the optional as-clause and matches the KEYWORD `as` as the operand name, emitting a
+# phantom `update:None` beside the real op - noise that reads as an honest unknown but
+# describes no statement at all. `as` is a reserved word, so it can never be a name.
 _DML = re.compile(
     r"\b(insert|update|upsert|delete|undelete)\s+(?:as\s+(user|system)\s+)?"
-    r"(?:new\s+([A-Za-z0-9_]+)\s*\(|([A-Za-z_]\w*))",
+    r"(?:new\s+([A-Za-z0-9_]+)\s*\(|(?!as\b)([A-Za-z_]\w*))",
     re.IGNORECASE)
 _DB_DML = re.compile(
     r"\bDatabase\.(insert|update|upsert|delete|undelete)\s*\(\s*([A-Za-z_]\w*)", re.IGNORECASE)
+# `delete [SELECT Id FROM ProductRelatedComponent];` - DML straight on a query, with
+# no variable in between. _DML expects a name or `new X(`, so this write was invisible
+# to the regex path entirely: only the READ was reported and PS503/PS509 never saw the
+# delete. A write we cannot see is a write we cannot check. Found on real code, where
+# it is idiomatic for cleanup and test teardown.
+_DML_QUERY = re.compile(
+    r"\b(insert|update|upsert|delete|undelete)\s+(?:as\s+(user|system)\s+)?(\[)\s*SELECT\b",
+    re.IGNORECASE)
 # Publishing a platform event IS a write: it needs Create on the event object and
 # it FIRES THAT EVENT'S TRIGGER - the same cascade DML causes. Modelling it as a
 # DML verb means the existing machinery (PS503 write escalation, PS509 legacy
@@ -138,7 +158,60 @@ _COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
 def _strip_comments(source: str) -> str:
-    return _COMMENTS.sub(" ", source)
+    """Blank comments AND string literals in one pass, each respecting the other,
+    preserving length so byte offsets stay valid.
+
+    WHY BOTH, AND WHY ONE PASS - both halves were paid for in real bugs.
+
+    Strings had to start being blanked because text that merely LOOKS like code was
+    matched as code: an error message reading `'insert failed'` produced a phantom
+    `insert:None` describing no statement at all, and `'EventBus.publish X__e'` in a
+    log line did the same. Measured on 104 real classes, string literals were the
+    cause of every noise row in the backend differential.
+
+    But two passes cannot work, and this is the part that bites. A URL inside a string
+    - `'https://api.atlassian.com/x'` - contains `//`. A comment pass run first eats
+    the rest of that line INCLUDING the closing quote, leaving an ODD number of quotes
+    in the file; every later quote then pairs with the wrong partner, so the "strings"
+    become the GAPS BETWEEN strings and real code gets blanked. Measured: it silently
+    erased `update ordersToUpdate;` from JiraTicketService - a write made invisible by
+    the very pass meant to remove noise, which is the worst possible direction.
+
+    Length is preserved because _DML_QUERY hands an offset to _query_body_at; a
+    shorter result would quietly point at the wrong character.
+    """
+    out = []
+    i, n = 0, len(source)
+    while i < n:
+        ch = source[i]
+        if ch == "'":                       # a string: scan to its real end
+            j = i + 1
+            while j < n:
+                if source[j] == "\\":       # \' and \\ are not the terminator
+                    j += 2
+                    continue
+                if source[j] == "'":
+                    break
+                j += 1
+            if j >= n:                      # unterminated - blank the remainder
+                out.append("'" + " " * (n - i - 1))
+                break
+            out.append("'" + " " * (j - i - 1) + "'")
+            i = j + 1
+        elif source.startswith("//", i):
+            j = source.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        elif source.startswith("/*", i):
+            j = source.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append(" " * (j - i))
+            i = j
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
 
 
 def _variable_types(source: str) -> dict:
@@ -149,7 +222,44 @@ def _variable_types(source: str) -> dict:
         types.setdefault(m.group(2).lower(), m.group(1))
     for m in _OBJ_DECL.finditer(source):
         types.setdefault(m.group(2).lower(), m.group(1))
+
+    # Drop any name declared with MORE THAN ONE type anywhere in the file.
+    #
+    # This path has no scope - `Order upd` in one method and `Account upd` in another
+    # are one entry to it - and _OBJ_DECL only recognises a fixed list of standard
+    # objects, which does not include Order. So the file below resolved BOTH updates
+    # to Account, one of them wrongly:
+    #     Order   upd = new Order(...);   Database.update(upd, false);   // -> Account
+    #     Account upd = new Account(...); Database.update(upd, false);   // -> Account
+    # Measured on real code (SapInboundEventDispatcher): the regex named the wrong
+    # object on a DML, which is worse than naming none - PS503 would accuse the user
+    # over an object the code never touches. An ambiguous name yields sobject=None,
+    # i.e. PS504's honest unknown.
+    #
+    # The broad scan errs toward finding conflicts, and that is the safe direction: a
+    # false conflict costs precision (an unknown), never correctness (a wrong object).
+    declared = {}
+    for m in _ANY_DECL.finditer(source):
+        ty = (m.group(2) or m.group(1))          # `List<Order> x` -> Order
+        declared.setdefault(m.group(3).lower(), set()).add(ty)
+    for name, tys in declared.items():
+        if len(tys) > 1:
+            types.pop(name, None)
     return types
+
+
+def _query_body_at(source: str, open_bracket: int):
+    """The body of the bracketed query whose `[` is at `open_bracket`, brackets
+    balanced (a bind may index a list: `:ids[0]`)."""
+    depth = 0
+    for j in range(open_bracket, len(source)):
+        if source[j] == "[":
+            depth += 1
+        elif source[j] == "]":
+            depth -= 1
+            if depth == 0:
+                return source[open_bracket + 1:j]
+    return None
 
 
 def _dml_operations(source: str) -> list:
@@ -162,6 +272,13 @@ def _dml_operations(source: str) -> list:
         mode = (m.group(2) or "").lower() or None
         obj = m.group(3) or types.get((m.group(4) or "").lower())
         out.append((verb, obj, mode))
+    for m in _DML_QUERY.finditer(source):
+        # The target object is the query's own - resolved by the same depth scanner
+        # the reads use, so a subquery cannot hijack it here either.
+        body = _query_body_at(source, m.start(3))
+        parts = _queries_in(body) if body else []
+        out.append((m.group(1).lower(), parts[0][1] if parts else None,
+                    (m.group(2) or "").lower() or None))
     for m in _DB_DML.finditer(source):
         al = _ACCESS_LEVEL.search(source[m.end():m.end() + 100])
         mode = al.group(1).lower() if al else None

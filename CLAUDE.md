@@ -324,14 +324,21 @@ the fingerprint binding the analyzer's own source hash + parser version.
    fixture user; a Flow proxy would measure Flow→invocable and drag in the Flow's own
    `runInMode`, answering a question nobody asked. Until then `enforces_sharing=None`
    for a declaration-less pre-v67 class is **the right answer**, not a placeholder.
-5. **Backend confidence** — **the premise was wrong; the measurement is in §8.** This
-   used to read "regex findings should carry lower severity than AST ones". A
-   differential over 104 real classes refutes it: neither backend dominates, and both
-   bugs it exposed are fixed. **What actually remains:** regex has **no scope** (a
-   local shadowing a field resolves to the field's type) and cannot get one without a
-   parse tree — that is *why* AST is the default and what the report's backend note
-   discloses, not a TODO. Residual disagreement is **OVERCLAIM 3 / MISSED 3** of 104;
-   nobody has looked at those 6 yet.
+5. **Backend confidence** — **the premise was wrong, and reading the disagreements
+   closed them.** This used to read "regex findings should carry lower severity than
+   AST ones". A differential over 104 real classes refuted it (neither backend
+   dominates), and then every contradiction it found turned out to be a bug in one
+   backend or the other. All fixed. **Identical ops 62 → 82 of 104; OVERCLAIM,
+   MISSED and NOISE all 0.**
+   **What remains is only DEGRADED (22 of 104): regex says `None` where AST resolves**
+   — an honest PS504 instead of a PS503. That is not a TODO, it is the shape of the
+   fallback: regex has **no scope** and cannot get one without a parse tree, which is
+   *why* AST is the default and what the report's backend note discloses.</p>
+   The bugs it found are worth remembering, all measured on live code (§7):
+   the AST's missing `FieldDeclarationContext`; the regex's subquery `FROM`; DML
+   straight on a query (`delete [SELECT ...]` — **both** backends); a name declared
+   with two types resolving to the wrong object; and comments-before-strings
+   corrupting a URL and erasing a real `update`.
 6. **Relationship/polymorphic classification** (see §7).
 7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.
