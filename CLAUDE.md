@@ -106,7 +106,8 @@ blast_radius/
                             --permission-set | --running-user, --include-counts,
                             --fail-on, --apex-backend, --no-org-health
   apex_introspect.py        THE precedence law (_resolve/_resolve_dml_fls) + regex
-                            extractor + SOSL + sanitizer + async hand-offs
+                            extractor (depth-scanned SOQL: subqueries are reads of
+                            their own) + SOSL + sanitizer + async hand-offs
   apex_ast.py               subprocess bridge to the real parse tree
   ast_extract.js            ANTLR apex-parser walker -> IR (+ Authority Path taint)
   flow_introspect.py        Flow XML -> runInMode + per-element reach
@@ -273,13 +274,15 @@ semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
    This used to read "regex findings should carry lower severity than AST ones". A
    differential over **104 real classes** from a live org refutes that: neither
    backend dominates. Classified by what a disagreement does to a *finding* —
-   **OVERCLAIM 3** (regex names an object AST doesn't), **MISSED 7** (AST sees reach
+   **OVERCLAIM 3** (regex names an object AST doesn't), **MISSED 3** (AST sees reach
    regex doesn't), **DEGRADED 21** (regex says `None` where AST resolves → an honest
-   PS504 instead of PS503), **NOISE 21** (extra unresolved ops), 64/104 identical.
-   Each backend is blind where the other sees:
-   - **regex** misresolves a **multiline SELECT with a subquery** to the *inner*
-     `FROM` (non-greedy match), so it can miss the outer object entirely — a genuine
-     false-clean path when Node is absent. **Still open.**
+   PS504 instead of PS503), **NOISE 21** (extra unresolved ops), **66/104 identical**
+   (was 62/104 before the two fixes below). Each backend was blind where the other saw:
+   - **regex** misresolved a **multiline SELECT with a subquery** to the *inner* `FROM`
+     (non-greedy match) and lost the outer object entirely — a real false clean.
+     **Fixed**: `_bracketed_queries` + `_queries_in` scan bracket/paren depth, lift
+     subqueries out as reads of their own, and take the top-level `FROM`. This also
+     fixed a bind that indexes a list (`:ids[0]`) closing the query early. MISSED 7→3.
    - **AST** had no `FieldDeclarationContext` in its type map, so `update user;` on a
      class member gave `update:None` — the *supposedly weaker* regex got those 5
      classes right. **Fixed**; a differential test pins it.

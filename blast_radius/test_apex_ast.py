@@ -67,16 +67,30 @@ class ParityTest(unittest.TestCase):
 
 @unittest.skipUnless(AST and os.path.exists(SUBQUERY), "AST or fixture unavailable")
 class SuperiorityTest(unittest.TestCase):
-    """Where the AST is strictly more correct than the regex extractor."""
+    """Where the backends differ - kept honest by measurement, not by assumption.
+
+    This class used to assert that the regex extractor MISIDENTIFIES a subquery's
+    parent: it grabbed the subquery's FROM and lost the outer object, and that was
+    written down as the AST's superiority. A differential over 104 real classes
+    showed what that cost - an `Order` read vanishing from the reach, i.e. a false
+    clean - so the regex path now lifts subqueries out and finds the top-level FROM.
+    Both backends get the parent right, and this test says so.
+
+    The AST's real advantages are elsewhere, and they are the ones a regex cannot
+    have at all: scope (a local shadowing a field), and knowing that SOQL-shaped text
+    inside a string is not a query. Claiming an advantage the tool no longer has is
+    the same failure as hiding one it does.
+    """
 
     def _objects(self, backend):
         reach = parse_apex(SUBQUERY, backend=backend)
         return {o.sobject for o in reach.operations if o.operation == "read"}
 
-    def test_regex_misidentifies_object_on_subquery(self):
-        # The regex grabs the subquery's FROM (Contacts) and misses the parent.
-        regex_objs = self._objects("regex")
-        self.assertNotIn("Account", regex_objs)
+    def test_both_backends_get_the_parent_object_and_the_subquery(self):
+        for backend in ("ast", "regex"):
+            objs = self._objects(backend)
+            self.assertIn("Account", objs, f"{backend} lost the parent object")
+            self.assertIn("Contacts", objs, f"{backend} lost the subquery")
 
     def test_ast_gets_parent_object_and_subquery(self):
         ast_objs = self._objects("ast")

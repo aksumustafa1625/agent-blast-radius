@@ -369,6 +369,91 @@ def _resolve(clause: Optional[str], api_version: Optional[float], sharing: str) 
     return ResolvedMode(rec, False, src, note)
 
 
+_SOQL_START = re.compile(r"\s*SELECT\b", re.IGNORECASE)
+
+
+def _bracketed_queries(source: str) -> List[str]:
+    """Bodies of `[ ... ]` blocks that open with SELECT, brackets balanced.
+
+    `_SOQL`'s `\\[...\\]` stops at the FIRST `]`, which breaks on a bind that indexes
+    a list - `[SELECT Id FROM X WHERE Id = :ids[0]]` closes early and mangles the
+    query. Counting depth keeps the whole query together, which is also what lets
+    the top-level FROM be found at all (see _queries_in)."""
+    out, i, n = [], 0, len(source)
+    while i < n:
+        if source[i] == "[":
+            depth, j = 0, i
+            while j < n:
+                if source[j] == "[":
+                    depth += 1
+                elif source[j] == "]":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            if j < n:
+                body = source[i + 1:j]
+                if _SOQL_START.match(body):
+                    out.append(body)
+                    i = j + 1
+                    continue
+        i += 1
+    return out
+
+
+def _split_subqueries(body: str) -> tuple[str, List[str]]:
+    """(query with child subqueries lifted out, [those subquery bodies]).
+
+    Only parenthesised groups that are themselves SELECTs are lifted. Everything
+    else - `COUNT(Id)`, `WHERE Name IN ('a','b')` - is kept verbatim, because
+    _parse_select_fields reads those parens deliberately to decide that a field
+    list is an aggregate it must not enumerate."""
+    kept, subs, depth, start = [], [], 0, 0
+    for i, ch in enumerate(body):
+        if ch == "(":
+            if depth == 0:
+                kept.append(body[start:i])
+                start = i + 1
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                inner = body[start:i]
+                if _SOQL_START.match(inner):
+                    subs.append(inner)
+                else:
+                    kept.append("(" + inner + ")")
+                start = i + 1
+    kept.append(body[start:])
+    return "".join(kept), subs
+
+
+def _queries_in(body: str) -> List[tuple]:
+    """(select_clause, sobject, tail) for a query and each of its subqueries.
+
+    THE BUG THIS EXISTS FOR. `_SOQL` matched `SELECT (.*?) FROM (\\w+)` non-greedily,
+    so in
+
+        [SELECT Id, Name, (SELECT Id FROM OrderItems) FROM Order WHERE ...]
+
+    the first FROM it reached was the SUBQUERY'S. The outer object was then lost
+    ENTIRELY - measured on real code, where `Order` vanished from the reach and only
+    the child relationship was reported. A read we never see is a read we never
+    check, i.e. a false clean, which is the worst thing this tool can produce.
+
+    Lifting the subqueries out first leaves the outer FROM as the only one, and the
+    outer field list complete rather than "subquery present - incomplete"."""
+    outer, subs = _split_subqueries(body)
+    out = []
+    m = re.search(r"\bSELECT\b(.*?)\bFROM\b\s+([A-Za-z0-9_]+)(.*)$", outer,
+                  re.IGNORECASE | re.DOTALL)
+    if m:
+        out.append((m.group(1), m.group(2), m.group(3)))
+    for s in subs:
+        out.extend(_queries_in(s))
+    return out
+
+
 def _parse_select_fields(select_clause: str) -> tuple[List[str], bool, Optional[str]]:
     sc = select_clause.strip()
     if re.search(r"\bSELECT\b", sc, re.IGNORECASE):
@@ -400,18 +485,21 @@ def parse_apex_source(source: str, api_version: Optional[float],
     reach = ApexReach(class_name=class_name, api_version=api_version, sharing=sharing)
     reach.dynamic_soql = bool(_DYNAMIC.search(source))
 
-    for sel, obj, tail in _SOQL.findall(source):
-        clause_m = _MODE_CLAUSE.search(sel + tail)
+    for body in _bracketed_queries(source):
+        # The mode clause governs the WHOLE query, subqueries included, so it is read
+        # once per bracketed block rather than per part.
+        clause_m = _MODE_CLAUSE.search(body)
         clause = clause_m.group(1) if clause_m else None
-        fields, complete, fnote = _parse_select_fields(sel)
-        reach.operations.append(ApexOperation(
-            operation="read",
-            sobject=obj,
-            fields=fields,
-            fields_complete=complete,
-            resolved=_resolve(clause, api_version, sharing),
-            note=fnote,
-        ))
+        for sel, obj, tail in _queries_in(body):
+            fields, complete, fnote = _parse_select_fields(sel)
+            reach.operations.append(ApexOperation(
+                operation="read",
+                sobject=obj,
+                fields=fields,
+                fields_complete=complete,
+                resolved=_resolve(clause, api_version, sharing),
+                note=fnote,
+            ))
 
     if reach.dynamic_soql:
         reach.operations.append(ApexOperation(

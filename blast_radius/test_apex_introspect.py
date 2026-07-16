@@ -254,3 +254,55 @@ class ClassFieldDmlTargetTest(unittest.TestCase):
             # Measured, not desired: the regex fallback names the field's type.
             self.assertEqual(self._dml(parse_apex(path, d, backend="regex")),
                              [("update", "User")])
+
+
+class SubqueryAndBindScanTest(unittest.TestCase):
+    r"""The regex path must find the TOP-LEVEL FROM, not the subquery's.
+
+    Found by differential over 104 real classes: `_SOQL` matched
+    `SELECT (.*?) FROM (\w+)` non-greedily, so a multiline query with a child
+    subquery resolved to the CHILD's FROM and the outer object disappeared from the
+    reach entirely. A read we never see is a read we never check - a false clean,
+    which is worse than any honest unknown.
+    """
+
+    def _reads(self, src, api=58.0):
+        return [(o.sobject, o.fields_complete)
+                for o in parse_apex_source(src, api).operations if o.operation == "read"]
+
+    def test_outer_object_survives_a_subquery(self):
+        src = ("public without sharing class C { void m(){ Object o = ["
+               "SELECT Id, Name, (SELECT Id, Email FROM Contacts) FROM Account "
+               "WHERE Id = :accId]; } }")
+        reads = dict(self._reads(src))
+        self.assertIn("Account", reads)     # the outer object - this used to vanish
+        self.assertIn("Contacts", reads)    # and the subquery is a read of its own
+
+    def test_outer_field_list_is_complete_once_subqueries_are_lifted(self):
+        src = ("public without sharing class C { void m(){ Object o = ["
+               "SELECT Id, Customer_IBAN__c, (SELECT Id FROM Contacts) FROM Account]; } }")
+        ops = [o for o in parse_apex_source(src, 58.0).operations
+               if o.operation == "read" and o.sobject == "Account"]
+        self.assertEqual(ops[0].fields, ["Id", "Customer_IBAN__c"])
+        self.assertTrue(ops[0].fields_complete)
+
+    def test_a_bind_that_indexes_a_list_does_not_close_the_query_early(self):
+        # `\[...\]` stopped at the FIRST `]`, which is the one in `ids[0]`, mangling
+        # the query. Depth counting keeps it whole.
+        src = ("public without sharing class C { void m(){ Object o = ["
+               "SELECT Customer_IBAN__c FROM Blast_Test__c WHERE Id = :ids[0]]; } }")
+        self.assertEqual(self._reads(src), [("Blast_Test__c", True)])
+
+    def test_the_mode_clause_covers_subqueries_too(self):
+        # WITH USER_MODE governs the whole query, so the child read is bounded as well.
+        src = ("public without sharing class C { void m(){ Object o = ["
+               "SELECT Id, (SELECT Id FROM Contacts) FROM Account WITH USER_MODE]; } }")
+        for o in parse_apex_source(src, 58.0).operations:
+            self.assertTrue(o.resolved.enforces_fls, o.sobject)
+            self.assertTrue(o.resolved.enforces_sharing, o.sobject)
+
+    def test_an_aggregate_is_still_not_enumerated(self):
+        # Non-subquery parens must survive: _parse_select_fields reads them to decide
+        # it must NOT enumerate an aggregate select.
+        src = "public without sharing class C { void m(){ Object o = [SELECT COUNT(Id) FROM Account]; } }"
+        self.assertEqual(self._reads(src), [("Account", False)])
