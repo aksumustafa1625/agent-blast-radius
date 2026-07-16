@@ -64,6 +64,7 @@ got this wrong once and the live TechnoStore run caught it — see §7.
 | **E7** | Agent Script `apex://` syntax is vendor-validated (`sf agent validate` → success). |
 | **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. |
 | **E9** | **Muting is handled, and now measured** (it was E8's untested edge). A muter removing FLS on a field its component grants: the **component still shows `PermissionsRead=true`, the aggregate has NO row** — so reading the aggregate applies muting. Runtime agrees (`BlastRadius_E9_Muting.cls`): `WITH USER_MODE` → **BLOCKED**, while a pre-v67 class still reads the value — the muted GDPR field escapes exactly as PS506 says. Platform constraint worth knowing: **muting Read alone is rejected** (mute Edit too), and a rejected muting set deploys **empty**, which makes any muting test vacuously green. |
+| **E11** | **The publish premise, measured** — it was `platform-doc` while a LIVE TechnoStore ERROR already rested on it. A user with **no ObjectPermissions row at all** on `Blast_Event__e`: **v58 publish LANDS** (`WROTE=ok` — the Create bypass is real, so modelling publish as a write and applying PS503 is right), **v67 publish BLOCKED**. The `SaveResult` is read rather than trusting a throw — whether user mode throws or returns a failure was exactly the thing not to assume. Writing the case found a hole in the feature: `EventBus.publish(new X__e(...))` resolved to None, so PS503 never fired on an inline-constructed event. |
 | **E10** | **"No declaration" enforces sharing — now with controls.** Three pre-v67 invocables differing only in the declaration, same caller, same user, same admin-owned rows on a Private object: `without sharing` → **5**, no declaration → **0**, `with sharing` → **0**. Confirms E2's round 1, which had **no control** (0 alone could have meant the user had nothing to see). **Only one cell of the matrix**: the caller here is Apex. The agent's own entry point (an invocable with *no* calling Apex class) stays unmeasured — so `enforces_sharing=None` for a declaration-less pre-v67 class is still the honest answer. |
 
 **Do not "fix" the precedence law from documentation.** A sister-AI review once
@@ -265,7 +266,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
   FLS, `kind:"write"` measures object CRUD as a user holding no Create.
   Adding a runtime shape to a `reasoned` case beats adding ten new reasoned cases.
 - **Label strength** (the benchmark's real quality metric, printed every run):
-  **19 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
+  **21 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
   the author's, and 5 labels still only prove consistency, not correctness.
 - **sfge differential** (`benchmark/sfge_diff.py`, needs no org): Salesforce's own
   Graph Engine vs this tool over the 19 org-adjudicated cases — **7/19 vs 0/19**
@@ -297,7 +298,7 @@ the fingerprint binding the analyzer's own source hash + parser version.
 
 **Still open, in rough priority:**
 1. **Benchmark v2.** The **runtime oracle is built** (`benchmark/oracle.py`) and
-   settles **19 of 26** cases; it has already caught a real false positive (§7), and
+   settles **21 of 28** cases; it has already caught a real false positive (§7), and
    it has a negative control so its greens aren't vacuous. The **systematic sfge
    differential is done** (§6, §8). The **record axis now has a runtime column** too
    (`kind:"record"`), which confirmed the second sfge false positive. What's left: the

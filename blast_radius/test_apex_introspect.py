@@ -168,6 +168,19 @@ class EventPublishReachTest(unittest.TestCase):
                 "public class P { void g(){ EventBus.publish(mystery); } }", 63)),
             [(None, False)])
 
+    def test_inline_constructed_event_resolves(self):
+        """`EventBus.publish(new X__e(...))` - at least as common as publishing a list.
+
+        The pattern matched only a bare name, so `new` itself became the operand, the
+        event resolved to None and PS503 never fired. Found by the corpus case written
+        to settle the publish premise: the feature's own test found the hole in it.
+        """
+        self.assertEqual(
+            self._publishes(parse_apex_source(
+                "public with sharing class C { void m(){ "
+                "EventBus.publish(new Blast_Event__e(Note__c='x')); } }", 58)),
+            [("Blast_Event__e", False)])
+
     def test_no_publish_no_op(self):
         self.assertEqual(
             self._publishes(parse_apex_source(

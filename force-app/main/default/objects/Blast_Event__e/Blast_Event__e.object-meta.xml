@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Agent Blast Radius fixture: a platform event, so the runtime oracle can settle the premise the PS503-on-event finding rests on - that publishing needs Create on the event, and that a pre-v67 publish bypasses it. That claim was platform-doc while a live TechnoStore ERROR already depended on it.</description>
+    <eventType>HighVolume</eventType>
+    <label>Blast Event</label>
+    <pluralLabel>Blast Events</pluralLabel>
+    <publishBehavior>PublishAfterCommit</publishBehavior>
+</CustomObject>

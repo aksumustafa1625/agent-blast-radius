@@ -75,6 +75,16 @@ GDPR = {"Blast_Test__c.Customer_IBAN__c": {"complianceGroup": "GDPR;PII"}}
 SHARING = {"Blast_Test__c": "Private"}
 
 _READ = "List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c];"
+
+# The publish premise, in the shape the oracle deploys. The SaveResult is READ rather
+# than relying on a thrown exception: whether user mode throws on a publish or hands
+# back a failed result is precisely the kind of thing this file exists not to assume.
+# The modelled user holds no ObjectPermissions row on Blast_Event__e at all, so a
+# landing publish IS the Create bypass.
+_PUBLISH_BODY = """            Database.SaveResult sr = EventBus.publish(
+                new Blast_Event__e(Note__c = 'x'));
+            return sr.isSuccess() ? 'WROTE=ok'
+                : 'BLOCKED=' + sr.getErrors()[0].getMessage();"""
 # Reads a field the user IS allowed, so only the RECORD axis can hide anything.
 _RECORD_READ = "Integer n = [SELECT COUNT() FROM Blast_Test__c];"
 
@@ -326,6 +336,36 @@ CASES = [
          expect_severity={"PS512": "WARN", "PS506": "WARN"}),
 
     # ------------------------------------------------------------ async / events
+    # The publish premise, measured. It cannot stay platform-doc: a LIVE TechnoStore
+    # ERROR (PS503 on Invoice_Payment_Requested__e) rests entirely on it, and the user
+    # holds no ObjectPermissions row on Blast_Event__e at all - so if a pre-v67 publish
+    # lands anyway, the Create bypass is real, and if it does not, that finding is wrong.
+    # The SaveResult is read rather than relying on a throw: whether user mode throws or
+    # returns a failure is exactly the sort of thing we must not assume.
+    dict(id="publish-v58-bypasses-create", api=58.0,
+         apex=_cls("EventBus.publish(new Blast_Event__e(Note__c='x'));", "with"),
+         # PS514 too: a publish IS an async hand-off, and the subscriber is a real
+         # open edge whatever the version. Declaring only PS503 would have graded a
+         # correct finding as crying wolf.
+         expect={"PS503", "PS514"}, truth="experiment:oracle",
+         runtime=dict(kind="write", sharing="with", clause=None, expect_write=True,
+                      body=_PUBLISH_BODY),
+         why="Publishing needs Create on the event, and the user has no permission on "
+             "Blast_Event__e at all. Legacy system mode bypasses that, so the publish "
+             "lands - which is why the publish is modelled as a write and PS503 applies "
+             "to it. Measured, because a live TechnoStore ERROR depends on this."),
+
+    dict(id="publish-v67-enforces-create", api=67.0,
+         apex=_cls("EventBus.publish(new Blast_Event__e(Note__c='x'));", "with"),
+         # PS514 survives the version bump: v67 bounds the publish itself, but the
+         # subscriber still runs in its own transaction and is still not followed.
+         expect={"PS514"}, truth="experiment:oracle",
+         runtime=dict(kind="write", sharing="with", clause=None, expect_write=False,
+                      body=_PUBLISH_BODY),
+         why="v67's user-mode default enforces Create on the event, so the same publish "
+             "is bounded. The mirror of the case above: without it, 'the publish lands' "
+             "could just mean publish never checks anything."),
+
     dict(id="async-platform-event", api=67.0,
          apex=_cls("EventBus.publish(evts);", "with"),
          expect={"PS514"}, truth="platform-doc",

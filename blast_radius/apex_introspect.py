@@ -152,7 +152,13 @@ _DML_QUERY = re.compile(
 # DML verb means the existing machinery (PS503 write escalation, PS509 legacy
 # trigger cascade) applies to the subscriber for free, instead of the publish being
 # a dead end that only ever produced an honest-unknown.
-_EVENT_PUBLISH = re.compile(r"\bEventBus\s*\.\s*publish\s*\(\s*([A-Za-z_]\w*)", re.IGNORECASE)
+# `new X__e(...)` first: publishing an inline-constructed event is at least as common
+# as publishing a list, and matching only a bare name made `new` itself the operand,
+# so the event resolved to None and PS503 never fired. Caught by the corpus case
+# written to settle the publish premise - the feature's own test found the hole in it.
+_EVENT_PUBLISH = re.compile(
+    r"\bEventBus\s*\.\s*publish\s*\(\s*(?:new\s+([A-Za-z0-9_]+)\s*\(|([A-Za-z_]\w*))",
+    re.IGNORECASE)
 _ACCESS_LEVEL = re.compile(r"AccessLevel\.(USER|SYSTEM)_MODE", re.IGNORECASE)
 _COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
@@ -402,7 +408,8 @@ def _event_publish_ops(source: str, api_version, sharing) -> list:
     types = _variable_types(source)
     ops = []
     for m in _EVENT_PUBLISH.finditer(source):
-        obj = types.get(m.group(1).lower())
+        # group 1 = `new X__e(` (the type is right there); group 2 = a variable name.
+        obj = m.group(1) or types.get((m.group(2) or "").lower())
         ops.append(ApexOperation(
             operation="publish", sobject=obj, fields=[], fields_complete=True,
             resolved=ResolvedMode(None, _resolve_dml_fls(None, api_version),
