@@ -433,3 +433,35 @@ class AmbiguousVariableTypeTest(unittest.TestCase):
         src = "public class C { void a(){ Account acc = new Account(); update acc; } }"
         self.assertEqual([o.sobject for o in parse_apex_source(src, 58.0).operations
                           if o.operation == "update"], ["Account"])
+
+
+class SecurityEnforcedAxesTest(unittest.TestCase):
+    """`WITH SECURITY_ENFORCED` enforces FLS/CRUD but NOT sharing - both axes pinned.
+
+    An external reviewer flagged this as credibility-critical and was half right: the
+    behaviour was already correct, but nothing tested it, so nothing would catch it
+    drifting. The clause is not a mode switch - it settles ONE axis and leaves the
+    record axis exactly where the declaration left it, which is why `no declaration +
+    SECURITY_ENFORCED` must stay undetermined rather than being rounded to safe.
+    """
+
+    def _axes(self, decl, api=58.0):
+        d = "" if decl == "none" else decl + " sharing "
+        src = ("public %sclass C { void m(){ Object o = "
+               "[SELECT Customer_IBAN__c FROM Blast_Test__c WITH SECURITY_ENFORCED]; } }" % d)
+        r = parse_apex_source(src, api).operations[0].resolved
+        return (r.enforces_sharing, r.enforces_fls)
+
+    def test_it_enforces_the_fls_axis_whatever_the_declaration(self):
+        for decl in ("with", "without", "none"):
+            self.assertTrue(self._axes(decl)[1], f"{decl}: FLS must be enforced")
+
+    def test_it_leaves_the_record_axis_to_the_declaration(self):
+        self.assertTrue(self._axes("with")[0])       # `with sharing` still filters
+        self.assertFalse(self._axes("without")[0])   # it does NOT rescue the record axis
+        self.assertIsNone(self._axes("none")[0])     # inherited: honestly undetermined
+
+    def test_it_does_not_pretend_to_be_user_mode(self):
+        # The trap: reading SECURITY_ENFORCED as "user mode" would clear the record
+        # axis on a `without sharing` class and hide a real PS501.
+        self.assertEqual(self._axes("without"), (False, True))

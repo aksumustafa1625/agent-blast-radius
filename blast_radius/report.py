@@ -225,13 +225,23 @@ def analyzer_version() -> str:
 
 
 def fingerprint(agent: str, running_user: str, channel: Optional[str],
-                actions: List[ActionSummary]) -> str:
+                actions: List[ActionSummary], coverage: Optional[dict] = None) -> str:
     payload = {
         # The tool is part of its own result. Without these, an analyzer or parser
         # change that moves a verdict produces the SAME fingerprint as the run before
         # it - the fingerprint would be certifying reproducibility it cannot see.
         "analyzer": analyzer_version(),
         "parser": apex_ast.parser_version() or "none",
+        # WHAT THE ANALYSIS IDENTITY COULD SEE is an input to the verdict, so it binds
+        # too. FieldDefinition is FLS-gated (E4 measured exactly this), so a narrow
+        # analysis identity sees fewer labels, produces fewer PS506s, and reports a
+        # CLEANER agent. Without this, two runs whose only difference was who ran them
+        # could share a fingerprint and disagree about "0 GDPR" - the precise lie the
+        # fingerprint exists to prevent, and the twin of the analyzer-hash gap. Caught
+        # by an external reviewer; our own E4 had predicted the mechanism.
+        "coverage": (None if not coverage else
+                     {k: coverage.get(k) for k in
+                      ("classified", "visible_unclassified", "not_visible", "total")}),
         "agent": agent, "user": running_user, "channel": channel,
         "actions": [
             {
@@ -259,7 +269,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
                     coverage: Optional[dict] = None,
                     counts: Optional[dict] = None,
                     org_health_md: str = "") -> str:
-    fp = fingerprint(agent, running_user, channel, actions)
+    fp = fingerprint(agent, running_user, channel, actions, coverage)
     gap, gdpr = escalation_gap(actions)
     reach = record_reach(counts)
 

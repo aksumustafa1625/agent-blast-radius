@@ -64,12 +64,19 @@ got this wrong once and the live TechnoStore run caught it — see §7.
 | **E7** | Agent Script `apex://` syntax is vendor-validated (`sf agent validate` → success). |
 | **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. |
 | **E9** | **Muting is handled, and now measured** (it was E8's untested edge). A muter removing FLS on a field its component grants: the **component still shows `PermissionsRead=true`, the aggregate has NO row** — so reading the aggregate applies muting. Runtime agrees (`BlastRadius_E9_Muting.cls`): `WITH USER_MODE` → **BLOCKED**, while a pre-v67 class still reads the value — the muted GDPR field escapes exactly as PS506 says. Platform constraint worth knowing: **muting Read alone is rejected** (mute Edit too), and a rejected muting set deploys **empty**, which makes any muting test vacuously green. |
+| **E13** | **A v67 trigger IS bounded by the running user — the most dangerous review claim, refuted in-org.** A reviewer cited Summer '26 (*"Apex Triggers ... will now always run in system mode across all API versions"*); if true, PS509 fires only below v67 and would be a **false negative in the middle of the thesis**. Measured today, on Summer '26: a **v67** trigger writing `Casc_Child__c` for a user with no Create → **BLOCKED, 0 rows written** (`BlastRadius_E13_TriggerMode.cls`). E6 stands. It was worth doing because E6's v67 half was only *"verified separately in Milestone 0"* — a docstring assertion with no test to catch a platform change. Now there is one. |
 | **E11** | **The publish premise, measured** — it was `platform-doc` while a LIVE TechnoStore ERROR already rested on it. A user with **no ObjectPermissions row at all** on `Blast_Event__e`: **v58 publish LANDS** (`WROTE=ok` — the Create bypass is real, so modelling publish as a write and applying PS503 is right), **v67 publish BLOCKED**. The `SaveResult` is read rather than trusting a throw — whether user mode throws or returns a failure was exactly the thing not to assume. Writing the case found a hole in the feature: `EventBus.publish(new X__e(...))` resolved to None, so PS503 never fired on an inline-constructed event. |
 | **E10** | **"No declaration" enforces sharing — now with controls.** Three pre-v67 invocables differing only in the declaration, same caller, same user, same admin-owned rows on a Private object: `without sharing` → **5**, no declaration → **0**, `with sharing` → **0**. Confirms E2's round 1, which had **no control** (0 alone could have meant the user had nothing to see). **Only one cell of the matrix**: the caller here is Apex. The agent's own entry point (an invocable with *no* calling Apex class) stays unmeasured — so `enforces_sharing=None` for a declaration-less pre-v67 class is still the honest answer. |
 
-**Do not "fix" the precedence law from documentation.** A sister-AI review once
-demanded v67 `without sharing` be treated as record-bypassing. E2b disproved that
-in-org. Following it would have broken correct code.
+**Do not "fix" the precedence law from documentation.** This has now happened
+**twice**, from two different reviews, both citing real Salesforce docs:
+- v67 `without sharing` "must be record-bypassing" → **E2b** disproved it in-org.
+- v67 triggers "always run in system mode" (Summer '26 release notes) → **E13**
+  disproved it in-org, on Summer '26.
+Both would have broken correct code. Documentation describes intent; the org
+describes behaviour, and only one of them is what your customer runs. **Answer a
+doc-based claim with an experiment, never with an edit** — and note that both
+reviewers were doing exactly the right thing by raising them.
 
 ---
 

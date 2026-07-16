@@ -591,7 +591,7 @@ def _api_posture(actions) -> str:
 def render_html(agent: str, running_user: str, channel, actions: List[ActionSummary],
                 generated: str = "deterministic", coverage=None, counts=None,
                 org_health: str = "") -> str:
-    fp = fingerprint(agent, running_user, channel, actions)
+    fp = fingerprint(agent, running_user, channel, actions, coverage)
     gap, gdpr = escalation_gap(actions)
     reach = record_reach(counts)
     # One canonical field set, one partition. Every gap field is by definition a
