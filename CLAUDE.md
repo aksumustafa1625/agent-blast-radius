@@ -121,9 +121,10 @@ blast_radius/
   org_health.py             "beyond this agent" report footer
   report.py / report_html.py  deterministic md + themed html
   verify_deterministic.py   runs the CLI twice, sha256-diffs both outputs
-  benchmark/                corpus.py + run.py + mutate.py + README.md
+  benchmark/                corpus.py + run.py + mutate.py + oracle.py (runtime
+                            oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
-  test_*.py                 140 tests
+  test_*.py                 162 tests
 ```
 
 **Both extraction backends feed the SAME precedence core.** When adding a reach
