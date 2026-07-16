@@ -114,6 +114,10 @@ def analyze_prompt_flow(action_name: str, reach, perms,
                         f"@variables.{var} (line {set_line}) -> "
                         f"prompt (line {prompt_line})")
                 where = f"{action_name} -> {full}"
+                # structured hops so the report can DRAW the path, not just say it
+                hops = {"field": full, "action": action_name, "output": out_name,
+                        "variable": var, "set_line": set_line,
+                        "prompt_line": prompt_line, "tag": tag, "user_sees": user_sees}
 
                 if tag and not user_sees:
                     findings.append(Finding(
@@ -123,7 +127,8 @@ def analyze_prompt_flow(action_name: str, reach, perms,
                         f"ComplianceGroup {tag}. Traced end to end: {path}. This is not "
                         f"inferred reachability - every hop is a node in the parse tree.",
                         f"Remove {{! @variables.{var} }} from the instructions, drop the "
-                        f"field from the action's output, or enforce FLS in the Apex."))
+                        f"field from the action's output, or enforce FLS in the Apex.",
+                        chain=hops))
                 elif tag:
                     findings.append(Finding(
                         "PS521", "WARN", where,
@@ -131,12 +136,14 @@ def analyze_prompt_flow(action_name: str, reach, perms,
                         f"prompt at line {prompt_line}.",
                         f"The running user may see it, but classified data entering the LLM "
                         f"prompt is a data-minimization concern. Traced: {path}.",
-                        "Confirm this field is required in the prompt for the topic's purpose."))
+                        "Confirm this field is required in the prompt for the topic's purpose.",
+                        chain=hops))
                 else:
                     findings.append(Finding(
                         "PS520", "INFO", where,
                         f"Action data reaches the prompt: {full} is interpolated at "
                         f"line {prompt_line}.",
                         f"A data->prompt path exists. Traced: {path}.",
-                        "No action needed; listed so the agent's prompt surface is visible."))
+                        "No action needed; listed so the agent's prompt surface is visible.",
+                        chain=hops))
     return findings

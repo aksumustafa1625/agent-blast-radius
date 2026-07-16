@@ -63,6 +63,10 @@ class Finding:
     message: str
     why: str
     fix: str
+    # PS520/521/522 only: the traced data->prompt hops, structured so the report can
+    # DRAW the path instead of only describing it. Keys: field, action, output,
+    # variable, set_line, prompt_line, tag, user_sees. None for every other rule.
+    chain: Optional[dict] = None
 
 
 @dataclass

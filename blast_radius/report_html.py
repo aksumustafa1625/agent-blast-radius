@@ -432,6 +432,75 @@ def _remediation(all_findings) -> str:
     return "\n".join(p)
 
 
+_AUTHORITY_PATH_CSS = """
+<style>
+  .abr .apath{border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+    margin:10px 0 2px; background:color-mix(in srgb,var(--bg) 60%,transparent)}
+  .abr .apath .aphead{display:flex; align-items:center; gap:9px; margin-bottom:12px;
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+    font-family:var(--mono)}
+  .abr .apath .proven{background:var(--gap); color:#fff; border-radius:5px;
+    padding:2px 7px; font-weight:700; letter-spacing:.06em}
+  .abr .apath .hop{display:flex; align-items:flex-start; gap:11px}
+  .abr .apath .rail{display:flex; flex-direction:column; align-items:center;
+    align-self:stretch; padding-top:4px}
+  .abr .apath .dot2{width:10px; height:10px; border-radius:50%; flex:none;
+    background:var(--muted)}
+  .abr .apath .hop.src .dot2{background:var(--gap)}
+  .abr .apath .hop.sink .dot2{background:var(--gap)}
+  .abr .apath .line{width:2px; flex:1; min-height:16px; background:var(--line)}
+  .abr .apath .box{flex:1; padding-bottom:12px; min-width:0}
+  .abr .apath .box b{font-family:var(--mono); font-size:12.5px; color:var(--ink);
+    word-break:break-word}
+  .abr .apath .box .k2{font-size:11px; color:var(--muted); margin-top:1px}
+  .abr .apath .edge{font-size:11px; color:var(--muted); font-style:italic;
+    margin:-8px 0 6px 0}
+</style>"""
+
+# The report already SAYS the chain in prose. Drawing it is what lets a DPO or a
+# reviewer grasp in one look that a database column ends up inside the model's
+# prompt - and every hop here is a parse-tree node, which is why PS522 alone earns
+# a "PROVEN" badge while PS501 stays "potential".
+def _authority_path(chain: dict, rule: str) -> str:
+    if not chain:
+        return ""
+    fld = chain.get("field", "?")
+    obj = fld.split(".")[0] if "." in fld else ""
+    hops = [
+        ("src", fld, f"database column{' — ' + chain['tag'] if chain.get('tag') else ''}",
+         "SOQL read → @InvocableVariable"),
+        ("", f"@outputs.{chain.get('output')}", f"Apex action: {chain.get('action')}",
+         "Agent Script: set @variables"),
+        ("", f"@variables.{chain.get('variable')}", f".agent line {chain.get('set_line')}",
+         "{! } interpolation"),
+        ("sink", f"prompt (line {chain.get('prompt_line')})",
+         "the model's instructions — and the end user's screen", None),
+    ]
+    proven = ('<span class="proven">PROVEN</span>' if rule == "PS522" else "")
+    p = [_AUTHORITY_PATH_CSS if rule == "PS522" else "",
+         '<div class="apath">',
+         f'<div class="aphead">{proven}<span>Authority Path — every hop is a '
+         f'parse-tree node</span></div>']
+    for i, (cls, title, sub, edge) in enumerate(hops):
+        last = i == len(hops) - 1
+        p.append(f'<div class="hop {cls}"><div class="rail"><i class="dot2"></i>'
+                 + ('' if last else '<i class="line"></i>') + '</div>'
+                 f'<div class="box"><b>{_esc(title)}</b>'
+                 f'<div class="k2">{_esc(sub)}</div>')
+        if edge:
+            p.append(f'<div class="edge" style="margin-top:6px">↓ {_esc(edge)}</div>')
+        p.append('</div></div>')
+    if chain.get("tag") and not chain.get("user_sees"):
+        p.append('<div class="k2" style="border-top:1px solid var(--line);padding-top:9px;'
+                 'font-size:12px;color:var(--muted)">The running user has <b '
+                 'style="color:var(--ink)">no field-level access</b> to '
+                 f'<b style="color:var(--ink)">{_esc(fld)}</b>'
+                 + (f' on {_esc(obj)}' if obj else '')
+                 + ' — yet its value arrives in the prompt above.</div>')
+    p.append('</div>')
+    return "\n".join(p)
+
+
 def _api_posture(actions) -> str:
     """A first-class 'security posture by API version' panel, shown near the top
     because it is the single strongest at-a-glance risk signal: pre-v67 classes
@@ -614,7 +683,10 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
                          f'<span class="where">{_esc(f.where)}</span></div>'
                          f'<div class="msg">{_esc(f.message)}</div>'
                          f'<div class="meta"><b>Why</b> {_esc(f.why)}</div>'
-                         f'<div class="meta"><b>Fix</b> {_esc(f.fix)}</div></div>')
+                         f'<div class="meta"><b>Fix</b> {_esc(f.fix)}</div>'
+                         # PS52x carries the traced hops: draw them, don't just say them
+                         + _authority_path(getattr(f, "chain", None), f.rule)
+                         + '</div>')
 
     if not all_findings:
         parts.append('<div class="clean">No authority findings. Every analysed action '
