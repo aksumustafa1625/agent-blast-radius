@@ -289,7 +289,22 @@ the fingerprint binding the analyzer's own source hash + parser version.
    **Don't count all 7 shapeless cases as gaps** — the corpus docstring records which
    claims no oracle can ever settle (PS504/PS514 assert what *we* report, not what the
    platform does).
-2. **Inter-procedural taint** — aliases/helper returns are `undetermined` today.
+2. **Inter-procedural taint** — **measured, and much narrower than it read.** The
+   claim "aliases/helper returns are undetermined" was already false: aliases,
+   ternaries, string concat and helper hops all trace. What was actually blind, found
+   by labelling every give-up and RANKING them over real agent actions:
+   - **`for (X x : [SELECT ...])`** — Apex's most idiomatic query, and the single
+     biggest cause (**71 of 198** verdicts). **Fixed**: the loop variable is the
+     record variable.
+   - **`new X(Field__c = rec.Y)`** — the named argument parses *identically* to a
+     reassignment, so the trace gave up. **Fixed**, with field-level tracking: only
+     the field that received the value counts, or we would report `returned` naming a
+     sink the value never reaches (a fabricated proof — worse than the unknown it
+     replaces).
+   **Result on real agent actions: undetermined 66% → 44%, returned 14% → 34%.**
+   Still open, in rank order: `whole-record → unmodelled callee` (15), `NO output-type
+   class` (18 — an invocable returning `List<String>` has no `@InvocableVariable`
+   wrapper to trace into), `whole-record reassigned` (11).
 3. **Async reach** — mostly followed now; what remains is narrower than it looks.
    Queueable/Batch/`@future` reach already merges via the one-level class-ref follow
    (`new SecretJob()` matches `_CLASS_REF`) — measured, not assumed. `EventBus.publish`

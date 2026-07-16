@@ -15,6 +15,7 @@ Run from the repo root:  python blast_radius/test_apex_ast.py
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -315,3 +316,120 @@ class AuthorityPathTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class AuthorityPathShapesTest(unittest.TestCase):
+    """The Authority Path, shape by shape, against hand-written truth.
+
+    Written after MEASURING, not before. On real agent actions 66% of fields came
+    back `undetermined` -> worst case -> ERROR, and "taint is hard" is not a
+    diagnosis, so every give-up was labelled and counted. The ranking was the whole
+    story: ONE shape - Apex's most idiomatic query, `for (X x : [SELECT ...])` - was
+    71 of 198 verdicts, and the sObject constructor's named argument (which parses
+    identically to a reassignment) was most of the rest. Fixing those took
+    undetermined 66% -> 44% and returned 14% -> 34%, i.e. a fifth of all fields moved
+    from a guess to a proof that can name its sink.
+
+    Both directions are pinned here. A shape that must prove `returned` guards
+    against a false clean; a shape that must stay `undetermined` guards against the
+    opposite failure - inventing a proof, which is what a first draft of the
+    constructor fix did (it reported `returned` with a sink name that was simply
+    false).
+    """
+
+    HEAD = """public with sharing class T {
+        public class Resp {
+            @InvocableVariable public String message;
+            @InvocableVariable public Id recId;
+            @InvocableVariable public Blast_Test__c rec;
+        }
+        @InvocableMethod(label='t')
+        public static List<Resp> run(List<Id> ids) {
+            List<Resp> out = new List<Resp>();
+            out.add(one());
+            return out;
+        }
+        private static Resp one() {
+            Resp r = new Resp();
+"""
+    TAIL = """
+            return r;
+        }
+        private static String describe(Blast_Test__c x) { return x.Customer_IBAN__c; }
+    }"""
+
+    def _flow(self, body):
+        with tempfile.TemporaryDirectory() as d:
+            classes = os.path.join(d, "classes")
+            os.makedirs(classes)
+            path = os.path.join(classes, "T.cls")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(self.HEAD + body + self.TAIL)
+            with open(path + "-meta.xml", "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?>'
+                        '<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>')
+            reach = parse_apex(path, d, backend="ast")
+            if reach.backend != "ast":
+                self.skipTest("AST backend unavailable")
+            for op in reach.operations:
+                ff = getattr(op, "field_flow", None) or {}
+                if "Customer_IBAN__c" in ff:
+                    return ff["Customer_IBAN__c"]
+            return "<no flow>"
+
+    # --- the SOQL for-loop: the single biggest cause of a guess ---------------
+    def test_for_loop_field_to_output_is_returned(self):
+        self.assertEqual(self._flow("""
+            for (Blast_Test__c b : [SELECT Customer_IBAN__c FROM Blast_Test__c]) {
+                r.message = b.Customer_IBAN__c;
+            }"""), "returned")
+
+    def test_for_loop_whole_record_to_output_is_returned(self):
+        self.assertEqual(self._flow("""
+            for (Blast_Test__c b : [SELECT Customer_IBAN__c FROM Blast_Test__c]) {
+                r.rec = b;
+            }"""), "returned")
+
+    def test_for_loop_predicate_only_is_internal(self):
+        self.assertEqual(self._flow("""
+            for (Blast_Test__c b : [SELECT Customer_IBAN__c FROM Blast_Test__c]) {
+                if (b.Customer_IBAN__c != null) { r.message = 'found'; }
+            }"""), "internal")
+
+    # --- the sObject constructor's named argument ----------------------------
+    def test_constructor_arg_then_only_another_field_leaves_is_internal(self):
+        # The IBAN goes into `copy`; only `copy.Id` is returned. Reporting `returned`
+        # here would name 'recId' as the sink for a value that never reaches it.
+        self.assertEqual(self._flow("""
+            Blast_Test__c b = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            Blast_Test__c copy = new Blast_Test__c(Customer_IBAN__c = b.Customer_IBAN__c);
+            insert copy;
+            r.recId = copy.Id;"""), "internal")
+
+    def test_constructor_arg_then_whole_record_leaves_is_returned(self):
+        # The mirror of the test above: the same construction, but now the record
+        # itself is handed to the model. Tracking the field must not lose this.
+        self.assertEqual(self._flow("""
+            Blast_Test__c b = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            Blast_Test__c copy = new Blast_Test__c(Customer_IBAN__c = b.Customer_IBAN__c);
+            r.rec = copy;"""), "returned")
+
+    def test_constructor_arg_then_that_field_leaves_is_returned(self):
+        self.assertEqual(self._flow("""
+            Blast_Test__c b = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            Blast_Test__c copy = new Blast_Test__c(Customer_IBAN__c = b.Customer_IBAN__c);
+            r.message = copy.Customer_IBAN__c;"""), "returned")
+
+    def test_constructed_record_through_a_helper_is_returned(self):
+        self.assertEqual(self._flow("""
+            Blast_Test__c b = [SELECT Customer_IBAN__c FROM Blast_Test__c LIMIT 1];
+            Blast_Test__c copy = new Blast_Test__c(Customer_IBAN__c = b.Customer_IBAN__c);
+            r.message = describe(copy);"""), "returned")
+
+    # --- and where we still do not know, we must SAY we do not know ----------
+    def test_unmodelled_callee_stays_undetermined(self):
+        self.assertEqual(self._flow("""
+            for (Blast_Test__c b : [SELECT Customer_IBAN__c FROM Blast_Test__c]) {
+                System.debug(Crypto.generateDigest('SHA1', Blob.valueOf(b.Customer_IBAN__c)));
+            }"""), "undetermined")

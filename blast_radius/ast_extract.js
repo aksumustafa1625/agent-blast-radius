@@ -409,9 +409,19 @@ function classifyAliasUses(declCtx, name, outVars, depth, opts) {
       uses.push(u);
     }
   }
+  // When the alias is an sObject that received our value at ONE field, a use of a
+  // DIFFERENT field is not our value leaving. `trackField` is consumed here and not
+  // passed on: once we are past the object, the value is the value again.
+  const trackField = opts && opts.trackField;
+  const inner = trackField ? Object.assign({}, opts, { trackField: null }) : opts;
+
   let sawUndetermined = false, sawEscape = false;
   for (const u of uses) {
-    const r = classifyFlow(u, outVars, depth, opts);
+    if (trackField) {
+      const fa = enclosingFieldAccess(u);
+      if (fa && fa.field !== trackField) continue;   // `copy.Id` never held the IBAN
+    }
+    const r = classifyFlow(u, outVars, depth, inner);
     if (r.flow === 'returned') return r;           // proof beats everything
     if (r.flow === 'undetermined') sawUndetermined = true;
     if (r.flow === 'escapes') sawEscape = true;    // alias of a param, returned out
@@ -444,6 +454,23 @@ function classifyFlow(node, outVars, depth = 0, opts) {
         const fa = fieldAccess(lhs);          // `r.summary` -> field 'summary'
         return { flow: 'returned', sink: fa ? fa.field : '*' };
       }
+      // `X copy = new X(f = ord.Field);` - the value now lives at `copy.f`. Follow
+      // `copy`, but REMEMBER which field carries it: `r.recId = copy.Id` returns a
+      // different field and is not this value leaving. Without trackField the
+      // follower would see "copy reaches the output" and report `returned` with a
+      // sink name that is simply false - trading an honest unknown for a fabricated
+      // proof, which is worse than the imprecision it fixes.
+      if (isCreatorNamedArg(n)) {
+        const decl = ancestorOfType(n, 'VariableDeclaratorContext');
+        const creator = ancestorOfType(n, 'CreatorContext');
+        // Only the `X v = new X(...)` shape is traced. `insert new X(f=v)` or
+        // `foo(new X(f=v))` stay undetermined: provable in principle, not proven here.
+        if (decl && isDescendant(creator, decl)) {
+          if (depth >= MAX_ALIAS_DEPTH) return { flow: 'undetermined', sink: null };
+          return classifyAliasUses(decl, declaredName(decl), outVars, depth + 1,
+                                   Object.assign({}, opts, { trackField: text(lhs) }));
+        }
+      }
       return { flow: 'undetermined', sink: null };  // reassigned - can't trace
     }
     if (tn === 'VariableDeclaratorContext' || tn === 'LocalVariableDeclarationContext') {
@@ -453,6 +480,44 @@ function classifyFlow(node, outVars, depth = 0, opts) {
     n = n.parentCtx;
   }
   return { flow: 'internal', sink: null };    // no sink up the chain: predicate/logic only
+}
+
+// The field access `u` is the BASE of, if any: for `copy.Id`, given `copy`, -> 'Id'.
+//
+// `u` arrives as either an IdPrimaryContext or the IdContext nested inside it (the
+// use collector gathers both), and the parser wraps both in a PrimaryExpression, so
+// the DotExpression sits up to three levels up. Measured against the tree, not
+// guessed: omitting PrimaryExpressionContext here made the filter a silent no-op
+// that still looked like it worked - the verdict just stayed wrong.
+const ID_WRAPPERS = new Set(['IdPrimaryContext', 'IdContext', 'PrimaryExpressionContext']);
+
+function enclosingFieldAccess(u) {
+  let p = u.parentCtx;
+  while (p && ID_WRAPPERS.has(typeName(p))) {
+    p = p.parentCtx;
+  }
+  const fa = p ? fieldAccess(p) : null;
+  // Only when `u` is the base being read FROM, never when it is the field name.
+  return fa && isDescendant(u, fa.base) ? fa : null;
+}
+
+// Is this assignment actually an sObject constructor's NAMED ARGUMENT?
+//
+// `new Invoice__c(Amount__c = ord.TotalAmount)` parses as an AssignExpression nested
+// in the constructor's argument list - shape-identical to a real reassignment. The
+// exact chain, measured against the parser rather than assumed:
+//   AssignExpression -> ExpressionList -> Arguments -> ClassCreatorRest -> Creator
+// It matters because treating it as a reassignment made classifyFlow give up
+// (undetermined = worst case = ERROR) on the shape that dominates real agent
+// actions: query a record, build another from it, hand it on. Of seven probed
+// shapes it was the ONLY one that failed.
+function isCreatorNamedArg(assignCtx) {
+  let p = assignCtx.parentCtx;
+  if (!p || typeName(p) !== 'ExpressionListContext') return false;
+  p = p.parentCtx;
+  if (!p || typeName(p) !== 'ArgumentsContext') return false;
+  p = p.parentCtx;
+  return !!p && typeName(p) === 'ClassCreatorRestContext';
 }
 
 // Is `dot` a field access `<base>.<field>` (not a method call)?
@@ -531,6 +596,22 @@ function queryFlow(query, root, outTypes, fields) {
   if (lvd) {
     const vd = firstDescOfType(lvd, 'VariableDeclaratorContext');
     const idc = vd ? firstChildOfType(vd, 'IdContext') : null;
+    const recVar = idc ? text(idc) : null;
+    if (recVar) {
+      const method = ancestorOfType(query, 'MethodDeclarationContext') || root;
+      return fieldFlowFor(recVar, fields, method, outputVarsIn(method, outTypes),
+                          { table: methodTable(root), seen: new Set(),
+                            outTypes: outTypes });
+    }
+  }
+  // `for (Invoice inv : [SELECT ...])` - the loop variable IS the record variable,
+  // so it traces exactly like `List<Invoice> l = [SELECT ...]`. It was falling
+  // through to undetermined = worst case = ERROR, and it is not a corner: measured
+  // over real agent actions, this ONE shape accounted for the largest share of every
+  // give-up (71 of 198 field verdicts). Apex's most idiomatic query was its blindest.
+  const forCtl = ancestorOfType(query, 'EnhancedForControlContext');
+  if (forCtl) {
+    const idc = firstChildOfType(forCtl, 'IdContext');
     const recVar = idc ? text(idc) : null;
     if (recVar) {
       const method = ancestorOfType(query, 'MethodDeclarationContext') || root;
