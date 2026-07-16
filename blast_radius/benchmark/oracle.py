@@ -88,6 +88,11 @@ def case_body(case) -> str:
     engines on two different programs and prove nothing about either."""
     rt = case["runtime"]
     clause = f" {rt['clause']}" if rt["clause"] else ""
+    if rt.get("kind") == "record":
+        # COUNT() needs no FLS, so nothing here can be confused for the field axis:
+        # the number that comes back is purely how many ROWS sharing let through.
+        return rt.get("body") or (
+            f"            return 'ROWS=' + [SELECT COUNT() FROM {_OBJECT}{clause}];")
     if rt.get("kind") == "write":
         # DML takes `as user`/`as system`, not a WITH clause - a different syntax
         # for the same precedence rule, which is part of what this measures.
@@ -118,7 +123,9 @@ def _reader_source(case) -> str:
     kind = rt.get("kind", "read")
     decl = case_decl(case)
     body = case_body(case)
-    if kind == "write":
+    if kind == "record":
+        predicts = "VISIBLE past" if rt["expect_rows"] else "OUT OF REACH of"
+    elif kind == "write":
         predicts = "WRITEABLE past" if rt["expect_write"] else "OUT OF REACH of"
     else:
         predicts = "READABLE past" if rt["expect_read"] else "OUT OF REACH of"
@@ -159,6 +166,37 @@ def _test_source(cases) -> str:
         # Fields this case's user IS granted read on. Everything else stays invisible.
         grants = "new List<String>{%s}" % ", ".join(
             f"'{f}'" for f in (perms.get("read_fields") or []))
+        if rt.get("kind") == "record":
+            # The RECORD axis, which the FLS cases cannot measure: they seed their own
+            # row, so ownership satisfies sharing and the row is visible whatever the
+            # mode. Here the ADMIN seeds five rows OUTSIDE runAs, so they belong to
+            # someone else on a Private object, and the user IS granted FLS on the
+            # field - leaving sharing as the only thing that can hide them. It gives
+            # sfge's DatabaseOperationsMustUseWithSharing a referee it never had.
+            check = (f"        System.assertEquals('ROWS=5', v,\n"
+                     f"            'ANALYZER PREDICTED ESCALATION (records the user cannot see "
+                     f"come back) but the org said: ' + v);"
+                     if rt["expect_rows"] else
+                     f"        System.assertEquals('ROWS=0', v,\n"
+                     f"            'ANALYZER PREDICTED THE RECORDS ARE OUT OF REACH (sharing "
+                     f"enforced) but the org said: ' + v);")
+            methods.append(f"""
+    @isTest
+    static void {name}() {{
+        List<{_OBJECT}> seed = new List<{_OBJECT}>();
+        for (Integer k = 0; k < 5; k++) {{
+            seed.add(new {_OBJECT}(Name = 'rec' + k, {_FIELD} = 'SECRET-IBAN',
+                                   {_FIELD_VISIBLE} = 'VISIBLE-DATA'));
+        }}
+        insert seed;                       // owned by the admin, not by the reader
+        User usr = setup('R{i}', false, {redit}, {grants});
+        String v;
+        System.runAs(usr) {{
+            v = new BR_Or_{name}().run();
+        }}
+{check}
+    }}""")
+            continue
         if rt.get("kind") == "write":
             # No seed row: the insert IS the measurement. This user deliberately
             # holds no Create, so a landing insert is the escalation itself.
@@ -306,7 +344,10 @@ def main(argv=None):
     print(f"cases with a runtime shape: {len(cases)}   org: {args.org}")
     for c in cases:
         rt = c["runtime"]
-        if rt.get("kind") == "write":
+        if rt.get("kind") == "record":
+            want = ("records VISIBLE past sharing" if rt["expect_rows"]
+                    else "records BLOCKED (sharing enforced)")
+        elif rt.get("kind") == "write":
             want = ("write LANDS without Create" if rt["expect_write"]
                     else "write BLOCKED (CRUD enforced)")
         else:

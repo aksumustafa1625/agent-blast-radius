@@ -137,9 +137,18 @@ def our_verdict(case):
             any(f.rule in OUR_SHARING for f in findings))
 
 
+def org_axis(case):
+    """Which axis a case's runtime shape adjudicates: 'record' or 'fls'."""
+    return "record" if case["runtime"].get("kind") == "record" else "fls"
+
+
 def org_escalation(case):
     """Did the ORG's outcome mean an ESCALATION - data past a user who was not
     entitled to it?
+
+    For a RECORD case the entitlement is the share, not the field: `entitled=True`
+    marks the FIELD as allowed precisely so the rows are the only thing that can
+    escape. Rows coming back that the user has no share on IS the escalation.
 
     Two facts, never one. "The read returned the field" is not an escape by itself:
     in the negative control it returned precisely because user_minimal HOLDS FLS on
@@ -148,7 +157,10 @@ def org_escalation(case):
     entirely different reasons. Blocked outcomes escalate nothing, whoever predicted
     what."""
     rt = case["runtime"]
-    got = rt["expect_write"] if rt.get("kind") == "write" else rt["expect_read"]
+    kind = rt.get("kind")
+    if kind == "record":
+        return bool(rt["expect_rows"])      # rows the user has no share on came back
+    got = rt["expect_write"] if kind == "write" else rt["expect_read"]
     return bool(got) and not rt.get("entitled", False)
 
 
@@ -186,7 +198,8 @@ def main(argv=None):
             fname = os.path.basename(loc.get("file") or "")
             by_class.setdefault(fname.replace(".cls", ""), set()).add(v.get("rule"))
 
-        print(f"{'CASE':<38}{'v':<5}{'ORG':<10}{'sfge':<8}{'ABR':<12}{'sfge shr':<10}{'ABR shr':<8}")
+        print(f"{'CASE':<38}{'v':<5}{'axis':<8}{'ORG':<10}{'sfge':<8}{'ABR':<12}"
+              f"{'sfge shr':<10}{'ABR shr':<8}")
         print("-" * 100)
         sfge_wrong = abr_wrong = 0
         rows = []
@@ -195,19 +208,24 @@ def main(argv=None):
             sfge_fls, sfge_shr = FLS_RULE in rules, SHARING_RULE in rules
             abr_err, abr_warn, abr_shr = our_verdict(c)
             truth = org_escalation(c)
-            # Scored on the FLS/CRUD axis, which is exactly what expect_read /
-            # expect_write measured. The record axis is printed but NOT scored: no
-            # runtime column adjudicates it here, and scoring an unrefereed column is
-            # how a differential flatters whoever wrote it.
-            s_bad = sfge_fls != truth
-            a_bad = abr_err != truth
+            # Each case is scored on the axis ITS shape adjudicates, and only that
+            # one. A record case has a runtime column for sharing and none for FLS;
+            # scoring the other axis off it would be scoring a column nobody refereed,
+            # which is how a differential flatters whoever wrote it.
+            if org_axis(c) == "record":
+                s_bad = sfge_shr != truth
+                a_bad = abr_shr != truth
+            else:
+                s_bad = sfge_fls != truth
+                a_bad = abr_err != truth
             sfge_wrong += s_bad
             abr_wrong += a_bad
-            abr_txt = ("ERROR" if abr_err else "WARN" if abr_warn else "clean")
+            abr_txt = (("flags" if abr_shr else "clean") if org_axis(c) == "record"
+                       else ("ERROR" if abr_err else "WARN" if abr_warn else "clean"))
             rows.append((c, truth, sfge_fls, abr_txt, s_bad, a_bad))
-            print(f"{c['id']:<38}{('v%g' % c['api']):<5}"
+            print(f"{c['id']:<38}{('v%g' % c['api']):<5}{org_axis(c):<8}"
                   f"{('ESCAPES' if truth else 'bounded'):<10}"
-                  f"{(('flags*' if s_bad else 'flags') if sfge_fls else ('clean*' if s_bad else 'clean')):<8}"
+                  f"{(('flags*' if s_bad else 'flags') if (sfge_shr if org_axis(c) == 'record' else sfge_fls) else ('clean*' if s_bad else 'clean')):<8}"
                   f"{(abr_txt + ('*' if a_bad else '')):<12}"
                   f"{('flags' if sfge_shr else 'clean'):<10}"
                   f"{('flags' if abr_shr else 'clean'):<8}")
@@ -223,7 +241,9 @@ def main(argv=None):
         # same sin as any other selective reporting.
         abr_strict = sum(1 for c, t, _s, ab, _sb, _ab in rows
                          if (ab != "clean") != t)
-        print("On the FLS/CRUD axis, judged by the org and nobody else:")
+        print("Each case judged on the axis its runtime shape adjudicates - the FLS/CRUD")
+        print("axis for a read/write shape, the RECORD axis for a record shape - and by")
+        print("the org, nobody else:")
         print(f"   sfge contradicts the org on                  {sfge_wrong}/{len(cases)}")
         print(f"   Agent Blast Radius contradicts the org on    {abr_wrong}/{len(cases)}"
               f"   (WARN counted as 'did not assert')")

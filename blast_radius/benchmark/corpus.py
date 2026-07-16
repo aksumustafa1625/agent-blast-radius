@@ -75,6 +75,8 @@ GDPR = {"Blast_Test__c.Customer_IBAN__c": {"complianceGroup": "GDPR;PII"}}
 SHARING = {"Blast_Test__c": "Private"}
 
 _READ = "List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c];"
+# Reads a field the user IS allowed, so only the RECORD axis can hide anything.
+_RECORD_READ = "Integer n = [SELECT COUNT() FROM Blast_Test__c];"
 
 # The whole SOSL reader rests on ONE claim - that SOSL obeys the SAME mode
 # precedence as SOQL. It was asserted from the docs when the SOSL blind spot was
@@ -147,6 +149,40 @@ CASES = [
              "label started as `platform-doc` - believed from the docs, never "
              "measured. The runtime oracle settled it in a live org: the field DOES "
              "come back past the user. Earned, not assumed."),
+
+    # -------------------------------------------------- the RECORD axis, measured
+    # The precedence cases above all measure FLS: they seed their OWN row, so
+    # ownership satisfies sharing and the record axis never gets a vote. These three
+    # isolate it - rows owned by the admin on a Private object, and the user IS
+    # granted FLS on the field read, so sharing is the only thing that can hide them.
+    # They exist so sfge's DatabaseOperationsMustUseWithSharing has a referee: without
+    # a runtime column, sfge_diff can only PRINT that axis, and scoring a column
+    # nobody adjudicated is how a differential flatters whoever wrote it.
+    dict(id="record-v58-without-plain", api=58.0, apex=_cls(_RECORD_READ, "without"),
+         expect={"PS501"}, truth="experiment:E1,E2",
+         runtime=dict(kind="record", sharing="without", clause=None, expect_rows=True,
+                      entitled=True, perms=dict(read_fields=["Secret_Data__c"])),
+         why="Legacy + without sharing: the record axis is bypassed, so rows the user "
+             "has no share on come back. E1 measured 5 vs 0; E10 measured the same "
+             "shape again with controls. `entitled` marks the FIELD as allowed - the "
+             "escalation here is the RECORDS, not the field."),
+
+    dict(id="record-v58-with-sharing", api=58.0, apex=_cls(_RECORD_READ, "with"),
+         expect=set(), truth="experiment:E10",
+         runtime=dict(kind="record", sharing="with", clause=None, expect_rows=False,
+                      entitled=True, perms=dict(read_fields=["Secret_Data__c"])),
+         why="`with sharing` enforces the record axis even at v58 - the one axis it "
+             "DOES cover. The user owns none of the rows, so 0 come back. Measured by "
+             "E10 as the control that had to fail, and it did."),
+
+    dict(id="record-v67-without-plain", api=67.0, apex=_cls(_RECORD_READ, "without"),
+         expect=set(), truth="experiment:E2",
+         runtime=dict(kind="record", sharing="without", clause=None, expect_rows=False,
+                      entitled=True, perms=dict(read_fields=["Secret_Data__c"])),
+         why="THE second false-positive killer. v67's user-mode default enforces the "
+             "RECORD axis too, overriding an explicit `without sharing`: E2 measured "
+             "v58=5, v67=0. sfge flags this code with "
+             "DatabaseOperationsMustUseWithSharing; the platform bounds it."),
 
     # ------------------------------------------------------------ field vs GDPR
     dict(id="field-untagged-escalates-ps502", api=58.0,

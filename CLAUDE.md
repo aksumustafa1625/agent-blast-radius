@@ -163,15 +163,19 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 1. **Version-aware precedence — and the org, not us, says so.** The sfge differential
    is now **systematic**, not two hand-run cases: `benchmark/sfge_diff.py` generates
-   the SAME statements the oracle ran (`oracle.case_body`) for all **16 org-adjudicated
-   cases**, so every disagreement has a referee. On the FLS/CRUD axis:
-   **sfge contradicts the org on 6/16; Agent Blast Radius on 0/16** — and **2/16 even
+   the SAME statements the oracle ran (`oracle.case_body`) for all **19 org-adjudicated
+   cases**, so every disagreement has a referee. **Each case is scored on the axis its
+   own runtime shape adjudicates** — never on an unrefereed column:
+   **sfge contradicts the org on 7/19; Agent Blast Radius on 0/19** — and **2/19 even
    when scored on sfge's own binary scale** (any finding = an assertion). Run it both
    ways; publishing only the flattering score is selective reporting.
-   The 6 are **not one thing** — say which:
-   - **apiVersion blindness** (v67 read ×2, v67 write): sfge wants an explicit check
-     and gives no credit for secure-by-default. The platform bounds this code (E2b +
-     oracle). Unambiguous, and the case the whole market is migrating toward.
+   The 7 are **not one thing** — say which:
+   - **apiVersion blindness, BOTH axes** (v67 read ×2, v67 write, **v67 record**): sfge
+     wants an explicit check and gives no credit for secure-by-default. The platform
+     bounds this code (E2b + E2 + oracle). Unambiguous, and the case the whole market
+     is migrating toward. The record row is `DatabaseOperationsMustUseWithSharing` on
+     v67 `without sharing` — it used to be printed-not-scored; the `kind:"record"`
+     shapes gave it a referee and the org confirmed it.
    - **SOSL**: `ApexFlsViolation` never walks a `RETURNING`, so sfge **misses an escape
      the org hands over** — a false *negative*, new here and not in Appendix AD.
    - **the 2 sanitizer rows**: weakest of the six. We don't call them clean either — we
@@ -250,14 +254,16 @@ gets a blind spot the regex path doesn't have, or vice versa.
   FLS, `kind:"write"` measures object CRUD as a user holding no Create.
   Adding a runtime shape to a `reasoned` case beats adding ten new reasoned cases.
 - **Label strength** (the benchmark's real quality metric, printed every run):
-  **16 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
+  **19 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
   the author's, and 5 labels still only prove consistency, not correctness.
 - **sfge differential** (`benchmark/sfge_diff.py`, needs no org): Salesforce's own
-  Graph Engine vs this tool over the 16 org-adjudicated cases — **6/16 vs 0/16**
-  (2/16 on sfge's binary scale). It compares two rules to ours: `ApexFlsViolation`
-  ↔ PS502/503/506, `DatabaseOperationsMustUseWithSharing` ↔ PS501. The record axis is
-  **printed but never scored** — no runtime column adjudicates it, and scoring an
-  unrefereed column is how a differential flatters whoever wrote it.
+  Graph Engine vs this tool over the 19 org-adjudicated cases — **7/19 vs 0/19**
+  (2/19 on sfge's binary scale). It compares two rules to ours: `ApexFlsViolation`
+  ↔ PS502/503/506, `DatabaseOperationsMustUseWithSharing` ↔ PS501. **Both axes now have
+  a referee**: `kind:"record"` shapes seed rows owned by the ADMIN on a Private object
+  and grant the user FLS, so sharing is the only thing that can hide them. Each case is
+  scored on the axis its own shape adjudicates and no other — scoring an unrefereed
+  column is how a differential flatters whoever wrote it.
 - **Determinism**: proven live — two runs, byte-identical md+html (same sha256).
   The fingerprint binds the **static analysis**, not the live COUNTs — and it binds
   the analyzer itself: a sha256 of the rule/extractor source plus the parser version,
@@ -280,12 +286,11 @@ the fingerprint binding the analyzer's own source hash + parser version.
 
 **Still open, in rough priority:**
 1. **Benchmark v2.** The **runtime oracle is built** (`benchmark/oracle.py`) and
-   settles **16 of 23** cases; it has already caught a real false positive (§7), and
+   settles **19 of 26** cases; it has already caught a real false positive (§7), and
    it has a negative control so its greens aren't vacuous. The **systematic sfge
-   differential is done** (§6, §8). What's left: the 4 `reasoned` labels a shape could
-   still reach, and sfge's **record axis** has no runtime column yet — E2 measured
-   v67=0 rows, so `DatabaseOperationsMustUseWithSharing` on v67 looks like a second
-   false positive, but it is **printed, not scored**, until a shape adjudicates it.
+   differential is done** (§6, §8). The **record axis now has a runtime column** too
+   (`kind:"record"`), which confirmed the second sfge false positive. What's left: the
+   4 `reasoned` labels a shape could still reach.
    **Don't count all 7 shapeless cases as gaps** — the corpus docstring records which
    claims no oracle can ever settle (PS504/PS514 assert what *we* report, not what the
    platform does).
