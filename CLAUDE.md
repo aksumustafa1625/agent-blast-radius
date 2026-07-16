@@ -273,7 +273,10 @@ gets a blind spot the regex path doesn't have, or vice versa.
 ## 9. Known gaps — say these out loud
 
 Fixed already: SOSL, dynamic-SOQL PS504, PS509 handler + proof, record-reach
-semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
+semantics, stripInaccessible, async hand-offs incl. `EventBus.publish`, PSG (E8),
+muting (E9), the runtime oracle + its negative control, the systematic sfge
+differential, the AST's class-field DML target, the regex subquery false clean, and
+the fingerprint binding the analyzer's own source hash + parser version.
 
 **Still open, in rough priority:**
 1. **Benchmark v2.** The **runtime oracle is built** (`benchmark/oracle.py`) and
@@ -294,37 +297,26 @@ semantics, stripInaccessible, async hand-offs, PSG (E8), muting (E9).
    for free. **Still unfollowed: Flow, process, and off-platform subscribers**, plus the
    scheduled/callout kinds. PS514 states precisely which of these is the open edge —
    don't let it drift back to a blanket "not analysed".
-4. **Entry-point matrix** — the "no declaration" result depends on the caller;
-   test LWC/REST/invocable/trigger/anonymous/queueable/`test.runAs`.
-5. **Backend confidence** — **the premise was wrong; measure before acting on it.**
-   This used to read "regex findings should carry lower severity than AST ones". A
-   differential over **104 real classes** from a live org refutes that: neither
-   backend dominates. Classified by what a disagreement does to a *finding* —
-   **OVERCLAIM 3** (regex names an object AST doesn't), **MISSED 3** (AST sees reach
-   regex doesn't), **DEGRADED 21** (regex says `None` where AST resolves → an honest
-   PS504 instead of PS503), **NOISE 21** (extra unresolved ops), **66/104 identical**
-   (was 62/104 before the two fixes below). Each backend was blind where the other saw:
-   - **regex** misresolved a **multiline SELECT with a subquery** to the *inner* `FROM`
-     (non-greedy match) and lost the outer object entirely — a real false clean.
-     **Fixed**: `_bracketed_queries` + `_queries_in` scan bracket/paren depth, lift
-     subqueries out as reads of their own, and take the top-level `FROM`. This also
-     fixed a bind that indexes a list (`:ids[0]`) closing the query early. MISSED 7→3.
-   - **AST** had no `FieldDeclarationContext` in its type map, so `update user;` on a
-     class member gave `update:None` — the *supposedly weaker* regex got those 5
-     classes right. **Fixed**; a differential test pins it.
-   - **regex has no scope at all**: a local shadowing a field resolves to the field's
-     type. Not fixable without a parse tree — it is why AST is the default, and it is
-     what the report's backend note discloses.
-   **Fingerprint: done, and narrower than the TODO said.** It now binds
-   `analyzer` — a **sha256 of the analyzer's own source** (`report._ANALYSIS_SOURCES`),
-   not a hand-bumped string, because a version someone must remember to bump is
-   exactly the lie the fingerprint exists to prevent — and `parser` (the apex-parser
-   version; a parser upgrade changes which reads the AST sees). It deliberately does
-   **not** bind the **sf CLI** or the **org API version**: neither touches the static
-   resolution, and the fingerprint binds the static analysis, not the live COUNTs.
-   The class's own apiVersion was always bound per action. The hash over-invalidates
-   (a comment edit moves it) — the safe direction: a false alarm beats a false claim
-   of reproducibility.
+4. **Entry-point matrix** — partly closed by **E10**, and the remaining cell may not
+   be reachable at all. E10 measured what E2 asserted without a control: three pre-v67
+   invocables differing only in the declaration, same caller, same user, same
+   admin-owned rows → `without sharing`=5, **no declaration=0**, `with sharing`=0. So
+   a declaration-less class inherits its caller and enforces sharing.
+   **The cells are not equally relevant.** An agent invokes an `@InvocableMethod`, so
+   LWC/REST/anonymous never touch an agent's blast radius. The one that does — an
+   invocable with **no calling Apex class** — can't be measured without invoking the
+   agent (Flex Credits, the thing this tool exists to avoid) or authenticating as the
+   fixture user; a Flow proxy would measure Flow→invocable and drag in the Flow's own
+   `runInMode`, answering a question nobody asked. Until then `enforces_sharing=None`
+   for a declaration-less pre-v67 class is **the right answer**, not a placeholder.
+5. **Backend confidence** — **the premise was wrong; the measurement is in §8.** This
+   used to read "regex findings should carry lower severity than AST ones". A
+   differential over 104 real classes refutes it: neither backend dominates, and both
+   bugs it exposed are fixed. **What actually remains:** regex has **no scope** (a
+   local shadowing a field resolves to the field's type) and cannot get one without a
+   parse tree — that is *why* AST is the default and what the report's backend note
+   discloses, not a TODO. Residual disagreement is **OVERCLAIM 3 / MISSED 3** of 104;
+   nobody has looked at those 6 yet.
 6. **Relationship/polymorphic classification** (see §7).
 7. Managed-package internals, restriction/scoping rules, Knowledge/Data Cloud
    retrieval — all opaque today.
