@@ -146,3 +146,24 @@ finding itself — severity in this tool means *proof level*, so it is worth gra
 
 Ungraded rules (`GRADED` in `corpus.py`) are ignored: PS511 is legacy-API inventory and
 PS507/PS508 are honest-unknown markers, so counting them would flatter the score.
+
+
+## sfge_diff.py - Salesforce's own Graph Engine, refereed by the org
+
+    python blast_radius/benchmark/sfge_diff.py          # needs no org; sfge is local
+    python blast_radius/benchmark/sfge_diff.py --keep   # keep the generated Apex
+
+A differential on its own concludes "they disagree", which settles nothing. So this
+runs on exactly the cases carrying a `runtime` shape - the ones oracle.py has already
+had the ORG adjudicate - and generates the SAME statements the org executed
+(`oracle.case_body`), so sfge, this tool, and the org all describe one program.
+
+Two sfge rules map onto ours: `ApexFlsViolation` -> PS502/503/506 (FLS/CRUD), and
+`DatabaseOperationsMustUseWithSharing` -> PS501 (record). Only the FLS/CRUD axis is
+SCORED, because only it has a runtime column; the record axis is printed. Scoring a
+column nobody refereed is how a differential flatters whoever wrote it.
+
+The score is printed on BOTH scales: ours (WARN = "a boundary I could not prove", so
+it is not an assertion) and sfge's binary one (any finding = an assertion). It holds
+either way, and reporting only the flattering number would be the same sin as any
+other selective reporting.

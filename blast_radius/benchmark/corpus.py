@@ -29,6 +29,11 @@ THE TRAP THIS FILE AVOIDS
                              consistency, not correctness. Counted and reported
                              separately for exactly that reason.
 
+`runtime.entitled=True` marks a case where user_minimal IS allowed the data (it holds
+FLS on Secret_Data__c; Id needs none). It defaults to False. It exists so a successful
+read is not mistaken for an escape: escalation = the data came back AND the user was
+not entitled to it. Both facts, never one - sfge_diff.py scores against exactly that.
+
 A case carrying `runtime={...}` can be settled by oracle.py. Adding a runtime shape
 to a `reasoned` case is worth more than adding ten new reasoned cases.
 
@@ -165,7 +170,7 @@ CASES = [
          # worthless and we need to know that before a reviewer finds it.
          # USER_MODE is forced although the case is v58: under v58's system mode FLS
          # is bypassed for every field, so a green would prove nothing about FLS.
-         runtime=dict(sharing="with", clause=None, expect_read=True,
+         runtime=dict(sharing="with", clause=None, expect_read=True, entitled=True,
                       perms=dict(read_fields=["Secret_Data__c"]),
                       body="            List<Blast_Test__c> r = [SELECT Secret_Data__c "
                            "FROM Blast_Test__c WITH USER_MODE LIMIT 1];\n"
@@ -184,7 +189,7 @@ CASES = [
          # under v58's system mode FLS is bypassed for EVERY field, so Id coming
          # back would prove nothing about Id. The premise worth measuring is that Id
          # survives FLS *enforcement* - that is what makes not flagging it correct.
-         runtime=dict(sharing="with", clause=None, expect_read=True,
+         runtime=dict(sharing="with", clause=None, expect_read=True, entitled=True,
                       body="            List<Blast_Test__c> r = [SELECT Id FROM Blast_Test__c "
                            "WITH USER_MODE LIMIT 1];\n"
                            "            if (r.isEmpty()) return 'NO_ROWS';\n"
