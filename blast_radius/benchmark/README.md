@@ -1,6 +1,6 @@
 # Agent Authority Benchmark v1
 
-**Why:** "140 tests green" is not an accuracy claim. A test suite proves the code does
+**Why:** "189 tests green" is not an accuracy claim. A test suite proves the code does
 what its author expected. This measures how often that expectation is *right* — per
 rule, against labels written to be independent of the implementation.
 
@@ -65,7 +65,7 @@ the user's reach unless execution mode puts it back, which is exactly the thing 
 ## Current result
 
 ```
-cases: 23   passed: 23   failed: 0
+cases: 28   passed: 28   failed: 0
 RULE      TP  FP  FN   PRECISION   RECALL
 PS501      7   0   0      100.0%   100.0%
 PS502      1   0   0      100.0%   100.0%
@@ -109,27 +109,44 @@ the review brief).
 
 ## Honest limits of v1
 
-- **23 cases, not 100+.** The review asked for 100–200. This is a working harness with a
+- **28 cases, not 100+.** The review asked for 100–200. This is a working harness with a
   real corpus, not the finished benchmark.
 - **The mutations are also the author's.** 8/8 measures sensitivity to the breaks I
   thought of.
-- **Only 10 of 23 cases have a runtime shape.** The oracle can only judge those; the rest
-  still rest on reasoning or documentation.
-- **The oracle needs a specific fixture** (`Blast_Test__c` + `Customer_IBAN__c`), so it
-  runs on demand rather than in CI.
-- **Only the single sfge probe** (Appendix AD) so far, not a systematic differential.
+- **21 of 28 cases have a runtime shape**, and the org agrees on all 21. Of the other 7,
+  **six can never have one** - PS504's "we do not know" and PS514's "we flag what we do
+  not follow" assert what the ANALYZER must report, not what the platform does, and an
+  org cannot measure the absence of our knowledge. That is a limit of the method, not a
+  to-do; counting them as gaps would overstate what is missing.
+- **The oracle needs a specific fixture** (`Blast_Test__c`, `Blast_Event__e`, and the
+  muting group), so it runs on demand rather than in CI.
 
 ## What v2 needs, in order
 
-1. **More runtime shapes.** `oracle.py` settles 10 cases; the other 13 have no `runtime`
-   shape yet. Writing one is worth more than ten new `reasoned` cases. The
-   sanitizer, SOSL, async and write cases are all executable in principle.
-2. **Systematic sfge differential** — run both engines over the whole corpus and triage
-   every disagreement. Each one teaches something about one engine or the other.
-3. **Breadth** — Flow, Agent Script, relationship/polymorphic fields, PSG/muting,
-   managed-package actions, async chains.
+Items 1 and 2 are **done**, and both are struck through rather than deleted: what they
+turned into is the useful part.
+
+1. ~~**More runtime shapes.**~~ **Done.** `oracle.py` settles **21 of 28**, and the org
+   agrees on all 21. It grew a **negative control** (grant FLS on one field, read it
+   under the same enforcement that blocks the other - without it, "everything is
+   BLOCKED" could just mean a broken fixture), per-case `perms`, and a third axis
+   (`kind:"record"`). It has **caught a real false positive** in this tool. The list
+   used to say "the other 13 have no shape"; six of those can never have one, and the
+   corpus docstring says which.
+2. ~~**Systematic sfge differential.**~~ **Done** (`sfge_diff.py`). The design point is
+   the refereeing: it runs on exactly the org-adjudicated cases and generates the SAME
+   statements the org executed, so a disagreement has an answer instead of being two
+   engines shouting. **sfge 7/19 wrong, this tool 0/19** (2/19 on sfge's own binary
+   scale - reported because publishing only the flattering scale is selective
+   reporting).
+3. **Breadth** - Flow, Agent Script, polymorphic fields, managed-package actions. (PSG
+   and muting are covered and measured: E8/E9.)
 4. **Report `unknown` rate**, not just precision/recall: the share of cases where the
    tool honestly says "I can't tell" is a product quality metric in its own right.
+5. **More cases.** 28 is a working harness, not the 100-200 a reviewer asked for. But
+   note what the last stretch actually taught: **every case added to settle a belief
+   found a bug in the thing it was testing.** Depth per case has been worth more than
+   count.
 
 ## Adding a case
 
