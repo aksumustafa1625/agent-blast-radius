@@ -29,7 +29,7 @@ survives only in the Agent Script source. So for the compiled forms tested, a
 metadata-based scanner has nothing to read.
 
 > **Honest framing.** A reference implementation built on my own initiative, not client
-> work. The analyzer, the in-org experiments, the **140 unit tests**, the accuracy
+> work. The analyzer, the in-org experiments, the **189 unit tests**, the accuracy
 > benchmark, the live agent *authored in Agent Script and published to the org*, and the
 > reports against four real orgs are all real, produced at zero Flex Credits. The
 > health-records domain is fictional demo data. This is **not a certificate** — it is an
@@ -41,20 +41,34 @@ metadata-based scanner has nothing to read.
 
 ## Measured against Salesforce's own Graph Engine
 
-Salesforce ships **sfge**, a data-flow engine with an `ApexFlsViolation` rule — the closest
-technical neighbour to this tool. Both were run on the same code:
+Salesforce ships **sfge**, a data-flow engine whose two rules overlap this tool almost
+exactly — the closest technical neighbour it has. Two engines disagreeing proves nothing
+about either, so [`benchmark/sfge_diff.py`](blast_radius/benchmark/sfge_diff.py) runs both on
+**exactly the cases a real org has already adjudicated**, generating the *same statements the
+org executed*. Every disagreement has a referee:
 
-| case | sfge | Agent Blast Radius | ground truth |
-|---|---|---|---|
-| v63 `without sharing`, plain SOQL | flags ✔ | PS502/503/506 ✔ | escalation (E1/E2) |
-| **v67 plain SOQL** | **flags — false positive** | **clean ✔** | FLS *is* enforced (**E2b**, measured in-org) |
+```
+Each case scored on the axis its own runtime shape adjudicates:
+   sfge contradicts the org on                 7/19
+   Agent Blast Radius contradicts the org on   0/19    (WARN = "did not assert")
+   ...and on sfge's own binary scale           2/19    (any finding = an assertion)
+```
 
-On the legacy class the two engines **agree**, which independently corroborates the finding.
-On v67 — the default every org is migrating to — **sfge is version-blind and cries wolf,
-while this tool correctly stays silent**, because its precedence law was established by
-experiment rather than by "flag unless an explicit check is present".
+Scored **both ways** on purpose: a sceptic can fairly say a three-level scale against a
+binary engine is not the same scale, and publishing only the flattering number would be
+selective reporting. The result holds either way.
 
-That is the whole thesis, measured rather than asserted.
+**The 7 are not one thing**, and the run says which: **apiVersion blindness** on both axes
+(v67 read ×2, v67 write, v67 record — sfge gives no credit for secure-by-default, and the
+platform bounds that code); **SOSL** (`ApexFlsViolation` never walks a `RETURNING`, so sfge
+*misses* an escape the org hands over); and two **sanitizer** rows where this tool doesn't
+claim "clean" either — it says WARN.
+
+**This is not "sfge is bad."** It is a general-purpose, deliberately conservative scanner
+answering a different question — *"is an FLS check present?"* — with no notion of a running
+user or a GDPR label. The supportable claim is narrow: for *this* question — what can this
+agent reach as *this* user — a version-aware, user-scoped analysis is measurably more
+precise, and **the org is what says so**.
 
 ## The gap this fills
 
@@ -96,21 +110,33 @@ Two axes are tracked separately, which is the distinction most reviews get wrong
 
 ## Accuracy — not a test count
 
-*"140 tests green"* is not an accuracy claim. A test suite proves the code does what its
+*"189 tests green"* is not an accuracy claim. A test suite proves the code does what its
 author expected. [`blast_radius/benchmark/`](blast_radius/benchmark/) measures how often that
 expectation is **right**:
 
 ```
-cases: 23   passed: 23        PS501…PS514 → 100% precision, 100% recall
+cases: 28   passed: 28        PS501…PS514 → 100% precision, 100% recall
 mutation score: 8/8 caught
+label strength: 21 experiment · 3 platform-doc · 4 reasoned
 ```
 
 Read honestly — and the runner prints this **under** the score:
 
-- **Label strength.** Every case names where its ground truth comes from: `experiment:` (6,
-  measured in a real org), `platform-doc` (10), `reasoned` (7 — the author's reasoning,
-  which proves *consistency*, not correctness). **Only 6 of 23 are org-measured.** That
-  ratio is the benchmark's real quality metric.
+- **The analyzer predicts; the ORG judges.** [`oracle.py`](blast_radius/benchmark/oracle.py)
+  deploys each case as real Apex, runs it **as the modelled user**, and asserts *the
+  analyzer's own prediction* — so a red test means the analyzer is wrong. It is the only
+  ground truth that doesn't share a mind with the implementation. **21 of 28 cases carry a
+  shape; all 21 agree.** It has a **negative control** (grant FLS on one field and read it
+  under the same enforcement that blocks the other — if that ever goes red, every other
+  green is vacuous), and it has already **caught a real false positive** in this tool.
+- **Label strength.** Every case names where its ground truth comes from: `experiment:` (21,
+  measured in a real org), `platform-doc` (3), `reasoned` (4 — the author's reasoning, which
+  proves *consistency*, not correctness). That ratio is the benchmark's real quality metric;
+  it was 6/10/7 before the oracle existed.
+- **Not every case can be settled by an org, and the corpus says which.** PS504's *"we do not
+  know"* and PS514's *"we flag what we do not follow"* assert what the **analyzer** must
+  report, not what the platform does — an org cannot measure the absence of our knowledge.
+  Counting those as gaps would overstate what is missing.
 - **Mutation score.** A benchmark that passes on day one may just agree with the code beside
   it, so `mutate.py` breaks the analyzer on purpose — one semantic at a time — and checks the
   corpus notices. An **escape is a finding**. 8/8 caught, including *"ignore apiVersion"* —
@@ -118,7 +144,12 @@ Read honestly — and the runner prints this **under** the score:
 - Expectations are **hand-written, never generated from the law under test** (that would be a
   mirror, not an oracle).
 
-Both run in CI and fail the build, so an accuracy regression is caught like a broken test.
+The benchmark and the mutation score **run in CI and fail the build**, so an accuracy
+regression is caught like a broken test. The sfge differential deliberately does **not** —
+not for speed (measured: 42s), but because the gate's job is to prove *this analyzer*
+correct, while the differential proves a *comparative claim* that doesn't change per commit;
+gating it would put a third-party engine in the critical path and go red when **sfge**
+changes. It exits non-zero only if **this tool** contradicts the org.
 
 ## The pipeline
 
@@ -147,7 +178,7 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 140 unit tests (AST/Agent-Script suites skip cleanly without Node)
+# 189 unit tests (AST/Agent-Script suites skip cleanly without Node)
 python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
 
 # accuracy, not just green tests
@@ -200,14 +231,28 @@ were verified **against the code**, not accepted — and the outcome is the part
   `WHERE`/`LIMIT` are not resolved). Both fixed; the report now says *"could reach up to N"*.
 - *"TechnoStore's legacy trigger: ERROR"* — **unproven**. Its body performs no DML. PS509 is
   now proof-based: ERROR only when the trigger's own body writes something the user can't.
-- Our flagship demo action publishes a **platform event** whose subscriber was never analysed.
-  Now reported as PS514 rather than silently dropped.
+- Our flagship demo action publishes a **platform event** that the analyzer could not see at
+  all. Publishing needs Create on the event and **fires that event's trigger** — the same
+  cascade plain DML causes — so it is now modelled as a **write**, and PS503/PS509 apply to it.
+  On TechnoStore that surfaced a **new ERROR**: the agent publishes an event the running user
+  has no Create on, and that event drives MuleSoft and a customer email — work the user could
+  not start. The premise underneath it did not stay believed: **E11** measured it in-org
+  (v58 publish lands without Create; v67 is blocked). What is still *not* followed — a Flow,
+  process, or off-platform subscriber — is what PS514 now names precisely.
 
 **And one review's CRITICAL finding was refuted by measurement** (E8): Permission Set Groups
 *are* handled — a group assignment points at the platform-computed aggregate permission set,
 whose permissions equalled the union of its components exactly. **A stale docstring claiming
 otherwise is what produced the false finding** — documentation that overstates *limitations*
 costs credibility exactly like documentation that overstates capability.
+
+That lesson has a sequel worth stating, because it kept happening: **four more "known gaps"
+turned out to be already-closed** once anyone measured them — aliasing in the Authority Path,
+`@future`/queueable reach, cross-object classification, and the entry-point result E2 had
+asserted without a control. Each was a note telling the next reader to go rebuild something
+that worked. **E8's untested edge became E9** (muting: the aggregate applies it — measured,
+and it mattered in the dangerous direction, since crediting a user with a permission they
+lack is how a static analyzer produces a false *clean*).
 
 Also closed from that review: SOSL was a silent blind spot (and dynamic SOQL was quietly
 producing no honest-unknown at all); `stripInaccessible` was unmodelled, so correct code was
