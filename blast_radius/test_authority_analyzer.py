@@ -311,6 +311,45 @@ class SoslAndDynamicReadTest(unittest.TestCase):
         self.assertNotIn("PS502", self._rules(src, 67.0))
 
 
+class CrossObjectClassificationTest(unittest.TestCase):
+    """A query reaching `BillToContact.Email` really reads Contact.Email. Labels
+    were only ever keyed per REACHED object, so a GDPR label sitting on Contact
+    was structurally invisible and PS506 - the headline rule - silently missed it.
+    The loader now aliases the target object's labels under the relationship path;
+    these lock the analyzer half of that contract."""
+
+    SRC = ("public with sharing class X { void m(){ List<Invoice> r = "
+           "[SELECT DocumentNumber, BillToContact.Email FROM Invoice]; } }")
+
+    def _rules(self, classification):
+        perms = load_perms("user_minimal.json")
+        reach = parse_apex_source(self.SRC, 58.0, "X")
+        return {(f.rule, f.where.split("-> ")[-1])
+                for f in analyze_apex(reach, perms, classification, {})}
+
+    def test_relationship_field_keeps_its_own_path(self):
+        # The spelling matters: the label lookup and the finding must agree.
+        reach = parse_apex_source(self.SRC, 58.0, "X")
+        read = [o for o in reach.operations if o.operation == "read"][0]
+        self.assertIn("BillToContact.Email", read.fields)
+
+    def test_unlabelled_cross_object_field_is_ps502_not_ps506(self):
+        # Honest: TechnoStore's Contact.Email is SecurityClassification=Confidential
+        # but has NO ComplianceGroup, so the untagged rule is the right answer.
+        r = self._rules({})
+        self.assertIn(("PS502", "BillToContact.Email"), r)
+        self.assertNotIn(("PS506", "BillToContact.Email"), r)
+
+    def test_labelled_cross_object_field_now_reaches_ps506(self):
+        # This is what was structurally impossible before: the GDPR label lives on
+        # Contact, the query says BillToContact.
+        r = self._rules({"BillToContact.Email": {"complianceGroup": "GDPR;PII"}})
+        self.assertIn(("PS506", "BillToContact.Email"), r)
+        self.assertNotIn(("PS502", "BillToContact.Email"), r)
+        # the direct field on the queried object is unaffected
+        self.assertIn(("PS502", "Invoice.DocumentNumber"), r)
+
+
 class PolymorphicSelectTest(unittest.TestCase):
     """A TYPEOF select defeated BOTH extractors: each returned mangled tokens
     ("TYPEOF What WHEN Account THEN Name") *and* claimed fields_complete, so no

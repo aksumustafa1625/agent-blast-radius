@@ -59,7 +59,38 @@ def function_resolver(target_org: Optional[str] = None) -> Dict[str, dict]:
     return resolver
 
 
-def classification(objects: Iterable[str], target_org: Optional[str] = None):
+def _label_rows(obj: str, target_org):
+    return _sf("SELECT QualifiedApiName, ComplianceGroup, SecurityClassification "
+               f"FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='{obj}'",
+               target_org=target_org)
+
+
+def _relationship_targets(obj: str, target_org) -> Dict[str, str]:
+    """{relationshipName: targetObject} for `obj`'s single-target lookups.
+
+    `ReferenceTo` gives real API names ({'referenceTo': ['Contact']}); the
+    `DataType` string looks tempting but carries LABELS ("Lookup(Order Summary)"),
+    which would break on any custom object whose label differs from its API name.
+    A POLYMORPHIC lookup (referenceTo: ['Group','User']) is deliberately skipped:
+    we cannot say which object a given row points at, so the honest answer is to
+    leave the field unclassified rather than pick one and be confidently wrong."""
+    out: Dict[str, str] = {}
+    try:
+        rows = _sf("SELECT RelationshipName, ReferenceTo FROM FieldDefinition "
+                   f"WHERE EntityDefinition.QualifiedApiName='{obj}' "
+                   "AND RelationshipName != null", target_org=target_org)
+    except RuntimeError:
+        return out                                   # best-effort, never fatal
+    for r in rows:
+        rel = r.get("RelationshipName")
+        refs = (r.get("ReferenceTo") or {}).get("referenceTo") or []
+        if rel and len(refs) == 1:
+            out[rel] = refs[0]
+    return out
+
+
+def classification(objects: Iterable[str], target_org: Optional[str] = None,
+                   fields: Optional[Iterable[str]] = None):
     """Returns (labels, visible_by_object).
 
     labels: {'Object.Field': {complianceGroup, securityClassification}} for
@@ -68,21 +99,53 @@ def classification(objects: Iterable[str], target_org: Optional[str] = None):
             the fields VISIBLE to the analysis identity. FieldDefinition is
             FLS-gated, so fields the identity cannot read are absent here; the
             report uses this to distinguish "unclassified" from "not visible to
-            the analyzer" (never reporting a blind spot as clean)."""
+            the analyzer" (never reporting a blind spot as clean).
+
+    CROSS-OBJECT: a query reaching `BillToContact.Email` really reads Contact.Email,
+    but labels were only ever keyed per REACHED object - so the GDPR label sitting
+    on Contact.Email was never found and the headline rule (PS506) silently missed
+    it. Pass the reached field paths as `fields` and every relationship actually
+    used is resolved to its target object, whose labels are ALSO keyed under the
+    relationship path ('BillToContact.Email') - the spelling the analyzer already
+    looks up. Only relationships the agent really traverses are queried."""
     labels: Dict[str, dict] = {}
     visible: Dict[str, set] = {}
-    for obj in objects:
-        rows = _sf("SELECT QualifiedApiName, ComplianceGroup, SecurityClassification "
-                   f"FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='{obj}'",
-                   target_org=target_org)
-        visible[obj] = set()
+    objects = list(objects)
+
+    def _absorb(rows, prefix: str, mark_visible: Optional[str] = None):
         for r in rows:
             name = r["QualifiedApiName"]
-            visible[obj].add(name)
+            if mark_visible:
+                visible[mark_visible].add(name)
             cg, sc = r.get("ComplianceGroup"), r.get("SecurityClassification")
             if cg or sc:
-                labels[f"{obj}.{name}"] = {
+                labels[f"{prefix}.{name}"] = {
                     "complianceGroup": cg or "", "securityClassification": sc or ""}
+
+    for obj in objects:
+        visible[obj] = set()
+        _absorb(_label_rows(obj, target_org), obj, mark_visible=obj)
+
+    # Relationship paths the reach actually uses: `BillToContact.Email` where
+    # `BillToContact` is not itself a reached object.
+    rel_paths = {f.split(".")[0] for f in (fields or [])
+                 if "." in f and f.split(".")[0] not in objects}
+    if not rel_paths:
+        return labels, visible
+
+    rel_map: Dict[str, str] = {}
+    for obj in objects:
+        for rel, target in _relationship_targets(obj, target_org).items():
+            rel_map.setdefault(rel, target)
+
+    for rel in sorted(rel_paths):
+        target = rel_map.get(rel)
+        if not target:
+            continue                    # unresolved or polymorphic -> stays unclassified
+        try:
+            _absorb(_label_rows(target, target_org), rel)
+        except RuntimeError:
+            continue                    # not readable by the analysis identity
     return labels, visible
 
 

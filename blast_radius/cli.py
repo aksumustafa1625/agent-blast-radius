@@ -92,6 +92,34 @@ def _reached_objects(agent, source_root: str, backend: str = "auto",
     return objects
 
 
+def _reached_fields(agent, source_root: str, backend: str = "auto"):
+    """Field paths the agent reads, spelled exactly as the analyzer and its findings
+    spell them (report._qualify): a relationship field keeps its own path
+    (`BillToContact.Email`), a direct field gets `Object.Field`.
+
+    Needed BEFORE classification runs, because a relationship path is the only clue
+    that the agent traverses into another object - and that object's GDPR labels
+    have to be loaded for PS506 to see them."""
+    from report import _qualify
+    fields = set()
+    for action in agent.actions:
+        if action.target_type == "apex":
+            path = os.path.join(source_root, "classes", action.target + ".cls")
+            if os.path.exists(path):
+                for o in parse_apex(path, source_root, backend=backend).operations:
+                    if o.sobject:
+                        for f in o.fields:
+                            fields.add(_qualify(o.sobject, f))
+        elif action.target_type == "flow":
+            path = os.path.join(source_root, "flows", action.target + ".flow-meta.xml")
+            if os.path.exists(path):
+                for a in parse_flow(path).accesses:
+                    if a.sobject:
+                        for f in a.fields:
+                            fields.add(_qualify(a.sobject, f))
+    return fields
+
+
 def _record_modes(agent, source_root: str, backend: str = "auto"):
     """{object: 'user'|'system'} for the objects the agent READS.
 
@@ -237,7 +265,12 @@ def main():
     print(f"objects reached: {sorted(objects) or '(none - opaque actions only)'}")
 
     print("loading classifications, sharing models, permissions ...")
-    classification, visible = org_loaders.classification(objects, args.org)
+    # Pass the reached field paths too: a relationship path (BillToContact.Email)
+    # is what tells the loader to resolve that relationship and pull the TARGET
+    # object's GDPR labels - without it, PS506 silently misses every cross-object
+    # personal field the agent reads.
+    classification, visible = org_loaders.classification(
+        objects, args.org, fields=_reached_fields(agent, root, args.apex_backend))
     sharing = org_loaders.sharing(objects, args.org)
     triggers = org_loaders.active_triggers(objects, args.org)
     if args.permission_set:
