@@ -13,6 +13,16 @@ import subprocess
 from typing import Dict, Iterable, List, Optional
 
 
+class OrgQueryError(RuntimeError):
+    """The org did not answer a query (unreachable, unauthenticated, rejected).
+
+    A distinct type so the CLI can report it as a failed READ rather than a
+    crash, without blanket-catching RuntimeError — which would relabel a
+    genuine bug in the analyzer as "the org is down". A wrong diagnosis is
+    worse than a traceback: the traceback at least tells the truth.
+    """
+
+
 def _sf(query: str, tooling: bool = False, target_org: Optional[str] = None) -> List[dict]:
     cmd = f'sf data query --query "{query}" --json'
     if tooling:
@@ -24,9 +34,23 @@ def _sf(query: str, tooling: bool = False, target_org: Optional[str] = None) -> 
     try:
         data = json.loads(res.stdout)
     except json.JSONDecodeError:
-        raise RuntimeError(f"sf did not return JSON:\n{res.stdout}\n{res.stderr}")
+        raise OrgQueryError(f"sf did not return JSON:\n{res.stdout}\n{res.stderr}")
     if data.get("status") != 0:
-        raise RuntimeError(data.get("message", "sf query failed"))
+        # sf's own message names the endpoint and the reason; keep it verbatim.
+        # It is the only place the failure says WHICH request did not complete,
+        # and a paraphrase would drop exactly that.
+        #
+        # But `.get(key, default)` only defaults when the KEY is absent, and a
+        # transient failure was observed carrying "message": "" — which printed
+        # a [FAIL] that named no cause at all. An error that says nothing is not
+        # an error report, so fall back to whatever the run did leave behind.
+        msg = str(data.get("message") or "").strip()
+        if not msg:
+            msg = (f"sf exited with status {data.get('status')} and no message. "
+                   f"name={data.get('name') or '(none)'} "
+                   f"stderr={res.stderr.strip()[:300] or '(empty)'} "
+                   f"query={query[:120]}")
+        raise OrgQueryError(msg)
     return data["result"]["records"]
 
 

@@ -380,4 +380,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except org_loaders.OrgQueryError as e:
+        # This tool reads a live org; when the org does not answer there is
+        # nothing to analyse, and the honest end is a failed READ - not a
+        # traceback (which reads as "the analyzer is broken") and not a report
+        # (a report built on a missing read would be a false clean, the one
+        # outcome this project treats as worse than no answer at all).
+        print(f"\n[FAIL] The org did not answer. No report was written.\n"
+              f"       {e}\n"
+              f"       Check: network, VPN/proxy, and `sf org display "
+              f"--target-org <alias>`.", file=sys.stderr)
+        sys.exit(2)

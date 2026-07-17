@@ -7,13 +7,65 @@ defensible from posture; otherwise it is None (never fabricated).
 Run from the repo root:  python blast_radius/test_org_loaders.py
 """
 
+import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from org_loaders import _rel_root, _derive_user_visible, _trigger_handler_refs  # noqa: E402
+from org_loaders import (OrgQueryError, _rel_root, _derive_user_visible,  # noqa: E402
+                         _sf, _trigger_handler_refs)
 from permission_resolver import ObjectAccess  # noqa: E402
+
+
+class _Res:
+    """Stand-in for subprocess.run's CompletedProcess."""
+
+    def __init__(self, stdout, stderr=""):
+        self.stdout, self.stderr = stdout, stderr
+
+
+class TestOrgQueryErrorAlwaysNamesACause(unittest.TestCase):
+    """A failed org read must say WHY, or it cannot be acted on.
+
+    Observed live: sf returned status != 0 carrying `"message": ""`, and the
+    CLI printed a [FAIL] that named no cause at all. `.get(key, default)` only
+    defaults when the KEY is absent, so an empty string sailed through. These
+    pin the fallback and, just as importantly, pin that a REAL message is
+    still passed through verbatim - it is the only place the failure names the
+    endpoint that did not answer.
+    """
+
+    def _raise_from(self, payload, stderr=""):
+        with patch("subprocess.run", return_value=_Res(json.dumps(payload), stderr)):
+            with self.assertRaises(OrgQueryError) as cm:
+                _sf("SELECT Id FROM Account")
+        return str(cm.exception)
+
+    def test_empty_message_still_names_a_cause(self):
+        msg = self._raise_from({"status": 1, "message": "", "name": "GatewayTimeout"},
+                               stderr="upstream timed out")
+        self.assertIn("GatewayTimeout", msg)
+        self.assertIn("upstream timed out", msg)
+        self.assertIn("SELECT Id FROM Account", msg)
+
+    def test_absent_message_still_names_a_cause(self):
+        msg = self._raise_from({"status": 1})
+        self.assertIn("status 1", msg)
+        self.assertIn("(empty)", msg)
+
+    def test_a_real_message_is_preserved_verbatim(self):
+        """The negative control: the fallback must not paraphrase sf's own
+        message, which carries the endpoint and the network reason."""
+        real = ("request to https://x.my.salesforce.com/services/data/v67.0/query "
+                "failed, reason: connect ECONNREFUSED")
+        self.assertEqual(self._raise_from({"status": 1, "message": real}), real)
+
+    def test_non_json_output_is_an_org_query_error_not_a_crash(self):
+        with patch("subprocess.run", return_value=_Res("<html>proxy error</html>", "")):
+            with self.assertRaises(OrgQueryError):
+                _sf("SELECT Id FROM Account")
 
 
 class TriggerHandlerRefsTest(unittest.TestCase):
