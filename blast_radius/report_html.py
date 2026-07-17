@@ -725,7 +725,12 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     # org health: org-wide signals that don't concern THIS agent but a reviewer
     # of the org should know (whole-org API-version debt, god-mode grants, OWD)
     if org_health:
-        parts.append(org_health)
+        # Start "Org health — beyond this agent" on a fresh printed page. It is
+        # a deliberate shift in scope (from THIS agent to the whole org), and
+        # letting it begin mid-page under the tail of the findings both reads
+        # as a continuation and leaves the ragged bottom-of-page whitespace
+        # that break-inside:avoid produces. On screen the marker does nothing.
+        parts.append('<div class="pgbreak">' + org_health + '</div>')
 
     # Same wording as the markdown footer, and for the same reason: the seal names the
     # TOOL, not just the inputs. A verdict is only reproducible against the tool that
@@ -758,11 +763,25 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
 _PRINT_CSS = """
 <style>
   @media print {
-    .abr { max-width: none; padding: 0 8px; }
+    /* Edge's default page margin left a white frame around the dark report.
+       Drop it to zero and let the page background carry the colour edge to
+       edge; the breathing room moves inside .abr as padding instead. */
+    @page { margin: 0; }
+    /* Two things made a white frame survive @page:margin:0 - both fixed here.
+       (a) body keeps its UA 8px margin, and that ring showed through; kill it.
+       (b) the page background must be painted at the html/body level (the
+       theme tokens live on .abr), mirroring the two --bg values (dark #0b1016,
+       light #f5f8fa). :root IS <html>, so the dark rule targets :root itself -
+       "`:root html`" would match nothing, which is what left html light. */
+    html, body { margin: 0; background: #f5f8fa; }
+    :root[data-theme="dark"], :root[data-theme="dark"] body { background: #0b1016; }
+    .abr { max-width: none; padding: 22px 26px 30px; }
     /* keep a card whole rather than letting a page break slice it in half */
     .abr .plain, .abr .posture, .abr .hero, .abr .find, .abr .remed .ritem,
     .abr .orgframe, .abr .recwrap, .abr .stat { break-inside: avoid; }
     .abr .eyebrow, .abr h2 { break-after: avoid; }
+    /* start a major scope shift (Org health) on its own page */
+    .abr .pgbreak { break-before: page; }
     /* dark backgrounds and coloured rails must survive the print engine */
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
