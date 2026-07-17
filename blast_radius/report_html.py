@@ -742,3 +742,52 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
                  f'Regenerate if any of these change.</div>')
     parts.append('</div>')
     return "\n".join(parts)
+
+
+# Print rules live only on the standalone document, never in the fragment: an
+# embedder (Artifact) supplies its own page context. What actually broke the
+# PDF was NOT the colours - the dark theme was liked - but two other things:
+#   - no <meta charset>: Edge headless on Windows guessed cp1252 for a
+#     charset-less file://, so every "—" became "â" and "·" became "Â·". The
+#     bytes on disk were always UTF-8; the reader was told the wrong story.
+#   - boxed cards sliced across a page break.
+# The theme is chosen explicitly via data-theme (below), so print must NOT
+# force a color-scheme - that is what wrongly flattened the dark report to
+# light. print-color-adjust:exact is the opposite instruction: keep the
+# chosen backgrounds instead of letting the engine drop them to save ink.
+_PRINT_CSS = """
+<style>
+  @media print {
+    .abr { max-width: none; padding: 0 8px; }
+    /* keep a card whole rather than letting a page break slice it in half */
+    .abr .plain, .abr .posture, .abr .hero, .abr .find, .abr .remed .ritem,
+    .abr .orgframe, .abr .recwrap, .abr .stat { break-inside: avoid; }
+    .abr .eyebrow, .abr h2 { break-after: avoid; }
+    /* dark backgrounds and coloured rails must survive the print engine */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>"""
+
+
+def wrap_document(fragment: str, title: str, theme: str | None = None) -> str:
+    """Wrap the render_html() fragment into a standalone, valid HTML5 document.
+
+    render_html deliberately returns a fragment (no <head>) so it can embed;
+    the file we write to disk and hand to a browser or a PDF engine must be a
+    real document, and above all must DECLARE its UTF-8 encoding. Without that
+    declaration the fragment renders identically in a lenient browser and
+    turns to mojibake in a headless print - the same bytes, two verdicts.
+
+    `theme` stamps data-theme on <html>. A headless print engine does not
+    reliably match prefers-color-scheme, so the theme a browser showed on
+    screen (dark, here) would silently flip to light in the PDF. Stamping it
+    makes the printed theme deterministic and equal to what was demonstrated.
+    theme=None leaves the document responsive (follows the viewer's OS).
+    """
+    safe = html.escape(title)
+    attr = f' data-theme="{theme}"' if theme in ("dark", "light") else ""
+    return (f'<!doctype html>\n<html lang="en"{attr}>\n<head>\n'
+            f'<meta charset="utf-8">\n'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<title>{safe}</title>\n{_PRINT_CSS}\n</head>\n<body>\n'
+            f'{fragment}\n</body>\n</html>\n')

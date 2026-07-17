@@ -73,6 +73,21 @@ class DeterminismTest(unittest.TestCase):
         b = render_html("A", "u", "c", self.actions)
         self.assertEqual(a, b)
 
+    def test_standalone_html_declares_utf8(self):
+        """The bug this guards: a charset-less file:// prints as mojibake in a
+        headless engine while looking fine in a lenient browser - the same
+        bytes, two verdicts. The em-dash in the title is real UTF-8, so the
+        document MUST declare its encoding, or a PDF turns every "—" into "â".
+        """
+        from report_html import render_html, wrap_document
+        doc = wrap_document(render_html("A", "u", "c", self.actions), "T — x")
+        self.assertTrue(doc.lstrip().lower().startswith("<!doctype html>"))
+        self.assertIn('<meta charset="utf-8">', doc)
+        self.assertIn("—", doc)               # the em-dash survives verbatim
+        self.assertIn("@media print", doc)          # print rules only on the doc
+        # the fragment itself stays a fragment - no wrapper leaked into it
+        self.assertNotIn("<!doctype", render_html("A", "u", "c", self.actions).lower())
+
     def test_fingerprint_stable(self):
         f1 = fingerprint("A", "u", "c", self.actions)
         f2 = fingerprint("A", "u", "c", self.actions)

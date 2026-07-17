@@ -29,7 +29,7 @@ from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
 from report import (classification_coverage, escalation_gap,  # noqa: E402
                     render_markdown)
-from report_html import render_html  # noqa: E402
+from report_html import render_html, wrap_document  # noqa: E402
 from snapshot_loader import build_snapshot  # noqa: E402
 
 
@@ -345,8 +345,11 @@ def main():
                        coverage=coverage, counts=counts, org_health=org_health_html)
     with open(args.out + ".md", "w", encoding="utf-8") as f:
         f.write(md)
+    # The .html on disk is a standalone file (opened in a browser, printed to
+    # PDF), so it gets the full-document wrapper - charset + print rules. The
+    # fragment render_html returns stays a fragment for embedders.
     with open(args.out + ".html", "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(wrap_document(html, f"Agent Blast Radius - {agent.name}"))
 
     gap, gdpr = escalation_gap(summaries)
     print("\n" + "=" * 60)

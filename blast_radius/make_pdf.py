@@ -33,9 +33,32 @@ def _find(exe: str, *extra: str) -> str | None:
     return None
 
 
+def _apply_theme(markup: str, theme: str) -> str:
+    """Stamp data-theme onto the document's <html> so the PDF theme is fixed.
+
+    A headless engine does not reliably match prefers-color-scheme, so without
+    this the dark report a browser showed would flip to light in the PDF. We
+    edit whatever document we were handed rather than re-wrapping it, so a file
+    written by any version of the CLI still themes correctly.
+    """
+    import re
+    if re.search(r'<html[^>]*\sdata-theme=', markup):
+        return re.sub(r'(<html[^>]*?)\sdata-theme="[^"]*"',
+                      rf'\1 data-theme="{theme}"', markup, count=1)
+    if re.search(r'<html\b', markup):
+        return re.sub(r'(<html\b)', rf'\1 data-theme="{theme}"', markup, count=1)
+    # A bare fragment (no <html>): the concentric-circle CSS keys off
+    # :root[data-theme=...], so put the attribute where it will take effect.
+    return f'<!doctype html><html data-theme="{theme}"><meta charset="utf-8">{markup}</html>'
+
+
 def main() -> None:
     want_open = "--open" in sys.argv
-    argv = [a for a in sys.argv[1:] if a != "--open"]
+    # Default to the dark theme: it is what the report shows on a dark desktop
+    # and what the demo was recorded against. --light overrides.
+    theme = "light" if "--light" in sys.argv else "dark"
+    argv = [a for a in sys.argv[1:]
+            if a not in ("--open", "--light", "--dark")]
 
     html = Path(argv[0]) if argv else None
     if html is None:
@@ -56,13 +79,24 @@ def main() -> None:
         raise SystemExit("[FAIL] Edge not found (headless PDF engine).")
 
     pdf = html.with_suffix(".pdf")
-    # Edge's GPU/renderer noise on stderr says nothing about the PDF; suppress
-    # it so a successful run does not read like a failed one.
-    subprocess.run([edge, "--headless", "--disable-gpu", "--no-sandbox",
-                    f"--print-to-pdf={pdf.resolve()}", "--no-pdf-header-footer",
-                    html.resolve().as_uri()],
-                   check=True, timeout=120,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Print a THEMED copy, not the file itself: stamping data-theme fixes the
+    # PDF's theme (Edge headless would otherwise default to light and flatten a
+    # dark report). Written beside the source so relative asset uris still
+    # resolve, and removed afterwards.
+    themed = _apply_theme(html.read_text(encoding="utf-8"), theme)
+    tmp = html.with_name(html.stem + f".__{theme}__.html")
+    tmp.write_text(themed, encoding="utf-8")
+    try:
+        # Edge's GPU/renderer noise on stderr says nothing about the PDF;
+        # suppress it so a successful run does not read like a failed one.
+        subprocess.run([edge, "--headless", "--disable-gpu", "--no-sandbox",
+                        f"--print-to-pdf={pdf.resolve()}", "--no-pdf-header-footer",
+                        tmp.resolve().as_uri()],
+                       check=True, timeout=120,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    finally:
+        tmp.unlink(missing_ok=True)
 
     # Edge can flush the file asynchronously after it exits, so an immediate
     # size check reads a partial file. Wait for the size to stop moving —
