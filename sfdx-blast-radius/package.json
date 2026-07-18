@@ -29,5 +29,8 @@
   },
   "dependencies": {
     "@oclif/core": "^4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
