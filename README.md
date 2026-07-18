@@ -29,7 +29,7 @@ survives only in the Agent Script source. So for the compiled forms tested, a
 metadata-based scanner has nothing to read.
 
 > **Honest framing.** A reference implementation built on my own initiative, not client
-> work. The analyzer, the in-org experiments, the **189 unit tests**, the accuracy
+> work. The analyzer, the in-org experiments, the **216 unit tests**, the accuracy
 > benchmark, the live agent *authored in Agent Script and published to the org*, and the
 > reports against four real orgs are all real, produced at zero Flex Credits. The
 > health-records domain is fictional demo data. This is **not a certificate** — it is an
@@ -110,7 +110,7 @@ Two axes are tracked separately, which is the distinction most reviews get wrong
 
 ## Accuracy — not a test count
 
-*"189 tests green"* is not an accuracy claim. A test suite proves the code does what its
+*"216 tests green"* is not an accuracy claim. A test suite proves the code does what its
 author expected. [`blast_radius/benchmark/`](blast_radius/benchmark/) measures how often that
 expectation is **right**:
 
@@ -178,7 +178,7 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 189 unit tests (AST/Agent-Script suites skip cleanly without Node)
+# 216 unit tests (AST/Agent-Script suites skip cleanly without Node)
 python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
 
 # accuracy, not just green tests
@@ -287,6 +287,19 @@ and four real orgs scanned.
 3. **Async reach** is flagged (PS514) but not followed.
 4. Muting permission sets, the entry-point matrix, backend-confidence in severity, and
    relationship/polymorphic field classification.
+
+## Documentation
+
+| Document | What it answers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Source layout + the rules that keep two backends honest over one core |
+| [docs/adr/](docs/adr/) | **12 Architecture Decision Records** — incl. why the sfge differential is not in CI, why there is no `schema_version`, and why PS516 is not (yet) a leak claim |
+| [docs/architecture/](docs/architecture/) | Mermaid views: context, container, scan sequence, data model, CI contracts |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Standing rules: experiment-locked semantics, severity discipline, both-orgs verification, PR checklist |
+| [SECURITY.md](SECURITY.md) | Read-only trust model, analysis-identity honesty, what a report should be trusted to mean |
+| [MILESTONE_0_EVIDENCE.md](MILESTONE_0_EVIDENCE.md) | The in-org experiments (E1–E13) every semantic claim cites |
+| [docs/demo/](docs/demo/) | The rehearsed demo recording script with its on-camera liveness experiment |
+| [CLAUDE.md](CLAUDE.md) | Working context: the precedence law, the rule table, the mistakes already paid for |
 
 ## Related projects
 

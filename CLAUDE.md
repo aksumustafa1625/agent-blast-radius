@@ -135,7 +135,7 @@ blast_radius/
   benchmark/                corpus.py + run.py + mutate.py + oracle.py (runtime
                             oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
-  test_*.py                 211 tests
+  test_*.py                 216 tests
 ```
 
 **Both extraction backends feed the SAME precedence core.** When adding a reach
@@ -423,6 +423,10 @@ the fingerprint binding the analyzer's own source hash + parser version.
 - Run tests: `python -m unittest discover -s blast_radius -p "test_*.py"`
 - Run benchmark: `python blast_radius/benchmark/run.py` and `mutate.py`
 - Comments explain **why / the constraint**, never what the next line does.
+- Decision records live in `docs/adr/` (12 ADRs, incl. the deliberate
+  rejections). A change that alters what a finding may claim, rejects an
+  alternative, or sets a boundary gets an ADR; an incident-level lesson goes
+  into §7 here instead.
 - The brief `PROJECT_STATE_AND_REVIEW_BRIEF.md` (~2100 lines) is the exhaustive
   reference; `REVIEW_REQUEST_PROMPT.md` is the paste-ready external-review prompt.
 - Commit messages: what changed **and what it proves/why it was wrong before**.
