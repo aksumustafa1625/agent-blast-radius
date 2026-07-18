@@ -5,7 +5,7 @@
       "default": true
     }
   ],
-  "name": "Hospital Org",
+  "name": "agent-blast-radius",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "67.0"
