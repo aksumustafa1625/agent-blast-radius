@@ -11,14 +11,33 @@ before changing a rule.
 
 Two items, in this order. Nothing else was promised for the next sitting.
 
-**0.1 — Clarify then build: "the org's Aksu Index".** The maintainer asked for the
-report to state *"this org's Aksu Index is X"*. The **per-(agent × running user)**
-line already ships in md, html and console — so **ask what is meant before
-building**: an **org-level rollup** across every agent (the spec calls that a
-*derived* view and requires it be labelled as such, §2 of `AKSU_INDEX_SPEC.md`), or
-something about the existing line. **Do not guess.** If it is the rollup, note that
-the spec forbids presenting it as a plain Index: one Index describes one pair, and a
-rollup must say which pairs it aggregated and that it is derived.
+**0.1 — Make the Aksu Index the FIRST thing a reader sees.** *(Clarified by the
+maintainer 2026-07-31: this is not an org-level rollup — it is about prominence.
+Whoever opens the report should meet the Index immediately.)*
+
+Where it sits today, in `report_html.py`:
+
+| order | element | line |
+|---|---|---|
+| 1 | eyebrow "Agent Blast Radius Report" | 627 |
+| 2 | `<h1>` agent name | 628 |
+| 3 | `<p class="sub">` static/zero-credit blurb | 629 |
+| 4 | **the Index — as `<p class="sub">`, i.e. small subtitle text** | **635** |
+| 5 | stakeholder summary, API posture, backend note | 631–641 |
+| 6 | the visual hero: `.gapnum` at 64px + the circles | 654–657 |
+
+So the eye currently lands on the **gap number**, and the Index reads as a caption.
+It should be the other way round: **the Index is the product's public metric and the
+report is its distribution vehicle** (§6.1).
+
+Target: a dedicated Index band directly under the `<h1>` — the four numbers large and
+unmissable, P dominant, C/B/U legible beside it, and the "NOT clean" sentence attached
+whenever P = 0 while U > 0. Keep `.gapnum` and the circles; they explain the number
+rather than compete with it. **The four numbers must stay together** — no layout may
+present P alone (spec §1, and `aksu_index_line()` deliberately offers no shorter form).
+Do the md report too: today it is line 7 inside the ASCII block, which is fine for a
+terminal but should still read as the headline rather than as one row among the reach
+summary.
 
 **0.2 — Group the remediation list by FIX, not by finding.** Measured on the real
 TechnoStore report: 12 action items, of which **6 are the identical fix in the
