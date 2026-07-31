@@ -27,7 +27,8 @@ from agent_metadata_loader import load_agent_config  # noqa: E402
 from apex_introspect import parse_apex  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
-from report import (classification_coverage, escalation_gap,  # noqa: E402
+from report import (aksu_index, aksu_index_line,  # noqa: E402
+                    classification_coverage, escalation_gap,
                     render_markdown)
 from report_html import render_html, wrap_document  # noqa: E402
 from snapshot_loader import build_snapshot  # noqa: E402
@@ -354,6 +355,8 @@ def main():
     gap, gdpr = escalation_gap(summaries)
     print("\n" + "=" * 60)
     print(f"AGENT: {agent.name}   RUNNING USER: {agent.running_user}")
+    # ASCII form on purpose: the Windows console is cp1252.
+    print(aksu_index_line(aksu_index(summaries), ascii_only=True).upper())
     print(f"ESCALATION GAP: {len(gap)} field(s), {len(gdpr)} GDPR-labelled")
     if counts:
         from report import record_reach

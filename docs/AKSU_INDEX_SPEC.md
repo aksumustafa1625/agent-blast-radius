@@ -1,7 +1,9 @@
 # The Aksu Index — Specification
 
-**Version: 1.0-draft** — becomes 1.0-frozen at first public reference, and is never
-silently redefined after that (§8).
+**Version: 1.0** — approved by the maintainer on 31 July 2026 (the four load-bearing
+choices: pair-scoped, fields-only, four-bucket reporting, GDPR callout). Freezes
+permanently at first public reference, and is never silently redefined after
+that (§8).
 
 ---
 

@@ -110,6 +110,43 @@ def escalation_gap(actions: List[ActionSummary]) -> tuple[set, set]:
     return gap, gdpr
 
 
+def aksu_index(actions: List[ActionSummary]) -> dict:
+    """The public metric (docs/AKSU_INDEX_SPEC.md §3): escalation_gap() split by
+    proof level. The circles keep the union — the spec's `gap` IS P ∪ B — but the
+    quoted number may not mix them, because severity is the tool's proof claim:
+    a WARN inside the proven count would present a boundary we could not prove
+    as if we had proven it. GDPR counts only within proven, for the same reason.
+    `unresolved` counts PS504 findings — reach we could not determine at all —
+    and the spec forbids quoting `proven` without it: an unknown never reads
+    as clean."""
+    proven, gdpr, boundary = set(), set(), set()
+    unresolved = 0
+    for a in actions:
+        for f in a.findings:
+            if f.rule in ("PS502", "PS506"):
+                (proven if f.severity == "ERROR" else boundary).add(_field_of(f.where))
+                if f.rule == "PS506" and f.severity == "ERROR":
+                    gdpr.add(_field_of(f.where))
+            elif f.rule == "PS504":
+                unresolved += 1
+    # A field proven in ANY action is proven — most-severe-wins, the same
+    # discipline the analyzer's own dedup applies.
+    boundary -= proven
+    return {"proven": proven, "gdpr": gdpr, "boundary": boundary,
+            "unresolved": unresolved}
+
+
+def aksu_index_line(ix: dict, ascii_only: bool = False) -> str:
+    """Canonical form (spec §1). Always all four numbers — quoting `proven`
+    alone while unresolved > 0 is defined by the spec as a violation, so no
+    caller gets a shorter form to misquote. ascii_only is for the Windows
+    console (cp1252); the md/html files are utf-8 and keep the canonical dot."""
+    sep = " / " if ascii_only else " · "
+    return (f"Aksu Index: {len(ix['proven'])} proven ({len(ix['gdpr'])} GDPR)"
+            f"{sep}{len(ix['boundary'])} unproven boundaries"
+            f"{sep}{ix['unresolved']} unresolved")
+
+
 _STD_FIELDS = {"Id", "Name", "OwnerId", "IsDeleted", "CreatedDate", "CreatedById",
                "LastModifiedDate", "LastModifiedById", "SystemModstamp"}
 
@@ -271,6 +308,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
                     org_health_md: str = "") -> str:
     fp = fingerprint(agent, running_user, channel, actions, coverage)
     gap, gdpr = escalation_gap(actions)
+    ix = aksu_index(actions)
     reach = record_reach(counts)
 
     objects = sorted({o for a in actions for o in a.objects})
@@ -288,6 +326,11 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     L.append(f"Config fingerprint: {fp}      Generated: {generated}")
     L.append("=" * 64)
     L.append("")
+    L.append(aksu_index_line(ix))
+    if not ix["proven"] and ix["unresolved"]:
+        # Spec §4.3 in the report's own voice: 0 proven with unresolved reach
+        # is "0 proven, U unresolved" — never "clean".
+        L.append("  (0 proven with unresolved reach is NOT clean - unknown never becomes clean)")
     L.append(f"ESCALATION GAP ......... {len(gap)} fields  /  {len(gdpr)} GDPR-labelled"
              + ("   <==" if gap else ""))
     L.append("")

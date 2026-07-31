@@ -15,7 +15,8 @@ import html
 import math
 from typing import List
 
-from report import (ActionSummary, escalation_gap, fingerprint, record_reach,
+from report import (ActionSummary, aksu_index, aksu_index_line,
+                    escalation_gap, fingerprint, record_reach,
                     finding_sort_key, _CAUSE_LABEL)
 
 _SEV = {"ERROR": "error", "WARN": "warn", "INFO": "info"}
@@ -593,6 +594,7 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
                 org_health: str = "") -> str:
     fp = fingerprint(agent, running_user, channel, actions, coverage)
     gap, gdpr = escalation_gap(actions)
+    ix = aksu_index(actions)
     reach = record_reach(counts)
     # One canonical field set, one partition. Every gap field is by definition a
     # field the code reads, so it must be part of `reached`; unioning gap in is a
@@ -626,6 +628,11 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     parts.append(f'<h1>{_esc(agent)}</h1>')
     parts.append('<p class="sub">Static, zero-credit analysis of the agent\'s real '
                  'data-access surface at the execution-semantics layer.</p>')
+    # The canonical metric line (docs/AKSU_INDEX_SPEC.md §1) lives in every report
+    # the tool ever writes — the report is the term's distribution vehicle. All
+    # four numbers always: quoting proven alone while unresolved > 0 is a spec
+    # violation, so the report never offers a shorter form to copy.
+    parts.append(f'<p class="sub"><b>{_esc(aksu_index_line(ix))}</b></p>')
 
     # plain-language summary a non-engineer (a DPO, a manager) can read and act on
     parts.append(_stakeholder_summary(agent, gap, gdpr, all_findings, reach,

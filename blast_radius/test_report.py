@@ -357,3 +357,86 @@ class FingerprintBindsTheApiVersionTest(unittest.TestCase):
         a, b = self._summary(58.0, "A"), self._summary(67.0, "B")
         self.assertEqual(fingerprint("ag", "u", "c", [a, b]),
                          fingerprint("ag", "u", "c", [b, a]))
+
+
+class AksuIndexTest(unittest.TestCase):
+    """The public metric (docs/AKSU_INDEX_SPEC.md) — the split IS the point.
+
+    escalation_gap() mixes ERROR and WARN into one set, which is right for the
+    concentric circles (the spec's gap is the union) and wrong for a quoted
+    number: severity is the tool's proof claim, so the Index must never count a
+    boundary it could not prove inside 'proven'. These tests pin the partition,
+    the GDPR-within-proven rule, the unresolved counter, and the canonical line
+    every report carries."""
+
+    @staticmethod
+    def _f(rule, sev, field):
+        from authority_analyzer import Finding
+        return Finding(rule, sev, f"A -> {field}", "m", "w", "x")
+
+    def _action(self, findings):
+        return ActionSummary("A", "apex", 58.0, True, ["X"], [], findings)
+
+    def test_error_and_warn_land_in_different_buckets(self):
+        from report import aksu_index
+        ix = aksu_index([self._action([self._f("PS502", "ERROR", "X.A__c"),
+                                       self._f("PS502", "WARN", "X.B__c")])])
+        self.assertEqual(ix["proven"], {"X.A__c"})
+        self.assertEqual(ix["boundary"], {"X.B__c"})
+
+    def test_gdpr_counts_only_within_proven(self):
+        # A WARN PS506 is a real boundary we could not prove crossed — quoting it
+        # as a proven GDPR escalation would be the exact overclaim the spec forbids.
+        from report import aksu_index
+        ix = aksu_index([self._action([self._f("PS506", "WARN", "X.Iban__c")])])
+        self.assertEqual(ix["gdpr"], set())
+        self.assertEqual(ix["boundary"], {"X.Iban__c"})
+        ix2 = aksu_index([self._action([self._f("PS506", "ERROR", "X.Iban__c")])])
+        self.assertEqual(ix2["gdpr"], {"X.Iban__c"})
+        self.assertEqual(ix2["proven"], {"X.Iban__c"})
+
+    def test_most_severe_wins_across_actions(self):
+        # Proven in ANY action = proven; the same field must not appear in both
+        # buckets or the four numbers would double-count.
+        from report import aksu_index
+        ix = aksu_index([self._action([self._f("PS502", "WARN", "X.A__c")]),
+                         self._action([self._f("PS502", "ERROR", "X.A__c")])])
+        self.assertEqual(ix["proven"], {"X.A__c"})
+        self.assertEqual(ix["boundary"], set())
+
+    def test_unresolved_counts_ps504(self):
+        from report import aksu_index
+        ix = aksu_index([self._action([self._f("PS504", "WARN", "?"),
+                                       self._f("PS504", "WARN", "?2")])])
+        self.assertEqual(ix["unresolved"], 2)
+        self.assertEqual(ix["proven"], set())
+
+    def test_union_reconciles_with_escalation_gap(self):
+        # The circles and the Index describe the same reality: gap == P ∪ B.
+        from report import aksu_index
+        findings = [self._f("PS502", "ERROR", "X.A__c"),
+                    self._f("PS506", "WARN", "X.B__c")]
+        gap, _ = escalation_gap([self._action(findings)])
+        ix = aksu_index([self._action(findings)])
+        self.assertEqual(gap, ix["proven"] | ix["boundary"])
+
+    def test_canonical_line_in_markdown(self):
+        md = render_markdown("A", "u", "c",
+                             [self._action([self._f("PS506", "ERROR", "X.Iban__c"),
+                                            self._f("PS504", "WARN", "?")])])
+        self.assertIn("Aksu Index: 1 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved", md)
+
+    def test_zero_proven_with_unresolved_is_not_clean(self):
+        # Spec §4.3: "Index = 0 with U > 0 is not clean" — the report must say so
+        # in its own voice, not leave a bare 0 to be quoted as a pass.
+        md = render_markdown("A", "u", "c",
+                             [self._action([self._f("PS504", "WARN", "?")])])
+        self.assertIn("Aksu Index: 0 proven (0 GDPR) · 0 unproven boundaries · 1 unresolved", md)
+        self.assertIn("NOT clean", md)
+
+    def test_ascii_form_for_the_console(self):
+        # Windows console is cp1252 — the ASCII form must carry no middle dot.
+        from report import aksu_index, aksu_index_line
+        line = aksu_index_line(aksu_index([]), ascii_only=True)
+        self.assertNotIn("·", line)
+        self.assertIn("Aksu Index: 0 proven (0 GDPR) / 0 unproven boundaries / 0 unresolved", line)
