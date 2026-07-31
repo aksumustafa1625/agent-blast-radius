@@ -7,6 +7,36 @@ before changing a rule.
 
 ---
 
+## 0. NEXT SESSION — start here (agreed 2026-07-31, end of day)
+
+Two items, in this order. Nothing else was promised for the next sitting.
+
+**0.1 — Clarify then build: "the org's Aksu Index".** The maintainer asked for the
+report to state *"this org's Aksu Index is X"*. The **per-(agent × running user)**
+line already ships in md, html and console — so **ask what is meant before
+building**: an **org-level rollup** across every agent (the spec calls that a
+*derived* view and requires it be labelled as such, §2 of `AKSU_INDEX_SPEC.md`), or
+something about the existing line. **Do not guess.** If it is the rollup, note that
+the spec forbids presenting it as a plain Index: one Index describes one pair, and a
+rollup must say which pairs it aggregated and that it is derived.
+
+**0.2 — Group the remediation list by FIX, not by finding.** Measured on the real
+TechnoStore report: 12 action items, of which **6 are the identical fix in the
+identical class** (`SendPaymentRemindersAction` → "Enforce FLS"). The customer reads
+6 jobs; it is **one line of code** that closes all six. Target shape:
+
+```
+▸ Add WITH USER_MODE to SendPaymentRemindersAction
+  → closes 6 findings (1 regulated)          [PS502 ×5, PS506 ×1]
+```
+
+This changes **no verdict and no count** — the same findings, an honest workload
+table instead of an inflated one. Today's version overstates the work, which is both
+wrong and (in a sales conversation) weaker than the truth. `_remediation()` in
+`report_html.py` and the md writer in `report.py` both need it, plus tests.
+
+---
+
 ## 1. What this is, in one paragraph
 
 **Agent Blast Radius** is a static, zero-credit analyzer for Salesforce Agentforce
@@ -130,12 +160,23 @@ blast_radius/
                             COUNT, permsets, god-mode grants, OWD)
   org_census.py             standalone whole-org apiVersion census
   org_health.py             "beyond this agent" report footer
-  report.py / report_html.py  deterministic md + themed html
+  report.py / report_html.py  deterministic md + themed html; report.py also owns
+                            aksu_index() / aksu_index_line() — the public metric
+  make_pdf.py               html -> pdf via headless Edge. PRESENTATION ONLY:
+                            never part of the analysis, cannot change a verdict
   verify_deterministic.py   runs the CLI twice, sha256-diffs both outputs
   benchmark/                corpus.py + run.py + mutate.py + oracle.py (runtime
                             oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
-  test_*.py                 216 tests
+  test_*.py                 224 tests in 12 files
+docs/AKSU_INDEX_SPEC.md              the public metric, v1.0, frozen at first
+                                     public reference (§8 of the spec)
+docs/AKSU_INDEX_TECHNICAL_BRIEFING.{html,pdf}
+                                     ~1950-line briefing, TR then EN, written to
+                                     be ARGUED with: 22 hard questions answered
+site/aksuindex/           aksuindex.com — index/legal/privacy, one self-contained
+                          file each, zero external dependencies
+reports/                  committed real runs (TechnoStore_AksuIndex.md/html/pdf)
 ```
 
 **Both extraction backends feed the SAME precedence core.** When adding a reach
@@ -163,6 +204,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 | PS512 | ERROR/WARN | `stripInaccessible` decision discarded (no-op bug) / wrong AccessType for a read. |
 | PS513 | ERROR/WARN | Latent reach in an INACTIVE prompt-template version. |
 | PS514 | WARN | Async/event/callout hand-off. For a platform event the publish IS analysed (a write, cascade via PS509); the open edge is a Flow/process/external subscriber. |
+| PS515 | INFO/WARN | Agent-to-agent delegation. INFO when the sub-agent was expanded into this report; **WARN when unresolved** — that agent's surface is genuinely not analysed, so the report UNDERSTATES the blast radius. (Was missing from this table until 2026-07-31; found by grepping the rule literals while writing the briefing.) |
 | PS516 | WARN | **A FORMULA field in the reach.** Its inputs aren't resolved, so the user's FLS on the formula doesn't bound what its value carries — **the one channel a v67 user-mode read does not close** (user mode enforces FLS on the formula the user CAN see, not on its inputs). Worded as OUR limit, not a leak: the platform behaviour is **not measured** (see §9). |
 | PS520/521/**522** | INFO/WARN/**ERROR** | The data → prompt chain, traced hop by hop. **PS522 is the differentiator.** |
 
@@ -202,6 +244,46 @@ gets a blind spot the regex path doesn't have, or vice versa.
    the forms we tested."* **Do not** say "structurally impossible for all time".
 3. **Agent-scoped, user-scoped, label-intersecting.** Individually these exist
    (CRUD/FLS scanners, permission explorers, DLP). The composition is the novelty.
+4. **"Modernise only what the agent touches."** Measured on two real orgs the same
+   day: TechnoStore's agent is 2/2 pre-v67 → **Index 6**; HanseWatt's org is **83%
+   legacy** yet its agent's 9 actions are all v67 → **Index 0**. The actionable
+   claim is therefore not "migrate your org" but *"you cannot know which part matters
+   until it is measured — and it is a far smaller part than you fear."* This is the
+   most useful sentence the tool produces for a customer, and it is measured.
+
+---
+
+## 6.1 The Aksu Index — the public metric (spec: `docs/AKSU_INDEX_SPEC.md`)
+
+The market-facing name for what the tool computes. **The term is public; the
+measurement is the product** — the specification is published precisely so a number
+can be checked by people who did not produce it (the FICO shape: everyone quotes the
+score, one company computes it).
+
+```
+Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
+```
+
+| bucket | source | rule |
+|---|---|---|
+| **P** proven | PS502/PS506 at **ERROR** | the headline number |
+| **C** classified | the **subset of P** carrying the org's own labels | never added to P — it is already inside it |
+| **B** unproven boundaries | PS502/PS506 at **WARN** | **never** merged into P |
+| **U** unresolved | PS504 count | printed, never dropped |
+
+- **`aksu_index()` splits `escalation_gap()`; it does not replace it.** The concentric
+  circles keep the union (the spec defines the gap as P ∪ B); the *quoted number* may
+  never mix them, because severity is the tool's proof claim.
+- **Quoting P alone while U > 0 is defined as a spec violation** — enforced by
+  construction: **no API returns fewer than all four numbers**.
+- Most-severe-wins across actions, so a field cannot land in two buckets.
+- Spec **v1.0 approved 2026-07-31** and **freezes at first public reference**. After
+  that, any change to the formula or the non-claims is a **new major version published
+  side by side** — an existing number is never silently redefined.
+- Domains held: **aksuindex.com + aksuindex.de**. Landing page in `site/aksuindex/`.
+  Say **"regulated"**, not "GDPR": the tool reads whatever `ComplianceGroup` labels the
+  org's own admins applied, so CCPA/HIPAA/internal policy use the identical mechanism.
+  Calling it a GDPR tool describes a regime-agnostic feature as one customer's use of it.
 
 ---
 
@@ -268,21 +350,27 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 ## 8. Proof surface — what backs the claims
 
-- **211 unit tests.**
-- **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): 23 hand-labelled
-  cases → **100% precision/recall on this corpus**, and **8/8 mutation score**
-  (break the analyzer on purpose; the corpus catches it).
+- **224 unit tests** in 12 files.
+- **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): **28 hand-labelled
+  cases → 28 passed** — 100% precision/recall on this corpus, and **8/8 mutation
+  score** (break the analyzer on purpose; the corpus catches it).
+  **Re-run before quoting these numbers.** On 2026-07-31 this section still said "23
+  cases" while `run.py` reported 28 — a stale number in the one document whose job is
+  to stop stale numbers. The counts live in the tool; this file only mirrors them.
 - **Runtime oracle** (`benchmark/oracle.py --org <alias>`): **the analyzer predicts,
   the org judges.** It deploys each case with a `runtime` shape as real Apex, runs it
   as the modelled user, and asserts *the analyzer's own prediction* — so a red test
   means the analyzer is wrong, which is the only ground truth not sharing a mind with
-  the implementation. **15 of 23 cases have a shape; all 15 agree.** It has already
-  caught a real false positive (see §7). Both axes are covered: `kind:"read"` measures
-  FLS, `kind:"write"` measures object CRUD as a user holding no Create.
+  the implementation. It has already caught a real false positive (see §7). Both axes
+  are covered: `kind:"read"` measures FLS, `kind:"write"` measures object CRUD as a
+  user holding no Create. It also carries a **negative control**: a field the user IS
+  entitled to is seeded with a real value, so a passing read cannot be a null that
+  would have passed either way — escalation means *the data came back AND the user was
+  not entitled*, never one of the two.
   Adding a runtime shape to a `reasoned` case beats adding ten new reasoned cases.
 - **Label strength** (the benchmark's real quality metric, printed every run):
-  **21 experiment / 3 platform-doc / 4 reasoned** (was 11/6/6). Honest limits: the mutations are
-  the author's, and 5 labels still only prove consistency, not correctness.
+  **21 experiment / 3 platform-doc / 4 reasoned**. Honest limits: the mutations are
+  the author's, and 4 labels still only prove consistency, not correctness.
 - **sfge differential** (`benchmark/sfge_diff.py`, needs no org): Salesforce's own
   Graph Engine vs this tool over the 19 org-adjudicated cases — **7/19 vs 0/19**
   (2/19 on sfge's binary scale). It compares two rules to ours: `ApexFlsViolation`
@@ -299,9 +387,14 @@ gets a blind spot the regex path doesn't have, or vice versa.
   and the report footer now says so rather than leaving it implicit. Meta-tests pin
   every field, and the control was **verified to fail**: drop a field from the payload
   and the test that claims to catch it goes red.
-- **Four real orgs**: HospitalOrg (lab + live agent), HanseWatt (all v67 → clean),
-  TechnoStore (106 classes + 7 triggers, **100% pre-v67** → the legacy demo),
-  Urla (no agent).
+- **Four real orgs**: HospitalOrg (lab + live agent), TechnoStore (**113/113 Apex
+  files pre-v67** → the legacy demo), HanseWatt, Urla (no agent).
+  **HanseWatt is NOT "an all-v67 org" — that shorthand was wrong and the numbers
+  refuted it on 2026-07-31.** Measured: its *agent's actions* are 0/9 pre-v67 (hence
+  Index 0), while the *org* is **182/219 pre-v67 (83% legacy)**. This is a far better
+  story than the one it replaced, and it is the product's core sales insight: **you do
+  not have to modernise the whole org — only the part the agent touches**, which is
+  exactly the part nobody currently measures.
 - **CI**: `analyze` job (tests + benchmark + mutation) **needs no org and always
   runs**; `live-scan` skips cleanly unless org secrets exist. **`sfge_diff` is
   deliberately NOT in CI** — not for speed (measured: 42s), but because the gate's
