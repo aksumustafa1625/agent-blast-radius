@@ -152,6 +152,15 @@ fewer features.
 - **Docs that overstate LIMITATIONS cost credibility too.** A stale docstring
   claiming PSG wasn't handled became an external CRITICAL finding against a gap that
   did not exist (see E8). Keep docs measured.
+- **Writing your own position WORSE than it is costs exactly what writing it better
+  does.** The launch review prompt told four reviewers "zero audience built, starting
+  from nothing" and "not on AppExchange". Both were false: there is a 13,000-member
+  community (adjacent topic, but warm), and an AppExchange security review has already
+  been passed once with a sibling product, so a listing is a second one on an existing
+  path. Three of the four reviewers then built a "you have no distribution" diagnosis
+  partly on that false ground. **An external review can only be as good as the ground
+  you hand it** — false modesty produces confidently wrong advice, and it is not
+  humility, it is an inaccurate input.
 
 ---
 
@@ -303,6 +312,16 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   Say **"regulated"**, not "GDPR": the tool reads whatever `ComplianceGroup` labels the
   org's own admins applied, so CCPA/HIPAA/internal policy use the identical mechanism.
   Calling it a GDPR tool describes a regime-agnostic feature as one customer's use of it.
+- **The strategy is NPS-shaped, not FICO-shaped** — corrected by four independent
+  launch reviews (`docs/LAUNCH_ROUND5_DECISION_2026-08-04.md`). FICO's formula is a
+  trade secret whose adoption was manufactured by a 1995 mortgage mandate; we have an
+  open method and no mandating institution. The models that actually fit are NPS (open
+  method + **protected mark** + monetised instrument) and MITRE ATT&CK (free framework,
+  paid evaluations). The precedent to fear is **Apdex**: open spec, no retained asset,
+  publisher captured nothing. So the to-do list is not "protect the formula" but
+  **register the mark, publish a recurring reference artifact, sell the instrument** —
+  and the trademark filing was missing from the plan entirely until all four reviewers
+  named it independently.
 
 ---
 
