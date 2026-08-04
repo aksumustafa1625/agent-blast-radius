@@ -174,19 +174,29 @@ got this wrong once and the live TechnoStore run caught it — see §7.
 | **E7** | Agent Script `apex://` syntax is vendor-validated (`sf agent validate` → success). |
 | **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. |
 | **E9** | **Muting is handled, and now measured** (it was E8's untested edge). A muter removing FLS on a field its component grants: the **component still shows `PermissionsRead=true`, the aggregate has NO row** — so reading the aggregate applies muting. Runtime agrees (`BlastRadius_E9_Muting.cls`): `WITH USER_MODE` → **BLOCKED**, while a pre-v67 class still reads the value — the muted GDPR field escapes exactly as PS506 says. Platform constraint worth knowing: **muting Read alone is rejected** (mute Edit too), and a rejected muting set deploys **empty**, which makes any muting test vacuously green. |
-| **E13** | **A v67 trigger IS bounded by the running user — the most dangerous review claim, refuted in-org.** A reviewer cited Summer '26 (*"Apex Triggers ... will now always run in system mode across all API versions"*); if true, PS509 fires only below v67 and would be a **false negative in the middle of the thesis**. Measured today, on Summer '26: a **v67** trigger writing `Casc_Child__c` for a user with no Create → **BLOCKED, 0 rows written** (`BlastRadius_E13_TriggerMode.cls`). E6 stands. It was worth doing because E6's v67 half was only *"verified separately in Milestone 0"* — a docstring assertion with no test to catch a platform change. Now there is one. |
+| **E13** | **A v67 trigger's own DML IS bounded by the running user — the most dangerous review claim, refuted in-org twice.** A reviewer cited Summer '26 (*"Apex Triggers ... will now always run in system mode across all API versions"*); if true, PS509 fires only below v67 and would be a **false negative in the middle of the thesis**. Measured on Summer '26: a **v67** trigger writing `Casc_Child__c` for a user with no Create → **BLOCKED** (`BlastRadius_E13_TriggerMode.cls`). E6 stands. **Re-measured 2026-08-04 with the controls the first version lacked** (see §7 — the first version caught a bare Exception, discarded the message, and could not distinguish "trigger denied" from "parent insert failed before the trigger ran"). The org's verbatim answer: `DmlException: CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY, BlastTestV67Trigger: execution of AfterInsert caused by: System.SecurityException: Access to entity 'Casc_Child__c' denied` — the error names the **child entity** and the **trigger's own line**, so the parent did reach the trigger and the trigger's DML is what was denied. **Scope, do not widen it:** this measures the **CRUD axis** of DML the trigger's own body performs. Whether a v67 trigger enforces sharing or FLS is **not measured**. |
 | **E11** | **The publish premise, measured** — it was `platform-doc` while a LIVE TechnoStore ERROR already rested on it. A user with **no ObjectPermissions row at all** on `Blast_Event__e`: **v58 publish LANDS** (`WROTE=ok` — the Create bypass is real, so modelling publish as a write and applying PS503 is right), **v67 publish BLOCKED**. The `SaveResult` is read rather than trusting a throw — whether user mode throws or returns a failure was exactly the thing not to assume. Writing the case found a hole in the feature: `EventBus.publish(new X__e(...))` resolved to None, so PS503 never fired on an inline-constructed event. |
 | **E10** | **"No declaration" enforces sharing — now with controls.** Three pre-v67 invocables differing only in the declaration, same caller, same user, same admin-owned rows on a Private object: `without sharing` → **5**, no declaration → **0**, `with sharing` → **0**. Confirms E2's round 1, which had **no control** (0 alone could have meant the user had nothing to see). **Only one cell of the matrix**: the caller here is Apex. The agent's own entry point (an invocable with *no* calling Apex class) stays unmeasured — so `enforces_sharing=None` for a declaration-less pre-v67 class is still the honest answer. |
 
 **Do not "fix" the precedence law from documentation.** This has now happened
-**twice**, from two different reviews, both citing real Salesforce docs:
+**three times**, from independent reviews, all citing real Salesforce sources:
 - v67 `without sharing` "must be record-bypassing" → **E2b** disproved it in-org.
 - v67 triggers "always run in system mode" (Summer '26 release notes) → **E13**
   disproved it in-org, on Summer '26.
-Both would have broken correct code. Documentation describes intent; the org
+- The same trigger claim again, this time marked **CONFIRMED against primary
+  sources** in a verified external brief (2026-08-04) → **E13 re-run with proper
+  controls** disproved it again, and the org named the child entity and the
+  trigger's own line in the exception.
+All three would have broken correct code. Documentation describes intent; the org
 describes behaviour, and only one of them is what your customer runs. **Answer a
-doc-based claim with an experiment, never with an edit** — and note that both
-reviewers were doing exactly the right thing by raising them.
+doc-based claim with an experiment, never with an edit** — and note that every
+reviewer was doing exactly the right thing by raising them.
+
+**But the third one earned its own lesson, because the challenge was right about
+the METHOD even though it was wrong about the platform** — see §7's entry on E13's
+missing control. A claim you have already refuted is still worth re-testing when
+someone credible re-asserts it: the re-test is what found the flaw in our own
+experiment.
 
 ---
 
@@ -412,6 +422,22 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   was labelled `experiment:E2`, but E2 only ever **read** (5 rows vs 0). It never
   wrote, so it could not speak for DML's default. Borrowed evidence reads as measured
   and isn't.
+- **A measurement without a control can be right for the wrong reason — and E13 was.**
+  E13's first version wrapped `insert parent` in `try/catch`, caught a bare
+  `Exception`, threw the message away, and concluded from *"something threw and there
+  are no child rows"* that a v67 trigger ran in user mode. Two different worlds produce
+  that same observation: **(a)** the parent inserted, the trigger ran in user mode, the
+  child write was denied, and the throw rolled the parent back; **(b)** the parent
+  insert failed on its own and the trigger never ran at all. With no parent count and
+  no error message, the test could not tell them apart. The conclusion happened to be
+  correct — the 2026-08-04 re-run proved it — but **for three weeks it was believed on
+  evidence that did not support it**, and it sat in `CLAUDE.md` and in a draft public
+  post as settled fact. The fix is now in the test: count the parent (an after-insert
+  trigger that throws rolls it back, so `parents=0` is what "the trigger ran and was
+  denied" looks like) and assert the error names **both** the child entity and the
+  trigger. **Ask of every green experiment: what else would produce this same
+  observation?** The runtime oracle has a negative control for exactly this reason;
+  E13 did not, and nobody noticed until an external brief forced a re-read.
 
 - **Reports are written AFTER render.** A render crash leaves a **stale report on
   disk** that looks like a successful run. Always check the console summary line,

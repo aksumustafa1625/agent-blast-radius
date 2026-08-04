@@ -50,29 +50,72 @@ private class BlastRadius_E13_TriggerMode {
         return usr;
     }
 
+    /* THE CONTROL THIS TEST ORIGINALLY LACKED - added 2026-08-04 after a verified
+     * external brief re-asserted the Summer '26 claim as CONFIRMED against primary
+     * sources, which sent us back to our own evidence.
+     *
+     * The first version caught a bare Exception, discarded the message, and read
+     * "something threw and no child rows exist" as "the trigger ran in user mode".
+     * Two different worlds produce that same observation:
+     *     (a) parent inserted -> trigger ran in user mode -> child write denied ->
+     *         the throw rolls the parent back too
+     *     (b) the PARENT insert failed on its own -> the trigger never ran at all
+     * With no parent count and no error message, the test could not tell them apart -
+     * the exact absence of a control this project writes controls to avoid, found in
+     * its own evidence.
+     *
+     * MEASURED 2026-08-04, org ORG-LAB-A, Summer '26. The org's verbatim answer:
+     *     DmlException: CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY,
+     *       BlastTestV67Trigger: execution of AfterInsert
+     *       caused by: System.SecurityException: Access to entity 'Casc_Child__c' denied
+     *       Trigger.BlastTestV67Trigger: line 24
+     * The error names the CHILD entity and the TRIGGER's own line, so the parent
+     * insert did reach the trigger and the trigger's DML is what the platform denied.
+     * E6 stands, and now it stands on evidence rather than on a docstring.
+     *
+     * SCOPE OF THE CLAIM - do not widen it: this measures the CRUD axis of DML the
+     * trigger's OWN body performs. Whether a v67 trigger enforces sharing or FLS is
+     * NOT measured here.
+     */
     @isTest
     static void v67_trigger_dml_is_bounded_by_the_running_user() {
         User usr = userWithoutChildCreate();
-        String outcome;
+        String errMsg = '';
         System.runAs(usr) {
             try {
                 insert new Blast_Test__c(Name = 'e13');
-                outcome = 'CASCADE_LANDED';
             } catch (Exception e) {
-                outcome = 'CASCADE_BLOCKED';
+                errMsg = e.getMessage();
             }
         }
-        // Counted as the admin: the user cannot read Casc_Child__c either, so asking
-        // them would confuse "no rows" with "cannot see rows" - the mistake E4 named.
-        Integer kids = [SELECT COUNT() FROM Casc_Child__c WHERE Name = 'e13-e13'];
+        // Counted as the admin: the user can read neither table, so asking them would
+        // confuse "no rows" with "cannot see rows" - the mistake E4 named.
+        Integer parents = [SELECT COUNT() FROM Blast_Test__c WHERE Name = 'e13'];
+        Integer kids    = [SELECT COUNT() FROM Casc_Child__c WHERE Name = 'e13-e13'];
 
-        System.assertEquals('CASCADE_BLOCKED', outcome,
-            'A v67 TRIGGER PERFORMED DML THE RUNNING USER CANNOT. If this fails, the '
-            + 'Summer \'26 note is right - triggers always run in system mode - and '
-            + 'PS509 is a FALSE NEGATIVE for every v67 trigger. Fix PS509 before '
-            + 'trusting any clean report. The org said: ' + outcome);
+        // 1. The child write must not have landed.
         System.assertEquals(0, kids,
-            'The child row exists, so the cascade wrote it regardless of what the '
-            + 'insert reported. Rows written: ' + kids);
+            'A v67 TRIGGER WROTE A ROW THE RUNNING USER CANNOT. The Summer \'26 note '
+            + 'is then right - triggers always run in system mode - and PS509 is a '
+            + 'FALSE NEGATIVE for every v67 trigger. Fix PS509 before trusting any '
+            + 'clean report. Rows written: ' + kids);
+
+        // 2. THE CONTROL. An after-insert trigger that throws rolls the parent back,
+        //    so parents=0 is what "the trigger ran and was denied" looks like. If the
+        //    parent had landed while the child did not, the trigger never fired and
+        //    this test would be measuring nothing.
+        System.assertEquals(0, parents,
+            'The parent survived while the child did not, so the cascade never ran and '
+            + 'this test proves nothing about trigger execution mode. Parents: ' + parents);
+
+        // 3. THE DISCRIMINATOR. Without this, a parent-side failure would pass 1 and 2
+        //    and be misread as user-mode enforcement.
+        System.assert(errMsg.contains('Casc_Child__c'),
+            'The transaction rolled back for a reason that does not name the CHILD '
+            + 'entity, so whatever was denied, it was not the trigger\'s own DML. '
+            + 'The org said: ' + errMsg);
+        System.assert(errMsg.contains('BlastTestV67Trigger'),
+            'The error does not name the trigger, so the parent insert may have failed '
+            + 'before the cascade ran. The org said: ' + errMsg);
     }
 }
