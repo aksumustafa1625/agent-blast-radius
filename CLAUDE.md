@@ -7,11 +7,72 @@ before changing a rule.
 
 ---
 
-## 0. NEXT SESSION — start here (agreed 2026-07-31, end of day)
+## 0. WHERE WE ARE — read this before anything (updated 2026-08-04)
 
-Two items, in this order. Nothing else was promised for the next sitting.
+### 0.0 THE STRATEGIC POSTURE — this governs every other decision
 
-**0.1 — Make the Aksu Index the FIRST thing a reader sees.** *(Clarified by the
+**Plan A is the maintainer's FDE role at Salesforce.** Decided 2026-08-04 after four
+independent launch reviews (`docs/LAUNCH_ROUND5_DECISION_2026-08-04.md` §10).
+
+The commercial launch is **not cancelled — it is re-aimed.** Same artifacts, published
+for a different purpose:
+
+| commercial launch (on hold) | technical reputation (live) |
+|---|---|
+| "buy this" | "I found this, measured it, here is the proof" |
+| early-access list, price, 5 pilots | **no CTA at all** |
+| entity, DPA, commercial Impressum, urgent trademark | **none of it needed** |
+| competes with Plan A (Nebentätigkeit, IP clauses) | **serves Plan A directly** |
+
+**Why this was easy: it is not a fork, it is a sequence.** If the FDE role happens,
+technical reputation is what gets him hired. If it does not, he has built exactly the
+distribution and credibility the commercial launch was missing — the one gap all four
+reviewers named. A strategy correct in both futures needs no choosing between.
+
+**Publishing order is load-bearing — reversed, it reads as selling and damages Plan A:**
+
+```
+1. FINDING       v58 = 5 records, v67 = 0.  No product name, no link, no CTA.
+2. METHOD        E13 + our own stripInaccessible false positive, together.
+3. CONTRIBUTION  the public benchmark — corpus + org verdicts, open.
+4. TOOL          only if interest arrives. Still no selling.
+```
+
+**Hard rules while Plan A is live** (`LAUNCH_ROUND5_DECISION` §10.3, §10.6):
+
+- ❌ **The sfge differential appears in NO public material.** Round 5 said "not the
+  headline"; with Salesforce as the employer target it became "never published". It
+  stays in the repo and the briefing for anyone who asks privately. Enforced
+  mechanically by `export_public_corpus.py`, which strips such sentences and then greps
+  its own output — a rule in a script cannot be forgotten.
+- ❌ No price, no early-access list, no pilot offer, no SLA, no roadmap promise.
+- 🔒 **Never say the tool is free or will remain free.** That single sentence is what
+  keeps the commercial path open if side-activity approval comes, or if Plan A doesn't.
+- ✅ **The platform is the hero, and the measurement genuinely supports that**:
+  Salesforce got this right at v67 (secure-by-default). The gap we measure is not a
+  platform defect — it is how much customer code has caught up. E13 is the ideal
+  story: a claim said v67 triggers always run in system mode; the org showed the
+  platform is *safer* than the claim.
+
+### 0.1 What is ready and waiting for the maintainer
+
+| artifact | state |
+|---|---|
+| `docs/POSTS_TECHNICAL_REPUTATION_2026-08.md` | Post 1 + Post 2 written, ready to publish |
+| `docs/REPRO_v58_v67.md` | the shareable experiment recipe — the reply to "show me" |
+| `public-benchmark/` | 21 org-adjudicated cases + 7 labelled unadjudicable, sha256-committed, **tool unnamed** |
+| `reports/TechnoStore_AksuIndex.*` | a real report, md/html/pdf |
+| `docs/AKSU_INDEX_SPEC.md` | v1.0 approved, freezes at first public reference |
+| `site/aksuindex/` | written, **not deployed** — and no longer urgent |
+
+**Maintainer's next step:** read Post 1, approve or edit, publish Monday 08:00 DACH.
+Then put `public-benchmark/` in its own public GitHub repo — for an FDE application a
+GitHub profile *is* the CV, and what stands there says "measures the platform, and
+publishes his own errors".
+
+### 0.2 Engineering work still open (was §0 before the pivot — now second priority)
+
+**Make the Aksu Index the FIRST thing a reader sees.** *(Clarified by the
 maintainer 2026-07-31: this is not an org-level rollup — it is about prominence.
 Whoever opens the report should meet the Index immediately.)*
 
@@ -39,7 +100,7 @@ Do the md report too: today it is line 7 inside the ASCII block, which is fine f
 terminal but should still read as the headline rather than as one row among the reach
 summary.
 
-**0.2 — Group the remediation list by FIX, not by finding.** Measured on the real
+**Group the remediation list by FIX, not by finding.** Measured on the real
 TechnoStore report: 12 action items, of which **6 are the identical fix in the
 identical class** (`SendPaymentRemindersAction` → "Enforce FLS"). The customer reads
 6 jobs; it is **one line of code** that closes all six. Target shape:
@@ -197,6 +258,16 @@ blast_radius/
                             oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
   test_*.py                 224 tests in 12 files
+public-benchmark/         THE PUBLIC ARTIFACT. corpus.json (21 org-adjudicated
+                          cases + 7 labelled unadjudicable) + cases/*.cls +
+                          CHECKSUMS.md. Generated by benchmark/export_public_corpus.py,
+                          which strips third-party engine mentions and greps its own
+                          output. The tool is NOT named anywhere in it (§0.0).
+docs/LAUNCH_ROUND5_DECISION_2026-08-04.md
+                          4 launch reviews + the Plan A decision. §10 is the posture.
+docs/POSTS_TECHNICAL_REPUTATION_2026-08.md
+                          Post 1-4, written, awaiting the maintainer
+docs/REPRO_v58_v67.md     the shareable experiment — the answer to "show me"
 docs/AKSU_INDEX_SPEC.md              the public metric, v1.0, frozen at first
                                      public reference (§8 of the spec)
 docs/AKSU_INDEX_TECHNICAL_BRIEFING.{html,pdf}
