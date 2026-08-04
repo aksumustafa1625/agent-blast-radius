@@ -16,6 +16,20 @@ WHY THIS SHAPE
     programs.
 
 FAIRNESS - state the limits, they matter
+    STATUS FIRST, because it changes what the numbers are worth: sfge ships in Code
+    Analyzer v5 marked "(Developer Preview)". Comparing against a Developer Preview
+    engine is a materially weaker claim than comparing against a GA one, and an
+    informed reviewer will raise it before we do. So any repetition of these numbers,
+    anywhere, states the status in the same breath.
+        Verified 2026-08-04: Code Analyzer v5.15.0 (July 2026) still ships sfge and
+        its seven rules, including the two compared here. What was RETIRED is Code
+        Analyzer *v4* - the whole v4 doc set inherits a "(Retired)" title suffix,
+        which is where the widespread "the Graph Engine is dead" belief comes from.
+        Three separate external reviewers repeated it; it is false.
+        NOT verified: whether the "(Developer Preview)" marker itself still stands.
+        It was last confirmed at v5.0.0-beta.3 (March 2025). Re-check it, not just
+        the engine's existence, before publishing any comparison.
+
     sfge is a general-purpose, conservative scanner: it flags a code PATTERN (no
     explicit FLS check present), while this tool answers a narrower question (does
     THIS running user's authority get exceeded). On a case where the user is allowed

@@ -170,11 +170,11 @@ got this wrong once and the live TechnoStore run caught it — see §7.
 | **E3** | `WITH USER_MODE` on a `without sharing` class → 0. Operation clause beats the declaration. |
 | **E4** | `FieldDefinition.ComplianceGroup` is readable free — but the query must be **bounded per EntityDefinition**, and **FieldDefinition is FLS-gated** (a narrow analysis identity silently misses labels). |
 | **E5** | Flow `runInMode` is declarative/static → Flow actions analysable without Apex parsing. |
-| **E6** | A trigger's DML runs in the mode of the **trigger's OWN apiVersion**, independent of the initiating action. **This is the v58 half of a matched pair with E13** — same `Casc_Child__c`, same user holding **zero** permission on it: the v58 trigger's child write **lands**, the v67 trigger's **blocks**. Neither half means anything alone; together the trigger's apiVersion is the only variable left standing. |
+| **E6** | A trigger's DML runs in the mode of the **trigger's OWN apiVersion**, independent of the initiating action. **This is the v58 half of a matched pair with E13** — same `Casc_Child__c`, same user holding **zero** permission on it: the v58 trigger's child write **lands**, the v67 trigger's **blocks**. Neither half means anything alone. **State the claim precisely** — "apiVersion is the only variable" is an overstatement caught in review: the halves also differ in the *parent* object, the trigger file and the permset name. What is held identical is everything that could explain a **child-entity** denial, so the supportable sentence is *"no remaining variable can explain a child-entity denial"*. |
 | **E7** | Agent Script `apex://` syntax is vendor-validated (`sf agent validate` → success). |
 | **E8** | **Permission Set Groups are already handled**: every PSG has a platform-computed aggregate `PermissionSet` (`Type='Group'`); a group assignment's `PermissionSetAssignment.PermissionSetId` points at it; the aggregate's ObjectPermissions **equalled the union of its components exactly**. |
 | **E9** | **Muting is handled, and now measured** (it was E8's untested edge). A muter removing FLS on a field its component grants: the **component still shows `PermissionsRead=true`, the aggregate has NO row** — so reading the aggregate applies muting. Runtime agrees (`BlastRadius_E9_Muting.cls`): `WITH USER_MODE` → **BLOCKED**, while a pre-v67 class still reads the value — the muted GDPR field escapes exactly as PS506 says. Platform constraint worth knowing: **muting Read alone is rejected** (mute Edit too), and a rejected muting set deploys **empty**, which makes any muting test vacuously green. |
-| **E13** | **A v67 trigger's own DML IS bounded by the running user — the most dangerous review claim, refuted in-org twice.** A reviewer cited Summer '26 (*"Apex Triggers ... will now always run in system mode across all API versions"*); if true, PS509 fires only below v67 and would be a **false negative in the middle of the thesis**. Measured on Summer '26: a **v67** trigger writing `Casc_Child__c` for a user with no Create → **BLOCKED** (`BlastRadius_E13_TriggerMode.cls`). E6 stands. **Re-measured 2026-08-04 with the controls the first version lacked** (see §7 — the first version caught a bare Exception, discarded the message, and could not distinguish "trigger denied" from "parent insert failed before the trigger ran"). The org's verbatim answer: `DmlException: CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY, BlastTestV67Trigger: execution of AfterInsert caused by: System.SecurityException: Access to entity 'Casc_Child__c' denied` — the error names the **child entity** and the **trigger's own line**, so the parent did reach the trigger and the trigger's DML is what was denied. **And the v58 control was run in the same execution** (2026-08-04): E6's `CascParentTrigger` at apiVersion 58, same `Casc_Child__c`, same zero-permission user shape → the child write **LANDS**. So the pair reads **v58 writes / v67 blocks with nothing else different**, which is what makes the apiVersion the cause rather than a co-occurrence — and it kills the one remaining alternative explanation, that "Access to entity denied" fires for any zero-access user regardless of mode (the v58 half holds exactly that zero access and is not denied). **Scope, do not widen it:** this measures the **CRUD axis** of DML the trigger's own body performs. Whether a v67 trigger enforces sharing or FLS is **not measured**. |
+| **E13** | **A v67 trigger's own DML IS bounded by the running user — the most dangerous review claim, refuted in-org twice.** A reviewer cited Summer '26 (*"Apex Triggers ... will now always run in system mode across all API versions"*); if true, PS509 fires only below v67 and would be a **false negative in the middle of the thesis**. Measured on Summer '26: a **v67** trigger writing `Casc_Child__c` for a user with no Create → **BLOCKED** (`BlastRadius_E13_TriggerMode.cls`). E6 stands. **Re-measured 2026-08-04 with the controls the first version lacked** (see §7 — the first version caught a bare Exception, discarded the message, and could not distinguish "trigger denied" from "parent insert failed before the trigger ran"). The org's verbatim answer: `DmlException: CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY, BlastTestV67Trigger: execution of AfterInsert caused by: System.SecurityException: Access to entity 'Casc_Child__c' denied` — the error names the **child entity** and the **trigger's own line**, so the parent did reach the trigger and the trigger's DML is what was denied. **And the v58 control was run in the same execution** (2026-08-04): E6's `CascParentTrigger` at apiVersion 58, same `Casc_Child__c`, same zero-permission user shape → the child write **LANDS**. So the pair reads **v58 writes / v67 blocks**, and it kills the one remaining alternative explanation — that "Access to entity denied" fires for any zero-access user regardless of mode (the v58 half holds exactly that zero access and is not denied). **Do not overclaim it as "apiVersion is the only variable"**: the halves also differ in the parent object and the trigger file. What is held identical is everything that could explain a **child-entity** denial — same child object, same zero permission on it, same plain `insert`, same after-insert timing — and a parent-side difference cannot produce an exception naming the child entity and the trigger's own line. **And the v67 Apex Developer Guide agrees, verbatim** (byte-exact from the PDF, refreshed 2026-07-24): *"database operations within trigger bodies … run in user mode unless system mode is explicitly specified. User mode overrides the trigger's without sharing context."* The phrase "always run in system mode" appears **0 times** in that guide, and its Versioned Behavior Changes appendix has exactly three bullets, none about triggers. **Scope, do not widen it:** this measures the **CRUD axis** of DML the trigger's own body performs. Whether a v67 trigger enforces sharing or FLS is **not measured**. |
 | **E11** | **The publish premise, measured** — it was `platform-doc` while a LIVE TechnoStore ERROR already rested on it. A user with **no ObjectPermissions row at all** on `Blast_Event__e`: **v58 publish LANDS** (`WROTE=ok` — the Create bypass is real, so modelling publish as a write and applying PS503 is right), **v67 publish BLOCKED**. The `SaveResult` is read rather than trusting a throw — whether user mode throws or returns a failure was exactly the thing not to assume. Writing the case found a hole in the feature: `EventBus.publish(new X__e(...))` resolved to None, so PS503 never fired on an inline-constructed event. |
 | **E10** | **"No declaration" enforces sharing — now with controls.** Three pre-v67 invocables differing only in the declaration, same caller, same user, same admin-owned rows on a Private object: `without sharing` → **5**, no declaration → **0**, `with sharing` → **0**. Confirms E2's round 1, which had **no control** (0 alone could have meant the user had nothing to see). **Only one cell of the matrix**: the caller here is Apex. The agent's own entry point (an invocable with *no* calling Apex class) stays unmeasured — so `enforces_sharing=None` for a declaration-less pre-v67 class is still the honest answer. |
 
@@ -508,7 +508,14 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   the author's, and 4 labels still only prove consistency, not correctness.
 - **sfge differential** (`benchmark/sfge_diff.py`, needs no org): Salesforce's own
   Graph Engine vs this tool over the 19 org-adjudicated cases — **7/19 vs 0/19**
-  (2/19 on sfge's binary scale). It compares two rules to ours: `ApexFlsViolation`
+  (2/19 on sfge's binary scale). **State its status in the same breath: sfge is
+  `(Developer Preview)` in Code Analyzer v5.** A differential against a Developer
+  Preview engine is a weaker claim than against a GA one, and a reviewer will say so
+  first if we don't. (Verified 2026-08-04: v5.15.0, July 2026, still ships sfge and
+  its 7 rules. What was retired is Code Analyzer **v4** — its whole doc set inherits a
+  "(Retired)" title suffix, which is where three separate reviewers got "the Graph
+  Engine is dead". **Not** verified: whether the DP marker itself still stands — last
+  confirmed at v5.0.0-beta.3, March 2025.) It compares two rules to ours: `ApexFlsViolation`
   ↔ PS502/503/506, `DatabaseOperationsMustUseWithSharing` ↔ PS501. **Both axes now have
   a referee**: `kind:"record"` shapes seed rows owned by the ADMIN on a Private object
   and grant the user FLS, so sharing is the only thing that can hide them. Each case is
@@ -551,6 +558,46 @@ differential, the AST's class-field DML target, the regex subquery false clean, 
 the fingerprint binding the analyzer's own source hash + parser version.
 
 **Still open, in rough priority:**
+
+0. **FOUR v67 DOC CLAIMS THAT TOUCH THE PRECEDENCE LAW AND ARE UNMEASURED** — surfaced
+   2026-08-04 by a verification round over the Summer '26 docs, and listed here as
+   **experiments to run, never as edits to make** (§2's standing rule). Two of them
+   could make the tool wrong in the direction it least tolerates.
+   - **(a) v67 + no sharing declaration → `with sharing`.** Byte-exact from the v67
+     Apex Developer Guide PDF: *"In API version 67.0 and later, classes without an
+     explicit sharing declaration are run in the current user context."* This does
+     **not** contradict E10, which measured **pre-v67**. Bears on precedence-law item 3
+     and on the `enforces_sharing=None` answer. **Unmeasured for v67.**
+   - **(b) 🔴 CROSS-VERSION INHERITANCE CONTAMINATION.** *"If the class is part of an
+     inheritance chain, and any class in that chain is saved as API version 67.0 and
+     later, the class runs in with sharing mode."* **This is not expressible in a
+     per-class apiVersion lookup**, which is exactly what `_resolve()` does. A pre-v67
+     class can be pulled into with-sharing by a v67+ ancestor. Whether we model it at
+     all is unverified; the behaviour is unmeasured.
+   - **(c) THE RECORD AXIS INSIDE A v67 TRIGGER BODY — checked, NOT a bug, and the
+     check is the useful part.** The guide says user mode *"effectively enforces a with
+     sharing context in the trigger body"*, so the worry was that we model a v67 trigger
+     body as record-bypassing *because triggers are `without sharing`* — a false
+     positive, which costs what a false clean does (§7). **We do not.** `active_triggers()`
+     carries only `{name, apiVersion, handler_min_api, dml_ops}` — **no sharing field and
+     no SOQL reads** — and PS509 fires only when `apiVersion < 67`, on the CRUD axis
+     alone. We make no record-axis claim about any trigger, so there is nothing to
+     overstate. **The adjacent REAL gap, now named:** a trigger's own **SOQL reads never
+     enter the reach at all**. That understates rather than overstates, which is the
+     safe direction, but it is a coverage hole and PS509's wording should not imply
+     otherwise.
+   - **(d) FLS inside a v67 trigger.** E13's declared scope is object-CRUD only. The
+     doc-side evidence is thinner than it looks: the guide's worked example
+     demonstrates **SOQL reads**, not DML. **Unmeasured.**
+
+   **Method note worth keeping:** that round could not read `help.salesforce.com` at
+   all — it is a Lightning SPA returning only a loading shell to every method tried
+   (WebFetch, curl, Googlebot UA → Akamai 403), Wayback has no snapshot of the trigger
+   note, and **Salesforce no longer publishes a consolidated release-notes PDF** (404
+   for releases 254–262; 200 for 250 and 252). So release notes are, for now,
+   **unquotable-verbatim by tooling**. Do not write "the release notes never said X" —
+   write what the *versioned guide* says, which is retrievable as a dated PDF.
+
 1. **Benchmark v2.** The **runtime oracle is built** (`benchmark/oracle.py`) and
    settles **21 of 28** cases; it has already caught a real false positive (§7), and
    it has a negative control so its greens aren't vacuous. The **systematic sfge

@@ -17,8 +17,11 @@
  * change the user's permission shape without changing the other half.
  *     v58 trigger, no access at all to Casc_Child__c -> the child write LANDS  (here)
  *     v67 trigger, no access at all to Casc_Child__c -> the child write BLOCKS (E13)
- * Same org, same child object, same zero-permission user. The trigger's own
- * apiVersion is the only variable, which is what makes either half mean anything.
+ * Same org, same child object, same zero-permission user, same plain insert, same
+ * after-insert timing. Say it precisely: NOT "apiVersion is the only variable" - the
+ * halves also differ in the parent object and the trigger file. What is held identical
+ * is everything that could explain a CHILD-ENTITY denial, and a parent-side difference
+ * cannot raise an exception naming the child entity and the trigger's own line.
  *
  * The pair also refutes the one alternative explanation for E13's denial: that
  * "Access to entity 'Casc_Child__c' denied" might fire for ANY user holding zero

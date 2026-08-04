@@ -76,9 +76,11 @@ private class BlastRadius_E13_TriggerMode {
      * THE v58 HALF OF THE PAIR LIVES IN BlastRadius_E6_Test. That test runs
      * CascParentTrigger at apiVersion 58 against the SAME Casc_Child__c, with a user
      * holding the SAME zero permissions on it - and the child write LANDS. Run in the
-     * same execution as this test on 2026-08-04: v58 writes, v67 blocks, nothing else
-     * differs. Without that half, this test alone cannot say the apiVersion is what
-     * moved; with it, no other variable is left standing.
+     * same execution as this test on 2026-08-04: v58 writes, v67 blocks. Without that
+     * half, this test alone cannot say the apiVersion is what moved. Be precise about
+     * what the pair proves: the halves also differ in the parent object and the trigger
+     * file, so the claim is NOT "apiVersion is the only variable" - it is that no
+     * remaining variable can explain a CHILD-ENTITY denial.
      *
      * It also closes the last alternative explanation: that "Access to entity denied"
      * might fire for any zero-access user regardless of mode. The v58 half holds
