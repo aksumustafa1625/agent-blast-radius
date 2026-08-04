@@ -1,4 +1,4 @@
-# Reproducing the v58 / v67 measurement
+﻿# Reproducing the v58 / v67 measurement
 
 **~15 minutes in a fresh scratch org. Nothing here is specific to any tooling — it is
 the platform's own behaviour, and you should be able to disprove it if it is wrong.**
@@ -11,7 +11,7 @@ v58 and 0 at v67. Measured on Salesforce Summer '26.
 ## 1. The object
 
 ```
-Blast_Test__c
+Sharing_Test__c
   sharingModel: Private        ← so the record axis can actually hide something
 ```
 
@@ -34,7 +34,7 @@ has nothing to hide and the record axis is untested.
 A user — or a permission set on a throwaway user — with **exactly** this:
 
 ```
-Object   Blast_Test__c    Read = true
+Object   Sharing_Test__c    Read = true
                           Create / Edit / Delete = false
                           View All / Modify All  = false
 
@@ -50,7 +50,7 @@ Field    Secret_Data__c      Read = true        ← the control
 ```apex
 public without sharing class B {
     public static Integer m() {
-        List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c];
+        List<Sharing_Test__c> r = [SELECT Customer_IBAN__c FROM Sharing_Test__c];
         return r.size();
     }
 }
