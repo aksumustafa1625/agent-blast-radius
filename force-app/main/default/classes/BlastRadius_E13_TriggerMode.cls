@@ -73,6 +73,17 @@ private class BlastRadius_E13_TriggerMode {
      * insert did reach the trigger and the trigger's DML is what the platform denied.
      * E6 stands, and now it stands on evidence rather than on a docstring.
      *
+     * THE v58 HALF OF THE PAIR LIVES IN BlastRadius_E6_Test. That test runs
+     * CascParentTrigger at apiVersion 58 against the SAME Casc_Child__c, with a user
+     * holding the SAME zero permissions on it - and the child write LANDS. Run in the
+     * same execution as this test on 2026-08-04: v58 writes, v67 blocks, nothing else
+     * differs. Without that half, this test alone cannot say the apiVersion is what
+     * moved; with it, no other variable is left standing.
+     *
+     * It also closes the last alternative explanation: that "Access to entity denied"
+     * might fire for any zero-access user regardless of mode. The v58 half holds
+     * exactly that zero access and is not denied.
+     *
      * SCOPE OF THE CLAIM - do not widen it: this measures the CRUD axis of DML the
      * trigger's OWN body performs. Whether a v67 trigger enforces sharing or FLS is
      * NOT measured here.

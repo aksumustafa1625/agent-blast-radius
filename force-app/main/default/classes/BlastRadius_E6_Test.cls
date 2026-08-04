@@ -11,8 +11,24 @@
  *
  * These two methods run against the CascParentTrigger deployed at API v58 and
  * assert the escalation for both a user-mode and a system-mode action, proving
- * the action's own cleanliness does not save you from a legacy trigger. (The
- * v67-trigger case that blocks both was verified separately in Milestone 0.)
+ * the action's own cleanliness does not save you from a legacy trigger.
+ *
+ * THIS FILE IS ONE HALF OF A MATCHED PAIR - do not read it alone, and do not
+ * change the user's permission shape without changing the other half.
+ *     v58 trigger, no access at all to Casc_Child__c -> the child write LANDS  (here)
+ *     v67 trigger, no access at all to Casc_Child__c -> the child write BLOCKS (E13)
+ * Same org, same child object, same zero-permission user. The trigger's own
+ * apiVersion is the only variable, which is what makes either half mean anything.
+ *
+ * The pair also refutes the one alternative explanation for E13's denial: that
+ * "Access to entity 'Casc_Child__c' denied" might fire for ANY user holding zero
+ * access, system mode included. It does not - this half holds exactly that zero
+ * access and the write lands. Measured together in a single run 2026-08-04,
+ * Summer '26, org ORG-LAB-A.
+ *
+ * This docstring used to end "(The v67-trigger case that blocks both was verified
+ * separately in Milestone 0.)" - an assertion no test could catch going stale.
+ * E13 is that test now.
  */
 @isTest
 private class BlastRadius_E6_Test {
