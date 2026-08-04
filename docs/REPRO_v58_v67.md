@@ -1,4 +1,4 @@
-﻿# Reproducing the v58 / v67 measurement
+# Reproducing the v58 / v67 measurement
 
 **~15 minutes in a fresh scratch org. Nothing here is specific to any tooling — it is
 the platform's own behaviour, and you should be able to disprove it if it is wrong.**
