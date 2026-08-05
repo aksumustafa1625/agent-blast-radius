@@ -22,6 +22,23 @@ WHAT IS STRIPPED, AND WHY
     rule mechanically. A rule enforced by a script cannot be forgotten; a rule
     enforced by memory can.
 
+WHAT IS RENAMED, AND WHY IT IS NOT COSMETIC
+    The lab fixtures are called Blast_Test__c and Blast_Event__e. "Blast" is a
+    fragment of the tool's own name, so shipping those identifiers into a corpus
+    whose whole point is that the tool is NOT named would be a soft brand plant -
+    the same mistake caught in a launch image and corrected in REPRO_v58_v67.md.
+    The maintainer found that one; this makes the next one impossible to forget.
+
+    The rename is honest because the identifier is arbitrary: what the org
+    adjudicated was a shape - a Private-OWD object, a field the user holds no FLS
+    on, and a negative-control field they do hold. Rename the object and the org
+    returns the same verdict. Nothing measured depends on the string, which is
+    exactly why it is safe to change and pointless to keep.
+
+    Published names match REPRO_v58_v67.md, so a reader following the recipe and a
+    reader running the corpus build the same fixture instead of two half-matching
+    ones.
+
 Run:  python blast_radius/benchmark/export_public_corpus.py
 Out:  public-benchmark/corpus.json  +  cases/<id>.cls
 """
@@ -47,9 +64,27 @@ _THIRD_PARTY = re.compile(
     re.IGNORECASE)
 
 
+# Lab fixture names carry a fragment of the tool's name. Applied to EVERY published
+# string - apex, rationale, fixture - so no path can bypass it by being added later.
+_RENAME = {
+    "Blast_Test__c": "Sharing_Test__c",
+    "Blast_Event__e": "Sharing_Event__e",
+}
+# The self-check below greps the finished output. It matches the bare word too, not
+# just the identifiers, so a NEW fixture named Blast_Anything__c fails the build
+# instead of shipping.
+_BRAND = re.compile(r"blast", re.IGNORECASE)
+
+
+def _neutralise(text: str) -> str:
+    for lab, public in _RENAME.items():
+        text = text.replace(lab, public)
+    return text
+
+
 def _public_why(text: str) -> str:
     cleaned = _THIRD_PARTY.sub("", text or "").strip()
-    return re.sub(r"\s+", " ", cleaned)
+    return _neutralise(re.sub(r"\s+", " ", cleaned))
 
 
 def _verdict(case: dict) -> dict | None:
@@ -99,18 +134,24 @@ def main() -> None:
         if apex:
             with open(os.path.join(OUT, "cases", f"{c['id']}.cls"), "w",
                       encoding="utf-8", newline="\n") as f:
-                f.write(apex.rstrip() + "\n")
+                f.write(_neutralise(apex.rstrip()) + "\n")
 
     payload = {
         "benchmark": "Agent Authority Benchmark",
         "version": "1.0",
         "measured_on": "Salesforce Summer '26",
         "fixture": {
-            "object": "Blast_Test__c",
+            "object": "Sharing_Test__c",
             "org_wide_default": "Private",
             "field_under_test": "Customer_IBAN__c",
+            "name_is_arbitrary": (
+                "The object name carries nothing. What the org adjudicated is the "
+                "SHAPE: a Private-OWD object, a field the running user holds no FLS "
+                "on, and a control field they do hold. Build it under any name and "
+                "the verdicts reproduce. These names match the repro recipe so both "
+                "routes build the same fixture."),
             "running_user": (
-                "Object READ on Blast_Test__c, and deliberately NO field permission "
+                "Object READ on Sharing_Test__c, and deliberately NO field permission "
                 "on Customer_IBAN__c. No create/edit/delete anywhere."),
             "negative_control": (
                 "Secret_Data__c is a field the user IS entitled to, seeded with a real "
@@ -144,6 +185,73 @@ def main() -> None:
               if re.search(r"sfge|graph engine", c["rationale"], re.IGNORECASE)]
     print("     third-party engine mentions in published text: "
           + (", ".join(leaked) if leaked else "none"))
+
+    # The old seal describes the previous export. Drop it before checking, so the
+    # walk below cannot pass by reading a stale file instead of the new one.
+    sums_path = os.path.join(OUT, "CHECKSUMS.md")
+    if os.path.exists(sums_path):
+        os.remove(sums_path)
+
+    # Grep the FINISHED FILES, not the in-memory strings. A check that reads what it
+    # just wrote catches a path that skipped _neutralise(); a check that re-reads the
+    # variable it already sanitised only proves the sanitiser ran where we remembered
+    # to call it. Non-zero exit, because a warning nobody reads is not a gate.
+    branded = []
+    for root, _dirs, files in os.walk(OUT):
+        for name in sorted(files):
+            fp = os.path.join(root, name)
+            with open(fp, encoding="utf-8") as f:
+                if _BRAND.search(f.read()):
+                    branded.append(os.path.relpath(fp, OUT))
+    if branded:
+        print("[FAIL] the tool's name leaked into published files: "
+              + ", ".join(branded))
+        print("       Add the fixture to _RENAME above. The corpus is published with "
+              "the tool unnamed (LAUNCH_ROUND5_DECISION 10.3); a lab identifier "
+              "carrying 'blast' is a soft brand plant, which is the same mistake "
+              "already corrected once in a launch image.")
+        sys.exit(1)
+    print("     tool-name leaks in published files: none")
+
+    _write_checksums(sums_path)
+    print(f"[OK] {sums_path}")
+
+
+def _write_checksums(path: str) -> None:
+    """Seal the export. Generated, never hand-written - README.md tells readers that
+    an author who can edit the corpus silently has not published a benchmark, and a
+    hand-maintained hash list is exactly that: it drifts the first time someone
+    regenerates the corpus and forgets the seal. Writing it here means the seal
+    cannot describe a different export than the one on disk."""
+    import hashlib
+
+    def sha(fp: str) -> str:
+        with open(fp, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+
+    corpus = os.path.join(os.path.dirname(path), "corpus.json")
+    cases_dir = os.path.join(os.path.dirname(path), "cases")
+    lines = [
+        "# Integrity",
+        "",
+        "sha256 of the published corpus, so a later version cannot be quietly "
+        "substituted",
+        "and no case can be tuned after the fact without the hash moving.",
+        "",
+        f"    corpus.json  {sha(corpus)}",
+        "",
+        "Verify:",
+        "",
+        "    sha256sum corpus.json                    # Linux / macOS",
+        "    Get-FileHash corpus.json -Algorithm SHA256   # Windows",
+        "",
+        "Case sources:",
+        "",
+    ]
+    for name in sorted(os.listdir(cases_dir)):
+        lines.append(f"    {sha(os.path.join(cases_dir, name))}  {name}")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":

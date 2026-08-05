@@ -1,1 +1,1 @@
-public with sharing class B { void m(){ insert new Blast_Test__c(Name='x'); } }
+public with sharing class B { void m(){ insert new Sharing_Test__c(Name='x'); } }

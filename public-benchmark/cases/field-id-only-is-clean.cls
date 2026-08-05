@@ -1,1 +1,1 @@
-public with sharing class B { void m(){ List<Blast_Test__c> r = [SELECT Id FROM Blast_Test__c]; } }
+public with sharing class B { void m(){ List<Sharing_Test__c> r = [SELECT Id FROM Sharing_Test__c]; } }

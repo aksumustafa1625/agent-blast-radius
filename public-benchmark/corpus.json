@@ -3,10 +3,11 @@
   "version": "1.0",
   "measured_on": "Salesforce Summer '26",
   "fixture": {
-    "object": "Blast_Test__c",
+    "object": "Sharing_Test__c",
     "org_wide_default": "Private",
     "field_under_test": "Customer_IBAN__c",
-    "running_user": "Object READ on Blast_Test__c, and deliberately NO field permission on Customer_IBAN__c. No create/edit/delete anywhere.",
+    "name_is_arbitrary": "The object name carries nothing. What the org adjudicated is the SHAPE: a Private-OWD object, a field the running user holds no FLS on, and a control field they do hold. Build it under any name and the verdicts reproduce. These names match the repro recipe so both routes build the same fixture.",
+    "running_user": "Object READ on Sharing_Test__c, and deliberately NO field permission on Customer_IBAN__c. No create/edit/delete anywhere.",
     "negative_control": "Secret_Data__c is a field the user IS entitled to, seeded with a real value, so a successful read cannot be a null that would have passed either way. An escape means the data came back AND the user was not entitled - both facts, never one."
   },
   "how_to_use": "Run your own analyzer over cases/<id>.cls at the stated api_version, modelling the running user described in `fixture`. Then compare your verdict to org_verdict.bounded_by_running_user. That field is what a real Salesforce org actually did - not an opinion, and not ours.",
@@ -245,7 +246,7 @@
       "api_version": 58.0,
       "source_file": "cases/publish-v58-bypasses-create.cls",
       "label_provenance": "experiment:oracle",
-      "rationale": "Publishing needs Create on the event, and the user has no permission on Blast_Event__e at all. Legacy system mode bypasses that, so the publish lands - which is why the publish is modelled as a write and PS503 applies to it. Measured, because a live TechnoStore ERROR depends on this.",
+      "rationale": "Publishing needs Create on the event, and the user has no permission on Sharing_Event__e at all. Legacy system mode bypasses that, so the publish lands - which is why the publish is modelled as a write and PS503 applies to it. Measured, because a live TechnoStore ERROR depends on this.",
       "org_verdict": {
         "sharing_declaration": "with",
         "mode_clause": null,
