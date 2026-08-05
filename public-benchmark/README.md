@@ -65,6 +65,15 @@ That is a platform security win, and it is the reason a large part of this bench
 exists: an analyzer that flags the v67 case is producing a **false positive** on code
 the platform has already made safe.
 
+**Do not take my word for it.** The full recipe — object, fields, permission set,
+both classes, and the negative control — is here, and reproduces in about 15 minutes
+in a fresh scratch org:
+
+**→ [Reproducing the v58 / v67 measurement](https://gist.github.com/aksumustafa1625/114747da631f9a368aeef187e2e704b4)**
+
+It uses the same fixture as this corpus, so a reader who follows the recipe and a
+reader who runs the cases build the same thing.
+
 ## The fixture
 
 Every case runs against the same shape:
