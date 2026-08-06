@@ -1,0 +1,7 @@
+The exact setup, if you would rather run it than take my word for it — object, fields, permission set, both classes, and the negative control. About 15 minutes in a scratch org:
+
+https://gist.github.com/aksumustafa1625/114747da631f9a368aeef187e2e704b4
+
+I also put the underlying question on Salesforce Stack Exchange, since the release note title and the v67 Apex Developer Guide read differently on triggers. There is an answer there already — and one axis still open that I could not close: nobody has measured FLS or record sharing inside a v67 trigger body.
+
+https://salesforce.stackexchange.com/questions/439727/do-apex-triggers-always-run-in-system-mode-at-api-v67-or-do-trigger-body-dml-op
