@@ -54,21 +54,88 @@ reviewers named. A strategy correct in both futures needs no choosing between.
   story: a claim said v67 triggers always run in system mode; the org showed the
   platform is *safer* than the claim.
 
-### 0.1 What is ready and waiting for the maintainer
+### 0.1 Where the publication sequence actually stands (updated 2026-08-06)
+
+**FINDING → METHOD → CONTRIBUTION → TOOL.** Two of the four are out.
 
 | artifact | state |
 |---|---|
-| `docs/POSTS_TECHNICAL_REPUTATION_2026-08.md` | Post 1 + Post 2 written, ready to publish |
-| `docs/REPRO_v58_v67.md` | the shareable experiment recipe — the reply to "show me" |
-| `public-benchmark/` | 21 org-adjudicated cases + 7 labelled unadjudicable, sha256-committed, **tool unnamed** |
-| `reports/TechnoStore_AksuIndex.*` | a real report, md/html/pdf |
-| `docs/AKSU_INDEX_SPEC.md` | v1.0 approved, freezes at first public reference |
-| `site/aksuindex/` | written, **not deployed** — and no longer urgent |
+| **Post 1 — the finding** | ✅ **PUBLISHED.** 277 impressions at 21h (129 at 10h), 47% in-network, **`Company: Salesforce 6%` ≈ 17 people**, 2 sends, 1 profile view |
+| **Post 2 — the method** | ✅ ready, `docs/POST2_LINKEDIN_READY.txt`, 2,982/3,000 + image + `docs/POST2_FIRST_COMMENT.txt` |
+| **Post 3 — the contribution** | ✅ ready, `docs/POST3_LINKEDIN_READY.txt`, 2,959/3,000. Ship a few days after Post 2 |
+| **Post 4 — the tool** | 🔒 written and **HELD**, `docs/POST4_LINKEDIN_READY.txt`. Gate: meaningful technical interest from 1–3. If it does not arrive, this is never sent |
+| **`public-benchmark/`** | ✅ **LIVE:** `github.com/aksumustafa1625/agent-authority-benchmark`, CC BY 4.0, tool unnamed, every hash generated not typed |
+| **Stack Exchange** | ✅ **LIVE and answered.** `salesforce.stackexchange.com/questions/439727` — the v67 trigger question. Two experienced contributors engaged; the exchange closed one of §9's open axes |
+| `docs/REPRO_v58_v67.md` + gist | ✅ published, linked from the repo README and both posts' comments |
+| `docs/OUTREACH_E13_SALESFORCE.md` | ready, not sent — channel order inside |
+| `docs/OUTREACH_DACH_CONNECTIONS.md` | 20 connection messages, 3–5/day, **tool never mentioned** |
+| `docs/TRADEMARK_AKSU_INDEX.md` | process written; **"Aksu Index" is not viable** — see §0.3 |
+| `reports/TechnoStore_AksuIndex.*` · `docs/AKSU_INDEX_SPEC.md` · `site/aksuindex/` | unchanged, and the name question now sits above all three |
 
-**Maintainer's next step:** read Post 1, approve or edit, publish Monday 08:00 DACH.
-Then put `public-benchmark/` in its own public GitHub repo — for an FDE application a
-GitHub profile *is* the CV, and what stands there says "measures the platform, and
-publishes his own errors".
+**Maintainer's open items:** publish Post 2 (+ its comment a few hours later) · add the
+GitHub repo to the LinkedIn profile's Featured section · decide the location field ·
+send the Salesforce outreach.
+
+### 0.2 What the LinkedIn numbers actually said, and the metric that replaced them
+
+Diagnosed 2026-08-05 with tiered evidence. **The single most important finding is TIER 1
+and it kills the premise:** LinkedIn Help — *"your 1st-degree connections **automatically
+follow** your posts."* A personal profile's follower count is **not an opt-in audience**;
+it is accepted connection requests wearing an audience costume. The 14,000 built by a
+year of ~30 requests/day to India-based job seekers was never a distribution asset.
+
+- **Absolute benchmark** (539,310 posts, individual creators, 12 months to June 2026):
+  median **788**, p25 307, p10 132. Post 1 landing near ~400 is **around p25** — below
+  median, not bottom-decile. An earlier reading of "p10, 6–7× below median" used the
+  **10-hour** number and was wrong; posts of unequal age are not comparable, which is
+  the exact error the research itself warned about.
+- **Engagement is only ~2× under median**, so the people who see it react close to
+  normally. **The shortfall is distribution, not content.**
+- **Out-of-network rose 36% → 53% between 10h and 21h.** The algorithm *does* carry it
+  past the follower graph; it just takes a day. Retrieval is semantic and per-viewer, so
+  narrow, vocabulary-dense technical writing is **advantaged** — which is the format
+  already being used.
+- **Folklore to ignore, all TIER 3:** hashtags, golden-hour tactics, first-comment link
+  workarounds, cadence penalties. And **do not shorten the posts** — median reach rises
+  monotonically with length to 2,500–3,000 characters.
+- **Personal profiles have zero targeting control.** Language/region/seniority targeting
+  is a Pages feature. The only lever is which language he writes in.
+
+**🎯 THE KPI IS NOW `viewer demographics → Company → Salesforce`,** not impressions.
+Post 1 scored **6% ≈ 17 people**. Being read by 40 Salesforce engineers is complete
+success on Plan A and would show up as ~250 impressions — indistinguishable from failure
+on the metric previously being watched.
+
+**Channel ranking for the actual goal:** GitHub repo (value independent of reach) →
+direct named contact (no ranking function at all) → Stack Exchange / Trailblazer
+(permanent, on-topic by construction) → speaking → borrowed distribution in comments →
+**LinkedIn feed last**, because it is the channel being over-weighted and the best
+available format gain is ~1.3× against a much larger gap.
+
+### 0.3 The name is not settled — and "Aksu Index" is closed
+
+Searched 2026-08-05 on TMview, filtered to classes **9** (software) and **42** (SaaS),
+live marks only. Three candidates, three walls:
+
+| candidate | verdict |
+|---|---|
+| **Aksu** | Crowded: `Aksuo` (EUIPO, cl. 9), `Sezen Aksu` (EUIPO, cl. 9), `AKSUM` (EUIPO, cl. 42), `AKSU Juwelier` (DE, cl. 42, filed 2026), `AKSUS` (BG, cl. 9) |
+| **Juxta** | **Exact word, EUIPO cl. 9** (Trolex) **and Benelux cl. 42** (AVAPARTNERS). Closed |
+| **Parity** | **Comprehensively closed.** Three separate EUIPO owners hold the exact word across cl. 9 and 42, plus `PARITY Software GmbH` in Germany |
+
+**The lesson, and it generalises:** classes 9 and 42 are the most crowded in the system —
+every software company files there. **Meaningful dictionary words are gone.** Only a
+genuinely invented name has a real chance, and even JUXTA was taken.
+
+**Operative rule: publish the CONCEPT, hold the NAME.** Posts 1–4 already describe the
+measurement — *"fields the agent can reach that the running user cannot see"* — without
+naming it. Recognition accrues while nothing is spent, and §6.1's own analysis says the
+Apdex failure is publishing an open method with **no retained asset**. A name is given
+when there is a commercial reason for one; under Plan A there is not yet.
+
+**A €900 mistake was avoided by a one-hour free search.** And a methodological one on the
+way: the first search read **30 of 1,735 records** and concluded "the field is clear" —
+the maintainer caught it. **Filter first (class + live status), then read all of it.**
 
 ### 0.2 Engineering work still open (was §0 before the pivot — now second priority)
 
