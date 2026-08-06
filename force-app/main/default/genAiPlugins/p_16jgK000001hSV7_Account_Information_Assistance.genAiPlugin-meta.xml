@@ -7,9 +7,6 @@
         <functionName>HW_Get_Latest_Bill_179gK000001pK5m</functionName>
     </genAiFunctions>
     <genAiFunctions>
-        <functionName>HW_Create_Case_179gK000001pK5m</functionName>
-    </genAiFunctions>
-    <genAiFunctions>
         <functionName>HW_Answer_From_Knowledge_179gK000001pK5m</functionName>
     </genAiFunctions>
     <genAiFunctions>
@@ -85,7 +82,7 @@
         <developerName>hw_language_de_acct</developerName>
         <language>en_US</language>
         <masterLabel>Always answer in German</masterLabel>
-        <sortOrder>9</sortOrder>
+        <sortOrder>8</sortOrder>
     </genAiPluginInstructions>
     <language>en_US</language>
     <localDeveloperName>p_16jgK000001hSV7_Account_Information_Assistance</localDeveloperName>
