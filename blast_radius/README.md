@@ -42,7 +42,8 @@ For a plain SOQL/DML operation, execution mode resolves as:
 Two enforcement axes are tracked separately — `enforces_sharing` (record-level)
 and `enforces_fls` (object/field) — each `True` / `False` / `None` (undetermined,
 reported honestly, never a silent false-clean). Every clause of this law was
-proven by hand in a live org (experiments E1–E6) before it was coded.
+proven by hand in a live org (experiments E1–E6 in `../MILESTONE_0_EVIDENCE.md`,
+E8–E16 recorded in `../CLAUDE.md` §2) before it was coded.
 
 ## Pipeline
 
@@ -50,42 +51,66 @@ proven by hand in a live org (experiments E1–E6) before it was coded.
 metadata ─► reach readers ─────► authority_analyzer ─► report
             apex_introspect      × permission_resolver   Escalation Gap
             flow_introspect      × ComplianceGroup        + findings
-            (agent_analyzer      = PS5xx findings         (deterministic,
-             chains a whole                                fingerprint-bound)
-             agent's actions)
+            genai_prompt_introspect                       (deterministic,
+            agentscript_loader                             fingerprint-bound)
+            (agent_analyzer chains a whole agent's actions;
+             prompt_flow_analyzer traces data -> prompt)
 ```
 
 | Module | Role |
 |---|---|
 | `permission_resolver.py` | effective CRUD/FLS for a running user (union; View-All short-circuits records but **not** FLS) |
-| `snapshot_loader.py` | pulls that permission snapshot from a live org via `sf` |
-| `apex_introspect.py` | per-class apiVersion + sharing + per-operation resolved mode (the precedence law) |
-| `flow_introspect.py` | Flow `runInMode` + touched objects/fields (no Apex parsing) |
+| `snapshot_loader.py` | pulls that permission snapshot from a live org via `sf` (profile + permsets + PSG aggregates, muting applied by the platform — E8/E9) |
+| `apex_introspect.py` | per-class apiVersion + sharing + per-operation resolved mode (the precedence law); regex extractor, SOSL, sanitizer, async hand-offs |
+| `apex_ast.py` + `ast_extract.js` | the real parse tree (ANTLR apex-parser) -> the same IR, plus the Authority Path taint trace |
+| `flow_introspect.py` | Flow run context (flow TYPE first, then `runInMode`; no tag = honest unknown) + touched objects/fields |
+| `genai_prompt_introspect.py` | prompt-template reach, every version (latent inactive reach = PS513) |
+| `agentscript_loader.py` + `agentscript_extract.mjs` | Agent Script source via Salesforce's own parser |
+| `prompt_flow_analyzer.py` | PS520/521/522 — the data -> prompt chain, hop by hop |
 | `authority_analyzer.py` | the join → PS5xx findings |
-| `agent_analyzer.py` | walks an agent config → analyses every action |
-| `report.py` | deterministic Markdown + Escalation Gap headline + two-circle SVG |
+| `agent_analyzer.py` | walks an agent (incl. agent-to-agent delegation) → analyses every action |
+| `org_loaders.py` / `org_census.py` / `org_health.py` | live `sf` reads: labels, sharing, triggers, COUNT, apiVersion census |
+| `report.py` / `report_html.py` | deterministic Markdown + HTML; Escalation Gap, the four-number index, fingerprint |
+| `benchmark/` | hand-labelled corpus, mutation gate, runtime oracle, sfge differential |
 
 ## The PS5xx authority rules
 
+The authoritative table, with the severity discipline behind it (ERROR = proven,
+WARN = a real boundary not proven, INFO = inventory), is `../CLAUDE.md` §5.
+Short form:
+
 | Rule | Sev | Fires when |
 |---|---|---|
-| PS501 | ERROR | resolved system-mode read on a Private object the user is restricted on |
-| PS502 | ERROR | system-mode read of a field with no running-user FLS |
-| PS504 | WARN | reach undetermined (dynamic SOQL, unresolved fields) — honest unknown |
-| PS505 | WARN | a classified (GDPR/PII) field reaches the model, even if authorized |
-| PS506 | ERROR | a GDPR/PII field invisible to the running user reaches the model |
-| PS507 | INFO | standard/opaque (managed) action — reach not statically analysable |
-| PS510 | ERROR/WARN | Flow runs in System Mode (without / with sharing) |
-| PS511 | INFO | custom action class predates API v67 (legacy-semantics surface) |
+| PS501 | ERROR/WARN | potential record-scope expansion: system-mode read on a Private object the user is restricted on |
+| PS502 | ERROR/WARN | field read in system mode; user has no FLS |
+| PS503 | ERROR/WARN | system-mode DML on an object the user cannot write |
+| PS504 | WARN | honest unknown: dynamic SOQL, SOSL without RETURNING, unresolved reach, undetermined Flow context |
+| PS505 | WARN | a classified field reaches the model although the user IS allowed it |
+| PS506 | ERROR/WARN | a GDPR/PII-labelled field invisible to the running user reaches the model |
+| PS507 | WARN | standard/opaque action; documented channel named when catalogued |
+| PS508 | WARN | delegation chain deeper than one level |
+| PS509 | ERROR/WARN | trigger cascade — ERROR only when the trigger's own body performs DML the user cannot |
+| PS510 | ERROR/WARN | Flow in system context (without / with sharing), by tag or by flow type |
+| PS511 | INFO | pre-v67 class inventory |
+| PS512 | ERROR/WARN | `stripInaccessible` decision discarded / wrong AccessType on a read |
+| PS513 | ERROR/WARN | latent reach in an inactive prompt-template version |
+| PS514 | WARN | async / platform-event / callout hand-off |
+| PS515 | INFO/WARN | agent-to-agent delegation (WARN when the sub-agent is unresolved) |
+| PS516 | WARN | a formula field in the reach (its inputs are not resolved) |
+| PS520/521/522 | INFO/WARN/ERROR | the traced data -> prompt chain |
 
 ## Run it
 
 ```bash
-# tests (44, all green)
-python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
+# tests (241 defined in 12 files; Node-dependent suites skip cleanly without node_modules)
+python -m unittest discover -s blast_radius -p "test_*.py"
 
-# whole-agent report against real deployed artifacts
-python blast_radius/agent_analyzer.py   # via the generator; see sample_agent_report.md
+# benchmark + mutation gate (no org needed)
+python blast_radius/benchmark/run.py
+python blast_radius/benchmark/mutate.py
+
+# a report for a real agent (needs an authenticated sf org)
+python blast_radius/cli.py --agent <GenAiPlannerBundle> --org <alias> --running-user <user>
 ```
 
 `sample_report.md`, `sample_agent_report.md`, `sample_gap.svg` are checked-in
@@ -93,21 +118,25 @@ examples produced from real Apex/Flow deployed in the dev org.
 
 ## Honest limitations
 
-- Record-level leakage is qualitative (posture: system-mode on a Private object),
-  not an exact record count.
-- Static extraction ≠ the Apex compiler: dynamic SOQL, selector indirection and
-  metadata-driven queries are flagged as honest-unknown (PS504), never guessed. A
-  real AST (ANTLR apex-parser) or Salesforce Code Analyzer is the upgrade path.
+The current, maintained list is `../CLAUDE.md` §9 — read that, not this. The
+standing ones:
+
+- `COUNT()` is an upper bound, never a measurement; sharing-dependent record
+  reach is `n/a`, never estimated.
+- Static extraction ≠ the Apex compiler: dynamic SOQL, SOSL without RETURNING and
+  unresolved reach are flagged as honest-unknown (PS504), never guessed. The AST
+  backend is the default; the regex backend has no scope and says `None` where the
+  AST resolves.
 - `FieldDefinition.ComplianceGroup` is FLS-gated — the classification scan must
-  run as a broad-FLS identity.
+  run as a broad-FLS identity, and what it could see is sealed into the fingerprint.
+- Flow context by flow TYPE (record-triggered / scheduled / process -> system
+  without sharing) is `platform-doc`, not yet measured in-org.
 - Design-time, not runtime: this bounds the *possible* blast radius from code +
   config; it complements (does not replace) runtime AISPM monitoring.
-- The agent config is currently loaded from a normalized dict; binding to a live
-  agent's retrieved GenAi metadata is a thin loader adapter.
 
 ## Status
 
-Functionally complete end-to-end (single class → whole agent), 44 tests green.
-Deferred refinements: Apex DML operations, cross-class/selector follow (PS508),
-trigger-cascade wiring (PS509, keyed to trigger apiVersion per E6), and a live
-GenAi-metadata loader.
+Functionally complete end-to-end (single class → whole agent, classic bundle or
+Agent Script). 241 tests; benchmark 28/28 with an 8/8 mutation score; runtime
+oracle on 21 of 28 cases. What is still open is listed, in priority order, in
+`../CLAUDE.md` §9 — this file does not keep a second copy of that list.

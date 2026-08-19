@@ -50,9 +50,13 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from org_loaders import soql_str  # noqa: E402  - one escaper for every WHERE clause
 
 
 def _sf_query(soql: str, tooling: bool = False) -> List[Dict[str, Any]]:
@@ -71,7 +75,7 @@ def _sf_query(soql: str, tooling: bool = False) -> List[Dict[str, Any]]:
 
 
 def _in_clause(ids: List[str]) -> str:
-    return "(" + ",".join("'" + i + "'" for i in ids) + ")"
+    return "(" + ",".join("'" + soql_str(i) + "'" for i in ids) + ")"
 
 
 def build_snapshot(
@@ -82,14 +86,14 @@ def build_snapshot(
     """Return a permission snapshot for `username`, optionally restricted to a
     set of sobjects (only the objects an agent's actions touch)."""
     users = _sf_query(
-        f"SELECT Id FROM User WHERE Username = '{username}' LIMIT 1"
+        f"SELECT Id FROM User WHERE Username = '{soql_str(username)}' LIMIT 1"
     )
     if not users:
         raise ValueError(f"No user found with username {username!r}")
     user_id = users[0]["Id"]
 
     assignments = _sf_query(
-        f"SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = '{user_id}'"
+        f"SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = '{soql_str(user_id)}'"
     )
     ps_ids = [r["PermissionSetId"] for r in assignments]
     if not ps_ids:
@@ -105,7 +109,7 @@ def build_snapshot(
     obj_filter = ""
     fld_filter = ""
     if sobjects:
-        quoted = "(" + ",".join("'" + s + "'" for s in sobjects) + ")"
+        quoted = _in_clause(sobjects)
         obj_filter = f" AND SobjectType IN {quoted}"
         fld_filter = f" AND SobjectType IN {quoted}"
 

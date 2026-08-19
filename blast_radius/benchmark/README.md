@@ -1,6 +1,6 @@
 # Agent Authority Benchmark v1
 
-**Why:** "189 tests green" is not an accuracy claim. A test suite proves the code does
+**Why:** "241 tests green" is not an accuracy claim. A test suite proves the code does
 what its author expected. This measures how often that expectation is *right* — per
 rule, against labels written to be independent of the implementation.
 
@@ -30,21 +30,25 @@ RUNTIME ORACLE - the analyzer predicts, the org judges
 cases with a runtime shape: 10   org: HospitalOrg
 
 CASE                                    ORG SAYS    LABEL
-prec-v58-without-plain                  agrees      experiment:runtime
-prec-v67-without-plain                  agrees      experiment:runtime
-prec-v58-without-usermode-clause        agrees      experiment:runtime
-prec-v67-no-declaration                 agrees      experiment:runtime
-prec-v58-with-sharing-plain             agrees      experiment:runtime
-prec-v58-without-systemmode-clause      agrees      experiment:runtime
-sanitizer-readable-used-caps-severity   agrees      experiment:runtime
-sanitizer-discarded-is-a-bug            agrees      experiment:runtime
-sosl-returning-gdpr-v58                 agrees      experiment:runtime
-sosl-returning-gdpr-v67                 agrees      experiment:runtime
+prec-v58-without-plain                  agrees      experiment:oracle
+prec-v67-without-plain                  agrees      experiment:oracle
+prec-v58-without-usermode-clause        agrees      experiment:oracle
+prec-v67-no-declaration                 agrees      experiment:oracle
+prec-v58-with-sharing-plain             agrees      experiment:oracle
+prec-v67-without-systemmode-clause      agrees      experiment:oracle
+sanitizer-readable-used-caps-severity   agrees      experiment:oracle
+sanitizer-discarded-is-a-bug            agrees      experiment:oracle
+sosl-returning-gdpr-v58                 agrees      experiment:oracle
+sosl-returning-gdpr-v67                 agrees      experiment:oracle
 ```
+*(Output of the FIRST oracle run, kept as the shape of the report; the corpus now
+carries 21 runtime shapes and stores the earned label as `experiment:oracle` — the
+string the oracle prints and the string in `corpus.py` are the same on purpose, so
+a grep for either finds both.)*
 
 It has already paid for itself twice.
 
-**`prec-v58-without-systemmode-clause`** was labelled `platform-doc` — believed from the
+**`prec-v67-without-systemmode-clause`** (id corrected 2026-08-19; it was always an api=67.0 case) was labelled `platform-doc` — believed from the
 documentation, never measured. The oracle settled it live, so that label is now **earned**.
 
 **PS512 rests entirely on two claims about the platform**, and a rule is only as good as
@@ -67,16 +71,18 @@ the user's reach unless execution mode puts it back, which is exactly the thing 
 ```
 cases: 28   passed: 28   failed: 0
 RULE      TP  FP  FN   PRECISION   RECALL
-PS501      7   0   0      100.0%   100.0%
+PS501      8   0   0      100.0%   100.0%
 PS502      1   0   0      100.0%   100.0%
-PS503      1   0   0      100.0%   100.0%
+PS503      2   0   0      100.0%   100.0%
 PS504      2   0   0      100.0%   100.0%
 PS506      7   0   0      100.0%   100.0%
 PS512      2   0   0      100.0%   100.0%
-PS514      3   0   0      100.0%   100.0%
+PS514      5   0   0      100.0%   100.0%
 
 mutation score: 8/8 caught
 ```
+*(run.py + mutate.py output, 2026-08-19. The numbers live in the tool — re-run
+before quoting; this block is a mirror, not the source.)*
 
 ## How to read that honestly
 
@@ -87,11 +93,16 @@ Every case carries a `truth` field:
 
 | `truth` | count | what it's worth |
 |---|---|---|
-| `experiment:*` | 11 | **Measured in a real org** — Milestone 0, or re-settled on demand by `oracle.py`. The strong labels. |
-| `platform-doc` | 6 | Documented Salesforce semantics, not measured here. |
-| `reasoned` | 6 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
+| `experiment:*` | 21 | **Measured in a real org** — Milestone 0 (`experiment:E*`), or settled by `oracle.py` (`experiment:oracle`). The strong labels. |
+| `platform-doc` | 3 | Documented Salesforce semantics, not measured here. |
+| `reasoned` | 4 | The author's reasoning. **Proves consistency, not correctness** — it shares a mind with the implementation. |
 
-Only 11 of 23 labels are org-measured. A score carried by `reasoned` labels mostly proves
+*(Counted from `corpus.py` on 2026-08-19 and printed by every `run.py` run; an earlier
+revision of this table said 11 / 6 / 6 of 23 — two generations of numbers in one file,
+which is exactly the staleness this project keeps paying for.)*
+
+21 of 28 labels are org-measured; the 7 that are not include six no oracle can ever
+settle (see "Honest limits" below). A score carried by `reasoned` labels mostly proves
 the analyzer agrees with its author, which is worth very little. That is why the runner
 prints this table under the numbers rather than hiding it.
 

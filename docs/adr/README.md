@@ -41,10 +41,9 @@ that were live at the time and the measurement that killed them.
 
 ## Lifecycle and template
 
-Same as the sibling repos: Proposed → Accepted → Deprecated / Superseded by
-ADR-NNN; an Accepted ADR is immutable — supersede, don't edit. When writing a
-new ADR, copy the skeleton from `../../../aktenlageV2/docs/adr/README.md` or
-any ADR here (Status / Date / Author / Context / Decision / Consequences /
+Proposed → Accepted → Deprecated / Superseded by ADR-NNN; an Accepted ADR is
+immutable — supersede, don't edit. When writing a new ADR, copy the skeleton
+from any ADR here (Status / Date / Author / Context / Decision / Consequences /
 Alternatives Considered / References).
 
 Write an ADR when a decision changes what a finding may claim, rejects a
@@ -57,4 +56,4 @@ for") covers incident-level lessons.
 - [Architecture views](../architecture/) — context / container / sequence / data model / CI
 - [CLAUDE.md](../../CLAUDE.md) — the working map, the precedence law, the paid-for mistakes
 - [PROJECT_STATE_AND_REVIEW_BRIEF.md](../../PROJECT_STATE_AND_REVIEW_BRIEF.md) — the exhaustive reference
-- [MILESTONE_0_EVIDENCE.md](../../MILESTONE_0_EVIDENCE.md) — the in-org experiments E1–E13 the ADRs cite
+- [MILESTONE_0_EVIDENCE.md](../../MILESTONE_0_EVIDENCE.md) — the in-org experiments E1–E6 in full; E8–E16, which the ADRs also cite, are recorded in `CLAUDE.md` §2 with their probe classes under `force-app/`

@@ -5,139 +5,18 @@ it is the map, the semantics you must not get wrong, the discipline that makes t
 tool worth anything, and the mistakes already paid for. Read the discipline section
 before changing a rule.
 
+> **Portfolio / strategy context is not in this repo.** The commercial posture, the
+> publication sequence and the portfolio audit live in `docs/STRATEGY_PRIVATE_2026-08.md`,
+> which is gitignored. This file is the technical working context only.
+
 ---
 
-## 0. WHERE WE ARE — read this before anything (updated 2026-08-04)
+## 0. WHERE WE ARE — engineering status
 
-### 0.0 THE STRATEGIC POSTURE — this governs every other decision
+The strategic/commercial part of this section moved to the gitignored
+`docs/STRATEGY_PRIVATE_2026-08.md` on 2026-08-19. What follows is the engineering work.
 
-**Plan A is the maintainer's FDE role at Salesforce.** Decided 2026-08-04 after four
-independent launch reviews (`docs/LAUNCH_ROUND5_DECISION_2026-08-04.md` §10).
-
-The commercial launch is **not cancelled — it is re-aimed.** Same artifacts, published
-for a different purpose:
-
-| commercial launch (on hold) | technical reputation (live) |
-|---|---|
-| "buy this" | "I found this, measured it, here is the proof" |
-| early-access list, price, 5 pilots | **no CTA at all** |
-| entity, DPA, commercial Impressum, urgent trademark | **none of it needed** |
-| competes with Plan A (Nebentätigkeit, IP clauses) | **serves Plan A directly** |
-
-**Why this was easy: it is not a fork, it is a sequence.** If the FDE role happens,
-technical reputation is what gets him hired. If it does not, he has built exactly the
-distribution and credibility the commercial launch was missing — the one gap all four
-reviewers named. A strategy correct in both futures needs no choosing between.
-
-**Publishing order is load-bearing — reversed, it reads as selling and damages Plan A:**
-
-```
-1. FINDING       v58 = 5 records, v67 = 0.  No product name, no link, no CTA.
-2. METHOD        E13 + our own stripInaccessible false positive, together.
-3. CONTRIBUTION  the public benchmark — corpus + org verdicts, open.
-4. TOOL          only if interest arrives. Still no selling.
-```
-
-**Hard rules while Plan A is live** (`LAUNCH_ROUND5_DECISION` §10.3, §10.6):
-
-- ❌ **The sfge differential appears in NO public material.** Round 5 said "not the
-  headline"; with Salesforce as the employer target it became "never published". It
-  stays in the repo and the briefing for anyone who asks privately. Enforced
-  mechanically by `export_public_corpus.py`, which strips such sentences and then greps
-  its own output — a rule in a script cannot be forgotten.
-- ❌ No price, no early-access list, no pilot offer, no SLA, no roadmap promise.
-- 🔒 **Never say the tool is free or will remain free.** That single sentence is what
-  keeps the commercial path open if side-activity approval comes, or if Plan A doesn't.
-- ✅ **The platform is the hero, and the measurement genuinely supports that**:
-  Salesforce got this right at v67 (secure-by-default). The gap we measure is not a
-  platform defect — it is how much customer code has caught up. E13 is the ideal
-  story: a claim said v67 triggers always run in system mode; the org showed the
-  platform is *safer* than the claim.
-
-### 0.1 Where the publication sequence actually stands (updated 2026-08-06)
-
-**FINDING → METHOD → CONTRIBUTION → TOOL.** Two of the four are out.
-
-| artifact | state |
-|---|---|
-| **Post 1 — the finding** | ✅ **PUBLISHED.** 277 impressions at 21h (129 at 10h), 47% in-network, **`Company: Salesforce 6%` ≈ 17 people**, 2 sends, 1 profile view |
-| **Post 2 — the method** | ✅ ready, `docs/POST2_LINKEDIN_READY.txt`, 2,982/3,000 + image + `docs/POST2_FIRST_COMMENT.txt` |
-| **Post 3 — the contribution** | ✅ ready, `docs/POST3_LINKEDIN_READY.txt`, 2,959/3,000. Ship a few days after Post 2 |
-| **Post 4 — the tool** | 🔒 written and **HELD**, `docs/POST4_LINKEDIN_READY.txt`. Gate: meaningful technical interest from 1–3. If it does not arrive, this is never sent |
-| **`public-benchmark/`** | ✅ **LIVE:** `github.com/aksumustafa1625/agent-authority-benchmark`, CC BY 4.0, tool unnamed, every hash generated not typed |
-| **Stack Exchange** | ✅ **LIVE and answered.** `salesforce.stackexchange.com/questions/439727` — the v67 trigger question. Two experienced contributors engaged; the exchange closed one of §9's open axes |
-| `docs/REPRO_v58_v67.md` + gist | ✅ published, linked from the repo README and both posts' comments |
-| `docs/OUTREACH_E13_SALESFORCE.md` | ready, not sent — channel order inside |
-| `docs/OUTREACH_DACH_CONNECTIONS.md` | 20 connection messages, 3–5/day, **tool never mentioned** |
-| `docs/TRADEMARK_AKSU_INDEX.md` | process written; **"Aksu Index" is not viable** — see §0.3 |
-| `reports/TechnoStore_AksuIndex.*` · `docs/AKSU_INDEX_SPEC.md` · `site/aksuindex/` | unchanged, and the name question now sits above all three |
-
-**Maintainer's open items:** publish Post 2 (+ its comment a few hours later) · add the
-GitHub repo to the LinkedIn profile's Featured section · decide the location field ·
-send the Salesforce outreach.
-
-### 0.2 What the LinkedIn numbers actually said, and the metric that replaced them
-
-Diagnosed 2026-08-05 with tiered evidence. **The single most important finding is TIER 1
-and it kills the premise:** LinkedIn Help — *"your 1st-degree connections **automatically
-follow** your posts."* A personal profile's follower count is **not an opt-in audience**;
-it is accepted connection requests wearing an audience costume. The 14,000 built by a
-year of ~30 requests/day to India-based job seekers was never a distribution asset.
-
-- **Absolute benchmark** (539,310 posts, individual creators, 12 months to June 2026):
-  median **788**, p25 307, p10 132. Post 1 landing near ~400 is **around p25** — below
-  median, not bottom-decile. An earlier reading of "p10, 6–7× below median" used the
-  **10-hour** number and was wrong; posts of unequal age are not comparable, which is
-  the exact error the research itself warned about.
-- **Engagement is only ~2× under median**, so the people who see it react close to
-  normally. **The shortfall is distribution, not content.**
-- **Out-of-network rose 36% → 53% between 10h and 21h.** The algorithm *does* carry it
-  past the follower graph; it just takes a day. Retrieval is semantic and per-viewer, so
-  narrow, vocabulary-dense technical writing is **advantaged** — which is the format
-  already being used.
-- **Folklore to ignore, all TIER 3:** hashtags, golden-hour tactics, first-comment link
-  workarounds, cadence penalties. And **do not shorten the posts** — median reach rises
-  monotonically with length to 2,500–3,000 characters.
-- **Personal profiles have zero targeting control.** Language/region/seniority targeting
-  is a Pages feature. The only lever is which language he writes in.
-
-**🎯 THE KPI IS NOW `viewer demographics → Company → Salesforce`,** not impressions.
-Post 1 scored **6% ≈ 17 people**. Being read by 40 Salesforce engineers is complete
-success on Plan A and would show up as ~250 impressions — indistinguishable from failure
-on the metric previously being watched.
-
-**Channel ranking for the actual goal:** GitHub repo (value independent of reach) →
-direct named contact (no ranking function at all) → Stack Exchange / Trailblazer
-(permanent, on-topic by construction) → speaking → borrowed distribution in comments →
-**LinkedIn feed last**, because it is the channel being over-weighted and the best
-available format gain is ~1.3× against a much larger gap.
-
-### 0.3 The name is not settled — and "Aksu Index" is closed
-
-Searched 2026-08-05 on TMview, filtered to classes **9** (software) and **42** (SaaS),
-live marks only. Three candidates, three walls:
-
-| candidate | verdict |
-|---|---|
-| **Aksu** | Crowded: `Aksuo` (EUIPO, cl. 9), `Sezen Aksu` (EUIPO, cl. 9), `AKSUM` (EUIPO, cl. 42), `AKSU Juwelier` (DE, cl. 42, filed 2026), `AKSUS` (BG, cl. 9) |
-| **Juxta** | **Exact word, EUIPO cl. 9** (Trolex) **and Benelux cl. 42** (AVAPARTNERS). Closed |
-| **Parity** | **Comprehensively closed.** Three separate EUIPO owners hold the exact word across cl. 9 and 42, plus `PARITY Software GmbH` in Germany |
-
-**The lesson, and it generalises:** classes 9 and 42 are the most crowded in the system —
-every software company files there. **Meaningful dictionary words are gone.** Only a
-genuinely invented name has a real chance, and even JUXTA was taken.
-
-**Operative rule: publish the CONCEPT, hold the NAME.** Posts 1–4 already describe the
-measurement — *"fields the agent can reach that the running user cannot see"* — without
-naming it. Recognition accrues while nothing is spent, and §6.1's own analysis says the
-Apdex failure is publishing an open method with **no retained asset**. A name is given
-when there is a commercial reason for one; under Plan A there is not yet.
-
-**A €900 mistake was avoided by a one-hour free search.** And a methodological one on the
-way: the first search read **30 of 1,735 records** and concluded "the field is clear" —
-the maintainer caught it. **Filter first (class + live status), then read all of it.**
-
-### 0.2 Engineering work still open (was §0 before the pivot — now second priority)
+### 0.1 Engineering work still open
 
 **Make the Aksu Index the FIRST thing a reader sees.** *(Clarified by the
 maintainer 2026-07-31: this is not an org-level rollup — it is about prominence.
@@ -337,16 +216,12 @@ blast_radius/
   benchmark/                corpus.py + run.py + mutate.py + oracle.py (runtime
                             oracle: deploys each case, the ORG judges) + README.md
   fixtures/                 permission snapshots + apex/prompt fixtures
-  test_*.py                 224 tests in 12 files
+  test_*.py                 241 tests in 12 files
 public-benchmark/         THE PUBLIC ARTIFACT. corpus.json (21 org-adjudicated
                           cases + 7 labelled unadjudicable) + cases/*.cls +
                           CHECKSUMS.md. Generated by benchmark/export_public_corpus.py,
                           which strips third-party engine mentions and greps its own
-                          output. The tool is NOT named anywhere in it (§0.0).
-docs/LAUNCH_ROUND5_DECISION_2026-08-04.md
-                          4 launch reviews + the Plan A decision. §10 is the posture.
-docs/POSTS_TECHNICAL_REPUTATION_2026-08.md
-                          Post 1-4, written, awaiting the maintainer
+                          output. The tool is NOT named anywhere in it.
 docs/REPRO_v58_v67.md     the shareable experiment — the answer to "show me"
 docs/AKSU_INDEX_SPEC.md              the public metric, v1.0, frozen at first
                                      public reference (§8 of the spec)
@@ -372,13 +247,13 @@ gets a blind spot the regex path doesn't have, or vice versa.
 | PS501 | ERROR/WARN | Potential record-scope expansion (system mode + Private OWD). "Potential" is deliberate: predicates aren't analysed. |
 | PS502 | ERROR/WARN | Field read in system mode; user has no FLS. |
 | PS503 | ERROR/WARN | System-mode DML on an object the user can't write. |
-| PS504 | WARN | **Honest unknown** — dynamic SOQL, SOSL without RETURNING, unresolved reach. Fires even when the object is unknown. |
+| PS504 | WARN | **Honest unknown** — dynamic SOQL, SOSL without RETURNING, unresolved reach, and (since 2026-08-19) a Flow whose run context is undetermined (no `runInMode` tag on an author-selectable type). Fires even when the object is unknown. |
 | PS505 | WARN | Classified field reaches the model although the user IS allowed it (data minimisation). |
 | PS506 | ERROR/WARN | **The headline.** GDPR/PII-labelled field, invisible to the user, reaches the model. Sorted first in the report. |
 | PS507 | WARN | Opaque/standard action; names the documented channel when catalogued. |
 | PS508 | WARN | Delegation chain deeper than one level. |
 | PS509 | ERROR/WARN | Trigger cascade. **ERROR only when the trigger's own body performs DML the user can't** (read from the Body). Legacy trigger alone = WARN. |
-| PS510 | ERROR/WARN | Flow in system mode. |
+| PS510 | ERROR/WARN | Flow in system context — by its `runInMode` tag, or by its TYPE (record-/schedule-/platform-event-triggered, Process Builder: `platform-doc`, unmeasured). Keyed on the resolved context, not the tag (§9 0a). |
 | PS511 | INFO | Pre-v67 class inventory. |
 | PS512 | ERROR/WARN | `stripInaccessible` decision discarded (no-op bug) / wrong AccessType for a read. |
 | PS513 | ERROR/WARN | Latent reach in an INACTIVE prompt-template version. |
@@ -463,16 +338,7 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   Say **"regulated"**, not "GDPR": the tool reads whatever `ComplianceGroup` labels the
   org's own admins applied, so CCPA/HIPAA/internal policy use the identical mechanism.
   Calling it a GDPR tool describes a regime-agnostic feature as one customer's use of it.
-- **The strategy is NPS-shaped, not FICO-shaped** — corrected by four independent
-  launch reviews (`docs/LAUNCH_ROUND5_DECISION_2026-08-04.md`). FICO's formula is a
-  trade secret whose adoption was manufactured by a 1995 mortgage mandate; we have an
-  open method and no mandating institution. The models that actually fit are NPS (open
-  method + **protected mark** + monetised instrument) and MITRE ATT&CK (free framework,
-  paid evaluations). The precedent to fear is **Apdex**: open spec, no retained asset,
-  publisher captured nothing. So the to-do list is not "protect the formula" but
-  **register the mark, publish a recurring reference artifact, sell the instrument** —
-  and the trademark filing was missing from the plan entirely until all four reviewers
-  named it independently.
+- **Go-to-market shape:** see `docs/STRATEGY_PRIVATE_2026-08.md` §C (gitignored).
 
 ---
 
@@ -555,7 +421,7 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 
 ## 8. Proof surface — what backs the claims
 
-- **224 unit tests** in 12 files.
+- **241 unit tests** in 12 files (2026-08-19; was 224 before the Flow-context fix).
 - **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): **28 hand-labelled
   cases → 28 passed** — 100% precision/recall on this corpus, and **8/8 mutation
   score** (break the analyzer on purpose; the corpus catches it).
@@ -628,6 +494,32 @@ differential, the AST's class-field DML target, the regex subquery false clean, 
 the fingerprint binding the analyzer's own source hash + parser version.
 
 **Still open, in rough priority:**
+
+0a. 🔴 **FLOW PROCESS-TYPE IS READ AND NEVER USED — a potential FALSE CLEAN in our own code.**
+   Found 2026-08-10 by an external mechanism audit (recorded outside this repo), not by us.
+   `flow_introspect.py` captures `process_type` (~line 100) and **consumes it in no verdict path** —
+   grep confirms it appears nowhere downstream. Salesforce's own flowtest engine
+   (`code-analyzer-flow-engine/FlowScanner/flow_parser/parse.py:744-767`) branches on the flow TYPE
+   **first** — `InvocableProcess -> DefaultMode`, `Workflow/Trigger/ProcessBuilder ->
+   SystemModeWithoutSharing` — and only then falls through to the `runInMode` tag. Our
+   `_SYSTEM_MODES.get(None, (False, True))` therefore resolves **a record-triggered Flow with no
+   `runInMode` tag to user mode with sharing enforced**. That is exactly the silent false-clean §3
+   exists to prevent, in the one place we did not look. **Measure it against a real record-triggered
+   Flow before claiming anything about Flow, and before any comparison against flowtest.**
+   **→ FIXED IN CODE 2026-08-19, provenance `platform-doc`, still UNMEASURED in-org.**
+   `flow_introspect.resolve_mode()` now resolves TYPE first (flowtest's ordering): a triggered
+   flow (`start/triggerType` RecordAfterSave/BeforeSave/BeforeDelete/Scheduled/PlatformEvent) or a
+   Process Builder process (`Workflow`/`CustomEvent`) → system without sharing, and a tag on such a
+   flow is **not trusted** (trusting a `DefaultMode` tag on a record-triggered flow would be the false
+   clean in its purest form; whether the platform honours one is unmeasured). An explicit tag still
+   wins on an author-selectable type. **No tag on an autolaunched/InvocableProcess flow → `None` on
+   both axes** — `analyze_flow` emits **PS504** for it and the per-field PS502/PS506 cap at **WARN**
+   ("possibly system"), so it is never clean and never claimed as proven. PS510 is keyed on the
+   resolved context, not the tag. 13 new tests (`test_flow_introspect.py`) + 4 for `soql_str`; suite 241, benchmark
+   28/28, mutation 8/8. **What remains:** deploy a record-triggered flow with no tag that reads a
+   field the running user lacks FLS on, fire it as that user, and check whether the field comes back
+   — that is the one measurement that turns the `platform-doc` label into `experiment`; and measure
+   whether a `runInMode` tag on a triggered flow is honoured at all.
 
 0. **FOUR v67 DOC CLAIMS THAT TOUCH THE PRECEDENCE LAW AND ARE UNMEASURED** — surfaced
    2026-08-04 by a verification round over the Summer '26 docs, and listed here as

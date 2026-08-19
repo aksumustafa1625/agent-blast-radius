@@ -29,7 +29,7 @@ survives only in the Agent Script source. So for the compiled forms tested, a
 metadata-based scanner has nothing to read.
 
 > **Honest framing.** A reference implementation built on my own initiative, not client
-> work. The analyzer, the in-org experiments, the **216 unit tests**, the accuracy
+> work. The analyzer, the in-org experiments, the **241 unit tests**, the accuracy
 > benchmark, the live agent *authored in Agent Script and published to the org*, and the
 > reports against four real orgs are all real, produced at zero Flex Credits. The
 > health-records domain is fictional demo data. This is **not a certificate** — it is an
@@ -110,7 +110,7 @@ Two axes are tracked separately, which is the distinction most reviews get wrong
 
 ## Accuracy — not a test count
 
-*"216 tests green"* is not an accuracy claim. A test suite proves the code does what its
+*"241 tests green"* is not an accuracy claim. A test suite proves the code does what its
 author expected. [`blast_radius/benchmark/`](blast_radius/benchmark/) measures how often that
 expectation is **right**:
 
@@ -178,8 +178,8 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 216 unit tests (AST/Agent-Script suites skip cleanly without Node)
-python -m unittest discover -s blast_radius -t blast_radius -p "test_*.py"
+# 241 unit tests (AST/Agent-Script suites skip cleanly without Node)
+python -m unittest discover -s blast_radius -p "test_*.py"
 
 # accuracy, not just green tests
 python blast_radius/benchmark/run.py
@@ -274,19 +274,33 @@ imports it ([PR #72](https://github.com/salesforce/agentscript/pull/72)).
 ## Where it stands
 
 **Done:** the precedence law (experiment-established), both extraction backends over one
-shared core, Authority Path taint, the Agent Script data→prompt proof, org-agnostic CLI + sf
+shared core, Authority Path taint (incl. helper hops, the `for (X x : [SELECT …])` loop and
+named-argument constructors), the Agent Script data→prompt proof, org-agnostic CLI + sf
 plugin + CI gate, org census and org-health, the accuracy benchmark with mutation testing,
-and four real orgs scanned.
+the **runtime oracle** (21 of 28 cases, the org judges) and the refereed sfge differential,
+permission-set groups and **muting** (E8/E9, measured), cross-object classification, and
+four real orgs scanned.
 
-**Open, in priority order** — stated plainly rather than buried:
+**Open, in priority order** — the maintained list is [`CLAUDE.md` §9](CLAUDE.md); this is
+its short form as of 2026-08-19, stated plainly rather than buried:
 
-1. **Benchmark v2** — a *runtime oracle*: deploy each fixture, execute as the modelled user,
-   record the outcome. Moving one case from `reasoned` to `experiment:` is worth more than ten
-   new reasoned cases. Then a systematic sfge differential over the whole corpus.
-2. **Inter-procedural taint** — aliases and helper returns are `undetermined` today.
-3. **Async reach** is flagged (PS514) but not followed.
-4. Muting permission sets, the entry-point matrix, backend-confidence in severity, and
-   relationship/polymorphic field classification.
+1. **Flow run context by flow type** — a record-/schedule-triggered flow or a Process
+   Builder process now resolves to system context without sharing (the flow TYPE is read
+   first, as Salesforce's own flowtest does; a tag-less autolaunched flow is an honest
+   unknown, never clean). That resolution is **`platform-doc`, not yet measured in-org** —
+   the measurement is the next experiment.
+2. **Four v67 documentation claims that touch the precedence law and are unmeasured** —
+   cross-version inheritance contamination, FLS inside a v67 trigger body, and a v67
+   trigger with an explicit `WITH SYSTEM_MODE` (which E15 showed bypasses sharing and which
+   PS509 cannot see today).
+3. **Inter-procedural taint** — a whole record handed to an unmodelled callee, and an
+   invocable returning `List<String>` with no output wrapper to trace into, stay
+   `undetermined` (measured: 44% of real agent-action verdicts, down from 66%).
+4. **Async reach** — Queueable/Batch/`@future` and the platform-event publish are followed;
+   Flow, process and off-platform subscribers are not, and PS514 names exactly which.
+5. Formula-field inputs (PS516 stays a statement about *our* resolution until E12 can be
+   deployed), polymorphic lookups (deliberately unclassified), restriction rules (not
+   modelled, so the gap is a **lower** bound), and a suppression/baseline mechanism.
 
 ## Documentation
 
@@ -297,7 +311,7 @@ and four real orgs scanned.
 | [docs/architecture/](docs/architecture/) | Mermaid views: context, container, scan sequence, data model, CI contracts |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Standing rules: experiment-locked semantics, severity discipline, both-orgs verification, PR checklist |
 | [SECURITY.md](SECURITY.md) | Read-only trust model, analysis-identity honesty, what a report should be trusted to mean |
-| [MILESTONE_0_EVIDENCE.md](MILESTONE_0_EVIDENCE.md) | The in-org experiments (E1–E13) every semantic claim cites |
+| [MILESTONE_0_EVIDENCE.md](MILESTONE_0_EVIDENCE.md) | The first six in-org experiments (E1–E6), written up in full; E8–E16 are recorded in `CLAUDE.md` §2 with their probe classes under `force-app/` |
 | [docs/demo/](docs/demo/) | The rehearsed demo recording script with its on-camera liveness experiment |
 | [CLAUDE.md](CLAUDE.md) | Working context: the precedence law, the rule table, the mistakes already paid for |
 

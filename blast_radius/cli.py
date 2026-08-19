@@ -159,7 +159,7 @@ def _record_modes(agent, source_root: str, backend: str = "auto"):
                 fr = parse_flow(path)
                 for a in fr.accesses:
                     if a.sobject and a.operation == "read":
-                        _note(a.sobject, fr.enforces_sharing, not fr.runs_in_system_context)
+                        _note(a.sobject, fr.enforces_sharing, fr.enforces_fls)
     return modes
 
 

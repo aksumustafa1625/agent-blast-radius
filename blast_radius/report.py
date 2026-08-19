@@ -65,7 +65,9 @@ class ActionSummary:
 def summarize_flow(reach, findings, name=None) -> ActionSummary:
     objs = sorted({a.sobject for a in reach.accesses if a.sobject})
     flds = sorted({f"{a.sobject}.{fl}" for a in reach.accesses if a.sobject for fl in a.fields})
-    return ActionSummary(name or reach.name, "flow", None, reach.runs_in_system_context, objs, flds, findings)
+    # Worst case, like summarize_apex: an undetermined flow context counts as
+    # escalation-capable, never as a user-mode action.
+    return ActionSummary(name or reach.name, "flow", None, reach.is_escalation_capable, objs, flds, findings)
 
 
 def _qualify(sobject: str, fl: str) -> str:

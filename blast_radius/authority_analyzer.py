@@ -99,14 +99,18 @@ def units_from_apex(reach) -> List[AccessUnit]:
 
 
 def units_from_flow(reach) -> List[AccessUnit]:
-    system = reach.runs_in_system_context
+    # Both axes come from the flow's RESOLVED context (type first, then the
+    # runInMode tag - see flow_introspect.resolve_mode). Either may be None: a
+    # flow whose context the caller decides is an honest unknown on both axes,
+    # and None is what makes PS501/PS503 say "possibly" and the field rules cap
+    # at WARN instead of claiming a proven escalation - or a clean.
     units = []
     for a in reach.accesses:
         units.append(AccessUnit(
             a.operation, a.sobject, a.fields, a.fields_complete,
-            reach.enforces_sharing,          # record-level from runInMode
-            (not system),                    # system context bypasses FLS
-            f"Flow runInMode={reach.run_in_mode}"))
+            reach.enforces_sharing,          # record-level axis
+            reach.enforces_fls,              # CRUD/FLS axis (system bypasses it)
+            reach.mode_source))
     return units
 
 
@@ -363,6 +367,11 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
             tag = _classified(classification, full, fld)
             user_sees = perms.can_read_field(full) or perms.can_read_field(fld)
             fls_enforced = u.enforces_fls is True
+            # None = the operation's run context is undetermined (a Flow whose
+            # caller decides it). Not clean - the field may escape - but not
+            # PROVEN either, so below it caps the severity at WARN and the
+            # message says "possibly", exactly as PS501/PS503 already do.
+            fls_unknown = u.enforces_fls is None
             beyond_user = (not fls_enforced) and (not user_sees)
             # If FLS is enforced and the user can't see it, user mode BLOCKS the
             # read (a user-mode query on an inaccessible field throws / treats it
@@ -386,29 +395,34 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                         "whether the sanitized list or the original reaches the output, so this "
                         "is reported as unproven rather than clean." if strips_reads else "")
 
+            mode_note = (" The run context of this operation is UNDETERMINED (see its "
+                         "PS504), so this is an unproven boundary, not a proven "
+                         "escalation." if fls_unknown else "")
+            mode_word = "possibly system" if fls_unknown else "system"
+
             if beyond_user and tag:
                 # A field only used internally is still a system-mode over-read,
                 # but it was not observed reaching the model -> WARN, not ERROR.
-                sev = "WARN" if (path == "internal" or strips_reads) else "ERROR"
-                verb = ("is read in system mode and reaches the model"
+                sev = "WARN" if (path == "internal" or strips_reads or fls_unknown) else "ERROR"
+                verb = (f"is read in {mode_word} mode and reaches the model"
                         if path == "returned" else
-                        "is read in system mode but was not observed reaching the model"
+                        f"is read in {mode_word} mode but was not observed reaching the model"
                         if path == "internal" else
-                        "is read in system mode and may reach the model")
+                        f"is read in {mode_word} mode and may reach the model")
                 findings.append(Finding(
                     "PS506", sev, f"{action} -> {full}",
                     f"GDPR/PII field {full} {verb}, but the running user has no FLS on it.",
                     f"ComplianceGroup {tag}. A field the running user cannot see can reach the "
-                    f"LLM and the end user's screen. {_PATH_NOTE[path]}{san_note}",
+                    f"LLM and the end user's screen. {_PATH_NOTE[path]}{san_note}{mode_note}",
                     "Remove the field from the query/output, or enforce FLS "
                     "(WITH USER_MODE / Security.stripInaccessible)."))
             elif beyond_user:
-                sev = "WARN" if (path == "internal" or strips_reads) else "ERROR"
+                sev = "WARN" if (path == "internal" or strips_reads or fls_unknown) else "ERROR"
                 findings.append(Finding(
                     "PS502", sev, f"{action} -> {full}",
-                    f"Field {full} is read in system mode; the running user has no FLS on it.",
+                    f"Field {full} is read in {mode_word} mode; the running user has no FLS on it.",
                     f"In system mode Apex ignores FLS, so the field's data can reach the agent. "
-                    f"{_PATH_NOTE[path]}{san_note}",
+                    f"{_PATH_NOTE[path]}{san_note}{mode_note}",
                     "Enforce FLS (WITH USER_MODE / Security.stripInaccessible)."))
             elif tag and reaches_model:
                 findings.append(Finding(
@@ -482,19 +496,50 @@ def analyze_flow(reach, perms, classification, object_sharing,
                  triggers_by_object=None) -> List[Finding]:
     findings = _analyze_units(reach.name, units_from_flow(reach),
                               perms, classification, object_sharing, triggers_by_object)
-    if reach.run_in_mode == "SystemModeWithoutSharing":
+    # PS510 is keyed on the RESOLVED context, not on the runInMode tag alone. A
+    # record-triggered flow or a Process Builder process has no tag and still runs
+    # in system context without sharing (flow_introspect.resolve_mode; platform-doc,
+    # unmeasured in-org). Keying on the tag was how such a flow used to resolve to
+    # user mode with sharing - a silent false clean.
+    system, sharing, source = reach.mode
+    by_tag = source.startswith("Flow runInMode=")     # vs. decided by the flow's type
+    if system is True and sharing is False:
         findings.append(Finding(
             "PS510", "ERROR", f"{reach.name} (Flow)",
-            "Flow runs in System Mode without Sharing.",
+            "Flow runs in System Mode without Sharing."
+            + ("" if by_tag else f" ({source})"),
             "Record-level and FLS enforcement are bypassed by configuration, "
-            "invisible in the Agent Builder UI.",
-            "Set runInMode to DefaultMode unless system context is justified and documented."))
-    elif reach.run_in_mode == "SystemModeWithSharing":
+            "invisible in the Agent Builder UI."
+            + ("" if by_tag else
+               " This is the platform's rule for this flow type, not a tag the author "
+               "set, so there is no tag to change; it is stated as documented "
+               "(platform-doc) and has not yet been measured in-org by this project."),
+            "Set runInMode to DefaultMode unless system context is justified and documented."
+            if by_tag else
+            "Review every record element against the running user; a triggered flow "
+            "cannot be switched to user context, so move the agent-facing read into an "
+            "autolaunched flow or a v67 Apex action that runs as the user."))
+    elif system is True:
         findings.append(Finding(
             "PS510", "WARN", f"{reach.name} (Flow)",
             "Flow runs in System Mode with Sharing (FLS/CRUD not enforced).",
             "Sharing is honored but field- and object-level security are not.",
             "Confirm the flow does not return fields the running user lacks FLS on."))
+    elif system is None:
+        # Honest unknown: no tag, and the type's context is decided by whoever
+        # calls it. Said out loud (PS504) so it can never be read as clean; the
+        # per-field PS502/PS506 above are capped at WARN for the same reason.
+        findings.append(Finding(
+            "PS504", "WARN", f"{reach.name} (Flow run context)",
+            f"The run context of this Flow could not be determined ({source}).",
+            "Without a runInMode tag an autolaunched flow runs in the context of its "
+            "caller - user context from a user, the caller's own context from Apex, "
+            "system context from a process. Which one the agent's invocation "
+            "produces is not established here, so every read and write in this flow "
+            "is reported as possibly system mode. A silent false-clean is worse than "
+            "an honest unknown.",
+            "Set runInMode explicitly (DefaultMode to run as the user) so the context "
+            "is declared in the metadata rather than inherited."))
     return findings
 
 

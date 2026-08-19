@@ -46,7 +46,7 @@ WHAT NO ORACLE CAN SETTLE - a limit of the method, not a to-do list
           know". An org cannot measure the absence of our knowledge.
       async-queueable, async-callout, async-none-is-clean    - PS514 says "we flag a
           hand-off we do not follow". Same shape of claim.
-      field-untagged-escalates-ps502                         - its platform half (a
+      field-untagged-escalates (was ...-ps502 until 2026-08-19) - its platform half (a
           v58 read escapes) is already measured by prec-v58-without-plain; the half
           that distinguishes it (PS502 vs PS506) is our own labelling design, which
           the org has no opinion about.
@@ -150,7 +150,10 @@ CASES = [
              "enforces the RECORD axis (so no PS501) but at v58 CRUD/FLS is still "
              "bypassed, so the GDPR field still escapes (PS506)."),
 
-    dict(id="prec-v58-without-systemmode-clause", api=67.0,
+    # Renamed 2026-08-19 from `prec-v58-without-systemmode-clause`: the case is, and
+    # always was, api=67.0 - the whole point is that the clause re-opens both axes
+    # even at v67 - so the v58 in the id was a misnomer that read as a claim.
+    dict(id="prec-v67-without-systemmode-clause", api=67.0,
          apex=_cls("List<Blast_Test__c> r = [SELECT Customer_IBAN__c FROM Blast_Test__c "
                    "WITH SYSTEM_MODE];", "without"),
          expect={"PS501", "PS506"}, truth="experiment:oracle",
@@ -195,7 +198,9 @@ CASES = [
              "DatabaseOperationsMustUseWithSharing; the platform bounds it."),
 
     # ------------------------------------------------------------ field vs GDPR
-    dict(id="field-untagged-escalates-ps502", api=58.0,
+    # Renamed 2026-08-19 from `field-untagged-escalates-ps502`: the id carried our
+    # own rule number into the public corpus, which is published tool-unnamed.
+    dict(id="field-untagged-escalates", api=58.0,
          apex=_cls("List<Blast_Test__c> r = [SELECT Internal_Note__c FROM Blast_Test__c];",
                    "without"),
          expect={"PS501", "PS502"}, truth="reasoned",

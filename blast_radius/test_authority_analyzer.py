@@ -536,10 +536,6 @@ class FindingDedupeTest(unittest.TestCase):
         self.assertEqual(len(keys), len(set(keys)), "duplicate reads produced duplicate findings")
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
-
 class FormulaFieldReachTest(unittest.TestCase):
     """PS516: a formula in the reach is an UNRESOLVED reach, not a proven leak.
 
@@ -589,3 +585,7 @@ class FormulaFieldReachTest(unittest.TestCase):
               if f.rule == "PS516"]
         self.assertEqual([f.severity for f in fs], ["WARN"],
                          "the platform behaviour is unmeasured; ERROR would claim proof")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

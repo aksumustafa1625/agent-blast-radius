@@ -1,5 +1,8 @@
 # Agent Authority Benchmark
 
+**Version 1.1 (2026-08-19).** *v1.0 carried a defect in its scoring field — see
+[Errata](#errata) before comparing against a copy you already hold.*
+
 **28 Apex cases about Salesforce execution semantics. 21 of them adjudicated by a real
 org — not by an opinion, and not by mine.**
 
@@ -34,7 +37,7 @@ than any pass rate:
 | provenance | meaning | count |
 |---|---|---|
 | `experiment:E<n>` | measured in a real org during the original experiments | strongest |
-| `experiment:runtime` | measured by the runtime harness — deployed, executed, the org decided | strongest |
+| `experiment:oracle` | measured by the runtime oracle — deployed, executed as the modelled user, the org decided | strongest |
 | `platform-doc` | documented semantics, **not measured here** | weak |
 | `reasoned` | my own reasoning — proves consistency, **not correctness** | weakest |
 
@@ -105,14 +108,26 @@ public-benchmark/
 That field is what a real Salesforce org did. If your analyzer disagrees with it, the
 org is right.
 
+Each verdict also says which **axis** the case adjudicates, and publishes the raw
+observation it was derived from, so the derivation itself can be checked:
+
+| `org_verdict.axis` | raw observation | `bounded_by_running_user` is true when |
+|---|---|---|
+| `field-level security` | `field_returned`, `user_is_entitled` | NOT (the field came back AND the user was not entitled to it) |
+| `record sharing` | `rows_without_share_returned` | rows the user holds no share on did **not** come back |
+| `object CRUD` | `operation`, `write_landed_without_permission` | the insert / publish did **not** land |
+
 ```json
 {
   "id": "prec-v67-without-plain",
   "api_version": 67.0,
   "label_provenance": "experiment:E2,E2b",
   "org_verdict": {
+    "axis": "field-level security",
     "sharing_declaration": "without",
     "mode_clause": null,
+    "field_returned": false,
+    "user_is_entitled": false,
     "field_returned_to_unentitled_user": false,
     "bounded_by_running_user": true
   }
@@ -165,11 +180,59 @@ was regenerated: a hand-maintained integrity seal is the silent edit it claims t
 prevent, just with an extra step. If the seal and the corpus can disagree, the seal
 is decoration.
 
+From this directory, every file at once (the hash lines are written in the exact
+format `sha256sum -c` reads, with paths relative to here):
+
 ```
-sha256sum -c <(grep -A99 'Case sources' CHECKSUMS.md | tail -n +3 | sed 's/^ *//')
+grep -E '^    [0-9a-f]{64}  ' CHECKSUMS.md | sed 's/^ *//' | sha256sum -c
 ```
 
+A `.gitattributes` ships with the corpus and pins every text file to LF, so the same
+bytes — and the same hashes — come out of a Windows checkout.
+
 A benchmark whose author can edit it silently is not a benchmark.
+
+## Errata
+
+A benchmark that changes silently is not a benchmark either. Every change to a
+published value is listed here, and in `corpus.json` under `errata`, in the same
+words. If you hold an earlier copy, its `CHECKSUMS.md` will not match this one — that
+is the point.
+
+### v1.1 — 2026-08-19 — `org_verdict.bounded_by_running_user` was wrong for 5 of 21 cases
+
+v1.0 derived that field as *"the field did not come back"* for **every** case. That is
+correct only for the field-level-security read cases. The record-axis cases observe
+**rows**, not a field; the write and publish cases observe whether the **DML landed**,
+not a field — none of them carries a "field came back" observation, so all of them
+were published as `bounded: true`, including the v58 cases whose own rationale says the
+operation lands past the user. And the two read cases that return a field the user
+**is** entitled to — the negative control — were published as `bounded: false` and
+`field_returned_to_unentitled_user: true`: the control mislabelled as an escape.
+
+Affected ids (old value → new value of `bounded_by_running_user`):
+
+| id | v1.0 | v1.1 | why |
+|---|---|---|---|
+| `record-v58-without-plain` | true | **false** | rows the user holds no share on came back |
+| `write-v58-plain-insert` | true | **false** | the insert landed for a user with no Create |
+| `publish-v58-bypasses-create` | true | **false** | the publish landed for a user with no Create |
+| `field-user-can-see-is-clean` | false | **true** | the field came back **and** the user was entitled to it |
+| `field-id-only-is-clean` | false | **true** | same — `Id` needs no field permission |
+
+Also in v1.1, none of which changes a measured outcome:
+
+- `bounded_by_running_user` is now derived **per axis**, and every `org_verdict` carries
+  `axis` plus the raw observation it was derived from (table above).
+- Two ids renamed: `prec-v58-without-systemmode-clause` → `prec-v67-without-systemmode-clause`
+  (it was always an `api_version: 67.0` case; the old id read as a claim about v58), and
+  `field-untagged-escalates-ps502` → `field-untagged-escalates` (the suffix was one tool's
+  rule number, in a corpus published with no tool named).
+- `label_provenance` for oracle-settled cases is spelled `experiment:oracle` everywhere; an
+  earlier draft of this README said `experiment:runtime` for the same thing.
+- Rationale text no longer carries the exporting project's internal vocabulary.
+- No case source, API version, fixture, or measured outcome changed. The case-file hashes
+  of unrenamed cases are identical to v1.0.
 
 ## Measured on
 

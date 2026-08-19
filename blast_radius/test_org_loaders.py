@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from org_loaders import (OrgQueryError, _rel_root, _derive_user_visible,  # noqa: E402
-                         _sf, _trigger_handler_refs)
+                         _sf, _trigger_handler_refs, soql_str)
 from permission_resolver import ObjectAccess  # noqa: E402
 
 
@@ -123,10 +123,6 @@ class DeriveUserVisibleTest(unittest.TestCase):
         self.assertEqual(cause, "sharing")
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
-
 class RelationshipRootTest(unittest.TestCase):
     """Which relationship a reached field path traverses - both spellings.
 
@@ -154,3 +150,30 @@ class RelationshipRootTest(unittest.TestCase):
 
     def test_a_relationship_on_another_reached_object(self):
         self.assertEqual(_rel_root("Account.Owner.Name", self.OBJECTS), "Owner")
+
+
+class SoqlLiteralEscapeTest(unittest.TestCase):
+    """Every operator-supplied string that lands inside a SOQL quote goes through
+    soql_str - the Python twin of String.escapeSingleQuotes. A value can never close
+    the literal it sits in, and a name with an apostrophe is still queried as typed."""
+
+    def test_plain_value_is_unchanged(self):
+        self.assertEqual(soql_str("HR_Agent_Minimal"), "HR_Agent_Minimal")
+
+    def test_quote_is_escaped(self):
+        self.assertEqual(soql_str("o'neil@example.com"), "o\\'neil@example.com")
+
+    def test_backslash_is_escaped_before_the_quote(self):
+        # A trailing backslash would otherwise escape the closing quote we add.
+        self.assertEqual(soql_str("a\\"), "a\\\\")
+        self.assertEqual(soql_str("a\\'b"), "a\\\\\\'b")
+
+    def test_a_closing_quote_cannot_break_out(self):
+        q = f"SELECT Id FROM User WHERE Username = '{soql_str(chr(39) + ' OR Name != ' + chr(39))}'"
+        # Exactly the two delimiting quotes remain unescaped.
+        import re
+        self.assertEqual(len(re.findall(r"(?<!\\)'", q)), 2)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

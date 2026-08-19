@@ -1,6 +1,22 @@
 {
   "benchmark": "Agent Authority Benchmark",
-  "version": "1.0",
+  "version": "1.1",
+  "errata": [
+    {
+      "fixed_in": "1.1",
+      "date": "2026-08-19",
+      "field": "org_verdict.bounded_by_running_user",
+      "defect": "v1.0 derived this field as NOT expect_read for every case. That is correct only for the field-level-security read cases. The record-axis cases observe rows (not a field), the write and publish cases observe whether the DML landed (not a field), and neither carries expect_read - so all of them were published as bounded:true, including the v58 cases whose own rationale says the operation lands past the user. The two read cases that return a field the user IS entitled to (the negative control) were published as bounded:false and field_returned_to_unentitled_user:true - the control mislabelled as an escape. Five of 21 adjudicated cases therefore carried the wrong value in the one field readers are told to score against.",
+      "affected_case_ids": [
+        "record-v58-without-plain",
+        "write-v58-plain-insert",
+        "publish-v58-bypasses-create",
+        "field-user-can-see-is-clean",
+        "field-id-only-is-clean"
+      ],
+      "change": "bounded_by_running_user is now derived per axis and each org_verdict carries `axis` plus the raw observation it was derived from. Additionally two case ids are renamed: `prec-v58-without-systemmode-clause` -> `prec-v67-without-systemmode-clause` (it was always an api 67.0 case; the old id read as a claim about v58) and `field-untagged-escalates-ps502` -> `field-untagged-escalates` (the suffix was one tool's rule number). label_provenance for oracle-settled cases is spelled `experiment:oracle` everywhere, and rationale text no longer carries the exporting project's internal vocabulary. No case source, API version, or measured outcome changed."
+    }
+  ],
   "measured_on": "Salesforce Summer '26",
   "fixture": {
     "object": "Sharing_Test__c",
@@ -10,7 +26,7 @@
     "running_user": "Object READ on Sharing_Test__c, and deliberately NO field permission on Customer_IBAN__c. No create/edit/delete anywhere.",
     "negative_control": "Secret_Data__c is a field the user IS entitled to, seeded with a real value, so a successful read cannot be a null that would have passed either way. An escape means the data came back AND the user was not entitled - both facts, never one."
   },
-  "how_to_use": "Run your own analyzer over cases/<id>.cls at the stated api_version, modelling the running user described in `fixture`. Then compare your verdict to org_verdict.bounded_by_running_user. That field is what a real Salesforce org actually did - not an opinion, and not ours.",
+  "how_to_use": "Run your own analyzer over cases/<id>.cls at the stated api_version, modelling the running user described in `fixture`. Then compare your verdict to org_verdict.bounded_by_running_user. That field is what a real Salesforce org actually did - not an opinion, and not ours. org_verdict.axis says WHICH axis the case adjudicates (field-level security, record sharing, or object CRUD); the raw observation for that axis is published next to it so the derivation can be checked.",
   "counts": {
     "total": 28,
     "org_adjudicated": 21,
@@ -24,11 +40,13 @@
       "label_provenance": "experiment:E1,E2",
       "rationale": "legacy + without sharing + plain SOQL: system mode on BOTH axes. E1 measured 5 records read vs 0 for the user; E2 measured v58=5.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": true,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": false
+        "bounded_by_running_user": false
       }
     },
     {
@@ -38,11 +56,13 @@
       "label_provenance": "experiment:E2,E2b",
       "rationale": "THE false-positive killer. Same `without sharing` source at v67 is SAFE: E2 measured v67=0 records, E2b measured the field read BLOCKED ('No such column').",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -52,11 +72,13 @@
       "label_provenance": "experiment:E3",
       "rationale": "Operation clause beats the class declaration. E3 measured the same `without sharing` class returning 0 with WITH USER_MODE.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": "WITH USER_MODE",
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -66,11 +88,13 @@
       "label_provenance": "experiment:E2",
       "rationale": "v67 default is user mode even with no sharing declaration.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "none",
         "mode_clause": null,
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -78,27 +102,31 @@
       "api_version": 58.0,
       "source_file": "cases/prec-v58-with-sharing-plain.cls",
       "label_provenance": "experiment:E1,E2b",
-      "rationale": "TWO AXES, the distinction most reviews get wrong: `with sharing` enforces the RECORD axis (so no PS501) but at v58 CRUD/FLS is still bypassed, so the GDPR field still escapes (PS506).",
+      "rationale": "TWO AXES, the distinction most reviews get wrong: `with sharing` enforces the RECORD axis (so no record-scope finding) but at v58 CRUD/FLS is still bypassed, so the GDPR field still escapes (a labelled-field finding).",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "with",
         "mode_clause": null,
+        "field_returned": true,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": false
+        "bounded_by_running_user": false
       }
     },
     {
-      "id": "prec-v58-without-systemmode-clause",
+      "id": "prec-v67-without-systemmode-clause",
       "api_version": 67.0,
-      "source_file": "cases/prec-v58-without-systemmode-clause.cls",
+      "source_file": "cases/prec-v67-without-systemmode-clause.cls",
       "label_provenance": "experiment:oracle",
       "rationale": "An explicit WITH SYSTEM_MODE re-opens both axes even at v67. This label started as `platform-doc` - believed from the docs, never measured. The runtime oracle settled it in a live org: the field DOES come back past the user. Earned, not assumed.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": "WITH SYSTEM_MODE",
+        "field_returned": true,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": false
+        "bounded_by_running_user": false
       }
     },
     {
@@ -108,11 +136,12 @@
       "label_provenance": "experiment:E1,E2",
       "rationale": "Legacy + without sharing: the record axis is bypassed, so rows the user has no share on come back. E1 measured 5 vs 0; E10 measured the same shape again with controls. `entitled` marks the FIELD as allowed - the escalation here is the RECORDS, not the field.",
       "org_verdict": {
+        "axis": "record sharing",
         "sharing_declaration": "without",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": true
+        "user_is_entitled": true,
+        "rows_without_share_returned": true,
+        "bounded_by_running_user": false
       }
     },
     {
@@ -122,11 +151,12 @@
       "label_provenance": "experiment:E10",
       "rationale": "`with sharing` enforces the record axis even at v58 - the one axis it DOES cover. The user owns none of the rows, so 0 come back. Measured by E10 as the control that had to fail, and it did.",
       "org_verdict": {
+        "axis": "record sharing",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": true
+        "user_is_entitled": true,
+        "rows_without_share_returned": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -136,11 +166,12 @@
       "label_provenance": "experiment:E2",
       "rationale": "THE second false-positive killer. v67's user-mode default enforces the RECORD axis too, overriding an explicit `without sharing`: E2 measured v58=5, v67=0.",
       "org_verdict": {
+        "axis": "record sharing",
         "sharing_declaration": "without",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": true
+        "user_is_entitled": true,
+        "rows_without_share_returned": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -148,13 +179,15 @@
       "api_version": 58.0,
       "source_file": "cases/field-user-can-see-is-clean.cls",
       "label_provenance": "experiment:oracle",
-      "rationale": "user_minimal HAS FLS read on Secret_Data__c, and `with sharing` covers the record axis, so there is nothing beyond the user. A tool that flags this is crying wolf.",
+      "rationale": "the modelled user HAS FLS read on Secret_Data__c, and `with sharing` covers the record axis, so there is nothing beyond the user. A tool that flags this is crying wolf.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": true
+        "field_returned": true,
+        "user_is_entitled": true,
+        "field_returned_to_unentitled_user": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -164,11 +197,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "Id has no FieldPermissions row and is always readable; flagging it would be a guaranteed false positive on almost every query.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": true
+        "field_returned": true,
+        "user_is_entitled": true,
+        "field_returned_to_unentitled_user": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -178,11 +213,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "SOSL obeys the same mode precedence as SOQL, so a legacy SOSL that RETURNs an invisible GDPR field is the same escalation. Measured: the org hands the field over.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": true,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": false
+        "bounded_by_running_user": false
       }
     },
     {
@@ -192,11 +229,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "...and is equally safe at v67. Negative twin of the case above - and the pair is what proves the SOSL reader inherits the precedence law rather than merely being assumed to.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -206,11 +245,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "The sanitizer is real - the oracle confirms the stripped list will not hand the field over - so the finding must NOT be asserted as proven. But we cannot prove WHICH list reaches the sink, so it must not be cleared either: it fires, capped at WARN. This is the case where the org proves the analyzer is being conservative rather than wrong.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -218,13 +259,15 @@
       "api_version": 58.0,
       "source_file": "cases/sanitizer-discarded-is-a-bug.cls",
       "label_provenance": "experiment:oracle",
-      "rationale": "stripInaccessible returns sanitized COPIES; discarding the decision sanitizes nothing, so the original list still hands the field over. PS512 depends on that being true - measured, not assumed.",
+      "rationale": "stripInaccessible returns sanitized COPIES; discarding the decision sanitizes nothing, so the original list still hands the field over. A sanitizer-misuse finding depends on that being true - measured, not assumed.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": true,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": true,
-        "bounded_by_running_user": false,
-        "user_is_entitled": false
+        "bounded_by_running_user": false
       }
     },
     {
@@ -234,11 +277,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "Measured in-org: stripInaccessible(UPDATABLE) on a read path does NOT leak the field - it throws without object Edit, and strips the field with it (FLS cannot grant Edit without Read, so unreadable implies un-updatable). It errs safe. WARN because the sanitized list is present but we cannot prove it, not the original, is what reaches the model.",
       "org_verdict": {
+        "axis": "field-level security",
         "sharing_declaration": "without",
         "mode_clause": null,
+        "field_returned": false,
+        "user_is_entitled": false,
         "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "bounded_by_running_user": true
       }
     },
     {
@@ -246,13 +291,15 @@
       "api_version": 58.0,
       "source_file": "cases/publish-v58-bypasses-create.cls",
       "label_provenance": "experiment:oracle",
-      "rationale": "Publishing needs Create on the event, and the user has no permission on Sharing_Event__e at all. Legacy system mode bypasses that, so the publish lands - which is why the publish is modelled as a write and PS503 applies to it. Measured, because a live TechnoStore ERROR depends on this.",
+      "rationale": "Publishing needs Create on the event, and the user has no permission on Sharing_Event__e at all. Legacy system mode bypasses that, so the publish lands - which is why the publish is modelled as a write and a write finding applies to it.",
       "org_verdict": {
+        "axis": "object CRUD",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "operation": "publish",
+        "user_is_entitled": false,
+        "write_landed_without_permission": true,
+        "bounded_by_running_user": false
       }
     },
     {
@@ -262,11 +309,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "v67's user-mode default enforces Create on the event, so the same publish is bounded. The mirror of the case above: without it, 'the publish lands' could just mean publish never checks anything.",
       "org_verdict": {
+        "axis": "object CRUD",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "operation": "publish",
+        "user_is_entitled": false,
+        "write_landed_without_permission": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -274,13 +323,15 @@
       "api_version": 58.0,
       "source_file": "cases/write-v58-plain-insert.cls",
       "label_provenance": "experiment:oracle",
-      "rationale": "Legacy DML defaults to system mode; user_minimal has no create. Measured: the insert LANDS for a user holding no Create at all.",
+      "rationale": "Legacy DML defaults to system mode; the modelled user has no create. Measured: the insert LANDS for a user holding no Create at all.",
       "org_verdict": {
+        "axis": "object CRUD",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "operation": "insert",
+        "user_is_entitled": false,
+        "write_landed_without_permission": true,
+        "bounded_by_running_user": false
       }
     },
     {
@@ -290,11 +341,13 @@
       "label_provenance": "experiment:oracle",
       "rationale": "`as user` enforces CRUD even at v58 - the clause beats the version. Measured: the same insert that lands without the clause is blocked.",
       "org_verdict": {
+        "axis": "object CRUD",
         "sharing_declaration": "with",
         "mode_clause": "as user",
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "operation": "insert",
+        "user_is_entitled": false,
+        "write_landed_without_permission": false,
+        "bounded_by_running_user": true
       }
     },
     {
@@ -304,21 +357,23 @@
       "label_provenance": "experiment:oracle",
       "rationale": "v67 DML defaults to user mode. Measured directly: the insert is blocked at v67 and lands at v58. E2 never wrote, so it never evidenced this - the oracle does.",
       "org_verdict": {
+        "axis": "object CRUD",
         "sharing_declaration": "with",
         "mode_clause": null,
-        "field_returned_to_unentitled_user": false,
-        "bounded_by_running_user": true,
-        "user_is_entitled": false
+        "operation": "insert",
+        "user_is_entitled": false,
+        "write_landed_without_permission": false,
+        "bounded_by_running_user": true
       }
     }
   ],
   "not_adjudicable_cases": [
     {
-      "id": "field-untagged-escalates-ps502",
+      "id": "field-untagged-escalates",
       "api_version": 58.0,
-      "source_file": "cases/field-untagged-escalates-ps502.cls",
+      "source_file": "cases/field-untagged-escalates.cls",
       "label_provenance": "reasoned",
-      "rationale": "An UNTAGGED field the user cannot see is PS502, not PS506 - the GDPR label is what separates the two rules. Internal_Note__c has no FieldPermissions row in user_minimal, so it is beyond the user.",
+      "rationale": "An UNTAGGED field the user cannot see is an untagged-field finding, not a labelled-field finding - the GDPR label is what separates the two rules. Internal_Note__c has no FieldPermissions row for the modelled user, so it is beyond the user.",
       "why_no_org_verdict": "This case asserts what an analyzer should report (an honest unknown, or a hand-off it does not follow), not platform behaviour. An org cannot measure the absence of an analyzer's knowledge."
     },
     {

@@ -103,7 +103,7 @@ python blast_radius/verify_deterministic.py -- --agent <X> --permission-set <Y> 
 
 ## Pull request checklist
 
-- [ ] Unit tests green (216+; AST suites may skip without Node — that's fine)
+- [ ] Unit tests green (241+ as of 2026-08-19; AST suites may skip without Node — that's fine)
 - [ ] `benchmark/run.py` still 100% on the corpus; `mutate.py` still catches all mutations
 - [ ] New reach feature present in BOTH backends (or the asymmetry is impossible by construction)
 - [ ] Both demo orgs re-scanned if a rule changed (HanseWatt stays clean; TechnoStore's findings accounted for)

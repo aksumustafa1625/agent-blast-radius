@@ -29,6 +29,11 @@ def _sf(query: str, tooling: bool = False, target_org: Optional[str] = None) -> 
         cmd += " --use-tooling-api"
     if target_org:
         cmd += f" --target-org {target_org}"
+    # shell=True is deliberate and stays: on Windows `sf` is a .cmd shim that
+    # subprocess cannot exec without a shell (or a resolved path to sf.cmd), and
+    # this is a local operator-driven CLI - the only person who can put a shell
+    # metacharacter into --org or --permission-set is the operator running it.
+    # The SOQL side is escaped (soql_str); the shell side is accepted as-is.
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                          encoding="utf-8", errors="replace")
     try:
@@ -54,8 +59,19 @@ def _sf(query: str, tooling: bool = False, target_org: Optional[str] = None) -> 
     return data["result"]["records"]
 
 
+def soql_str(value: str) -> str:
+    """Escape a value for use inside a single-quoted SOQL literal - the Python twin
+    of Apex's String.escapeSingleQuotes(): backslash first, then the quote, so a
+    value can never close the literal it sits in. Every operator-supplied string
+    that reaches a WHERE clause (username, permission set, object name) goes
+    through this. It is hygiene, not a security boundary: this is a local,
+    read-only CLI whose only "attacker" is the operator typing their own argument,
+    but a query that breaks on an apostrophe is still a wrong query."""
+    return str(value).replace("\\", "\\\\").replace("'", "\\'")
+
+
 def _in(values: Iterable[str]) -> str:
-    return "(" + ",".join("'" + v + "'" for v in values) + ")"
+    return "(" + ",".join("'" + soql_str(v) + "'" for v in values) + ")"
 
 
 def function_resolver(target_org: Optional[str] = None) -> Dict[str, dict]:
@@ -92,7 +108,7 @@ def _label_rows(obj: str, target_org):
     # (TotalAmountWithTax).
     return _sf("SELECT QualifiedApiName, ComplianceGroup, SecurityClassification, "
                "IsCalculated "
-               f"FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='{obj}'",
+               f"FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='{soql_str(obj)}'",
                target_org=target_org)
 
 
@@ -128,7 +144,7 @@ def _relationship_targets(obj: str, target_org) -> Dict[str, str]:
     out: Dict[str, str] = {}
     try:
         rows = _sf("SELECT RelationshipName, ReferenceTo FROM FieldDefinition "
-                   f"WHERE EntityDefinition.QualifiedApiName='{obj}' "
+                   f"WHERE EntityDefinition.QualifiedApiName='{soql_str(obj)}' "
                    "AND RelationshipName != null", target_org=target_org)
     except RuntimeError:
         return out                                   # best-effort, never fatal
@@ -162,7 +178,7 @@ def calculated_fields(objects: Iterable[str], target_org: Optional[str] = None) 
     for obj in objects:
         try:
             rows = _sf("SELECT QualifiedApiName FROM FieldDefinition "
-                       f"WHERE EntityDefinition.QualifiedApiName='{obj}' "
+                       f"WHERE EntityDefinition.QualifiedApiName='{soql_str(obj)}' "
                        "AND IsCalculated=true", target_org=target_org)
         except RuntimeError:
             continue                       # best-effort, never fatal
@@ -234,7 +250,8 @@ def sharing(objects: Iterable[str], target_org: Optional[str] = None) -> Dict[st
     out: Dict[str, str] = {}
     for obj in objects:
         rows = _sf("SELECT QualifiedApiName, InternalSharingModel "
-                   f"FROM EntityDefinition WHERE QualifiedApiName='{obj}'", target_org=target_org)
+                   f"FROM EntityDefinition WHERE QualifiedApiName='{soql_str(obj)}'",
+                   target_org=target_org)
         for r in rows:
             out[obj] = r.get("InternalSharingModel")
     return out
@@ -409,13 +426,13 @@ def snapshot_from_permset(permset: str, objects: Iterable[str],
     obj_filter = f" AND SobjectType IN {_in(objs)}" if objs else ""
     ops = _sf("SELECT SobjectType, PermissionsRead, PermissionsCreate, PermissionsEdit, "
               "PermissionsDelete, PermissionsViewAllRecords, PermissionsModifyAllRecords "
-              f"FROM ObjectPermissions WHERE Parent.Name='{permset}'{obj_filter}",
+              f"FROM ObjectPermissions WHERE Parent.Name='{soql_str(permset)}'{obj_filter}",
               target_org=target_org)
     fps = _sf("SELECT Field, PermissionsRead, PermissionsEdit "
-              f"FROM FieldPermissions WHERE Parent.Name='{permset}'{obj_filter}",
+              f"FROM FieldPermissions WHERE Parent.Name='{soql_str(permset)}'{obj_filter}",
               target_org=target_org)
     ps = _sf("SELECT PermissionsViewAllData, PermissionsModifyAllData "
-             f"FROM PermissionSet WHERE Name='{permset}' LIMIT 1", target_org=target_org)
+             f"FROM PermissionSet WHERE Name='{soql_str(permset)}' LIMIT 1", target_org=target_org)
     return {
         "runningUser": f"(permission set: {permset})",
         "channel": "agent",

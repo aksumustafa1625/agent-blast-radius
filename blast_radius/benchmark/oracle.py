@@ -17,7 +17,7 @@ THE IDEA
     The generated test ASSERTS THE ANALYZER'S OWN PREDICTION. So a failing test is
     not a broken test - it is the org saying the analyzer is wrong. That is the
     whole point, and it is the only label upgrade worth having:
-    `reasoned` / `platform-doc`  ->  `experiment:runtime`.
+    `reasoned` / `platform-doc`  ->  `experiment:oracle` (the label corpus.py stores).
 
 WHAT IT NEEDS
     An org carrying the Milestone 0 fixture: Blast_Test__c with Customer_IBAN__c.
@@ -394,7 +394,11 @@ def main(argv=None):
                 verdict = "DISAGREES"
                 note = (t.get("Message") or "").strip()
                 disagreements.append((c, note))
-            upgrade = "experiment:runtime" if verdict == "agrees" else c["truth"]
+            # The earned label is spelled exactly as corpus.py stores it
+            # (`experiment:oracle`), so the printed label and the committed label
+            # are one string. It used to print `experiment:runtime` here while the
+            # corpus said `experiment:oracle` - two names for one fact.
+            upgrade = "experiment:oracle" if verdict == "agrees" else c["truth"]
             print(f"{c['id']:<40}{verdict:<12}{upgrade:<10}")
 
         print("-" * 74)

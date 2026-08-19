@@ -1,0 +1,43 @@
+# Line-ending discipline for a repo whose proof surface is BYTES.
+#
+# The determinism proof (verify_deterministic.py, _det_a/_det_b, ts_run1/ts_run2),
+# the report fingerprint, the analyzer source hash sealed into every report, and
+# the public benchmark's CHECKSUMS.md are all sha256 over file contents. The index
+# already holds every text file as LF; this makes the working tree match it on
+# every platform, so a Windows checkout with core.autocrlf=true cannot rewrite
+# the same file to CRLF and silently move a hash that nobody edited.
+#
+# Added 2026-08-19. If `git status` shows text files as modified right after this
+# lands, run `git add --renormalize .` once; content does not change, only eol.
+
+* text=auto eol=lf
+
+# Source, data and docs that are hashed or diffed byte-for-byte
+*.py      text eol=lf
+*.js      text eol=lf
+*.mjs     text eol=lf
+*.cls     text eol=lf
+*.trigger text eol=lf
+*.xml     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.html    text eol=lf
+*.css     text eol=lf
+*.svg     text eol=lf
+*.txt     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.agent   text eol=lf
+*.apex    text eol=lf
+*.soql    text eol=lf
+
+# Binary - never normalised, never diffed as text
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.docx  binary
+*.woff  binary
+*.woff2 binary

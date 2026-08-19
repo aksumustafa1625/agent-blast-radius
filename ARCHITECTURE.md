@@ -39,13 +39,14 @@ agent-blast-radius/
 │   ├── benchmark/                corpus + runner + mutation + runtime oracle
 │   │                             + sfge differential (see ADR-005/006)
 │   ├── fixtures/                 permission snapshots + apex/prompt fixtures
-│   └── test_*.py                 216 unit tests
+│   └── test_*.py                 241 unit tests
 │
 ├── sfdx-blast-radius/            sf CLI plugin (linked; `sf blast-radius ...`)
 ├── docs/adr/                     12 decision records incl. the rejections
 ├── docs/architecture/            context / container / sequence / data / CI
 ├── docs/demo/                    rehearsed video recording script
-├── MILESTONE_0_EVIDENCE.md       the in-org experiments E1–E13
+├── MILESTONE_0_EVIDENCE.md       the in-org experiments E1–E6 in full
+│                                 (E8–E16: CLAUDE.md §2 + force-app probes)
 ├── CLAUDE.md                     working context: the law, the discipline,
 │                                 the rule table, the paid-for mistakes
 └── .github/workflows/            analyze (always) + live-scan (secret-gated)
@@ -58,7 +59,7 @@ agent-blast-radius/
    gets a blind spot the other doesn't have.
 2. **The precedence core is experiment-locked** (ADR-001). It is never
    edited from documentation; a doc-based challenge gets an in-org
-   experiment (E1–E13 and counting).
+   experiment (E1–E16 and counting).
 3. **Two axes, never merged** (ADR-002): `enforces_sharing` ≠
    `enforces_fls`, each True/False/None, and "bounded by the user" needs
    both.
