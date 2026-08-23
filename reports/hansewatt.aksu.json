@@ -1,0 +1,18 @@
+{
+  "agent": "HW Energy Agent",
+  "analyzer": "65e31fb90c7c",
+  "coverage": {
+    "pct": 78,
+    "resolved": 7,
+    "total": 9
+  },
+  "fingerprint": "2edf7be02bde",
+  "index": {
+    "boundary": 0,
+    "gdpr": 0,
+    "proven": 0,
+    "unresolved": 2
+  },
+  "running_user": "(hypothetical grant model - permission set: HW_ServiceAgent)",
+  "schema": "aksuindex-baseline/1"
+}

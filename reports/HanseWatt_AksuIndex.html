@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Blast Radius - TechnoStore Revenue Assistant</title>
+<title>Agent Blast Radius - HW Energy Agent</title>
 
 <style>
   @media print {
@@ -38,7 +38,7 @@
 </style>
 </head>
 <body>
-<title>Agent Blast Radius — TechnoStore Revenue Assistant</title>
+<title>Agent Blast Radius — HW Energy Agent</title>
 
 <style>
   .abr { --bg:#f5f8fa; --surface:#ffffff; --ink:#0f1720; --muted:#5c6b7a;
@@ -348,129 +348,79 @@
 </style>
 
 <div class="abr">
-<div class="bar"><span><b>AGENT</b> TechnoStore Revenue Assistant</span><span><b>RUNNING USER</b> (hypothetical grant model - permission set: TechnoStore_Revenue_Assistant2098228049_Permissions)</span><span><b>CHANNEL</b> agent</span><span><b>FINGERPRINT</b> 9d3ba9d2e6c4</span><span><b>GENERATED</b> deterministic</span></div>
+<div class="bar"><span><b>AGENT</b> HW Energy Agent</span><span><b>RUNNING USER</b> (hypothetical grant model - permission set: HW_ServiceAgent)</span><span><b>CHANNEL</b> agent</span><span><b>FINGERPRINT</b> ca8d728bfeb2</span><span><b>GENERATED</b> deterministic</span></div>
 <p class="eyebrow">Agent Blast Radius Report</p>
-<h1>TechnoStore Revenue Assistant</h1>
+<h1>HW Energy Agent</h1>
 <p class="sub">Static, zero-credit analysis of the agent's real data-access surface at the execution-semantics layer.</p>
-<section class="aksu err">
+<section class="aksu unproven">
 <p class="aeyebrow">Aksu Index</p>
 <div class="anums">
 <div class="apn">
-<div class="apbig">6</div>
-<div class="aplab">fields <b>proven</b> reachable beyond this user<em>The code executes not bounded by the running user, and these fields are ones that user may not read.</em></div>
-<div class="ac"><b class="n">1</b> of those fields is labelled <b>regulated</b> by the org itself (GDPR / PII compliance group). Counted <b>inside</b> the 6 above, never added to it.</div>
+<div class="apbig">0</div>
+<div class="aplab">fields <b>proven</b> reachable beyond this user<em>No field escalation could be proven for this agent and this user. Proven is not the same as safe &mdash; read the two columns to the right.</em></div>
+<div class="ac none"><b class="n">0</b> of those carry the org&rsquo;s own <b>regulated</b> (GDPR / PII) label. This bucket is a subset of the number above, never an addition to it.</div>
 </div>
 <div class="aside">
 <div class="atile"><b>0</b><span>unproven boundaries</span><em>Real access boundaries the analysis could not prove were crossed. Reported separately and <b>never merged into proven</b> &mdash; severity is this tool&rsquo;s proof claim.</em></div>
-<div class="atile hot"><b>1</b><span>unresolved</span><em>Reach the analysis could not determine at all &mdash; dynamic SOQL, or a run context that stayed undetermined. An unknown never reads as clean.</em></div>
+<div class="atile hot"><b>2</b><span>unresolved</span><em>Reach the analysis could not determine at all &mdash; dynamic SOQL, or a run context that stayed undetermined. An unknown never reads as clean.</em></div>
 </div>
 </div>
+<p class="anotclean"><b class="hd">0 proven with unresolved reach is NOT clean &mdash; unknown never becomes clean.</b> 2 reach paths could not be resolved at all, so this report proves nothing about them. Read this as <b>unproven</b>, not as a pass.</p>
 <div class="areach">
 <p class="arh">What the agent reaches vs. what the user sees &mdash; fields</p>
-<div class="arbar"><i class="u" style="flex:2"></i><i class="p" style="flex:6"></i></div>
+<div class="arbar"><i class="u" style="flex:4"></i></div>
 <div class="argrid">
-<div class="arcell agent"><b>8</b>fields the agent&rsquo;s code reaches</div>
-<div class="arcell user"><b>2</b>of those, this user could read anyway</div>
-<div class="arcell gapc"><b>6</b>the gap between them (6 proven &middot; 0 unproven)</div>
+<div class="arcell agent"><b>4</b>fields the agent&rsquo;s code reaches</div>
+<div class="arcell user"><b>4</b>of those, this user could read anyway</div>
+<div class="arcell gapc zero"><b>0</b>the gap between them (0 proven &middot; 0 unproven)</div>
 </div>
-<p class="anote">Across <b>2</b> objects the agent&rsquo;s code touches. This report does not compute the set of objects the running user can see, so no object-level comparison is claimed here.</p>
+<p class="anote">Across <b>4</b> objects the agent&rsquo;s code touches. This report does not compute the set of objects the running user can see, so no object-level comparison is claimed here.</p>
 </div>
-<p class="acanon"><b>Aksu Index: 6 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved</b><br>One agent &times; one running user, at one moment, under one tool version &mdash; not an org score.</p>
+<p class="acanon"><b>Aksu Index: 0 proven (0 GDPR) · 0 unproven boundaries · 2 unresolved</b><br>One agent &times; one running user, at one moment, under one tool version &mdash; not an org score.</p>
 </section>
-<div class="plain err">
-<div class="vhead"><span class="badge">ACTION NEEDED</span><h3>This agent&#x27;s code can reach data beyond what its user is allowed to see.</h3></div>
-<p>We statically resolved every action discovered behind <b>TechnoStore Revenue Assistant</b> — <b>2</b> action(s), reaching <b>2</b> data object(s) and <b>8</b> field(s) — and compared that against what its user is actually allowed to see. Reach that could not be resolved is reported separately as <b>unresolved</b>, never folded into this. Nothing was run and no data left the org.</p>
-<p>Its code can read <b>6</b> field(s) the user cannot see — <b>1</b> of them personal-data (GDPR) fields — and that data can reach the AI model. <b>This should be fixed before go-live.</b></p>
-<p>On <b>records</b>: the agent&rsquo;s system-mode code could read <b>up to 4</b> record(s) where this user is normally allowed <b>0</b>. That is a ceiling, not a measured result &mdash; it is a boundary to confirm; make sure those queries are limited to the right customer, not the whole table.</p>
+<div class="plain warn">
+<div class="vhead"><span class="badge">NEEDS A LOOK</span><h3>Nothing was proven to escape here — but part of this agent&#x27;s reach could not be determined at all.</h3></div>
+<p>We statically resolved every action discovered behind <b>HW Energy Agent</b> — <b>9</b> action(s), reaching <b>4</b> data object(s) and <b>4</b> field(s) — and compared that against what its user is actually allowed to see. Reach that could not be resolved is reported separately as <b>unresolved</b>, never folded into this. Nothing was run and no data left the org.</p>
+<p>On <b>records</b>: every read the agent performs enforces sharing and the user&rsquo;s permissions, so the agent cannot see records this user could not see anyway. There is no record-level gap to fix.</p>
 <p class="sub2">Every field this scan could resolve carries a classification lookup (100% of resolved fields), so the personal-data result above is a real measurement rather than a blind spot — within what was resolved. Unresolved reach is counted separately.</p>
 <p class="sub2">The exact fixes are listed under <b>What to do next</b> below.</p>
 </div>
 <p class="eyebrow">Security posture — by Apex API version</p>
-<div class="posture err">
-<div class="ptop"><div class="ptotal"><b>2</b><span>Apex classes<br>analysed</span></div><div class="psplit"><div class="pseg safe"><b>0</b> at API v67+ <span>secure-by-default (user mode)</span></div><div class="pseg legacy"><b>2</b> pre-v67 <span>system-mode default — sharing/FLS bypassed by default</span></div></div></div>
-<div class="pbar"><i class="legacy" style="width:100%"></i></div>
-<div class="legrow">Pre-v67 classes: <span class="cls">GetRevenueSummaryAction (v63)</span><span class="cls">SendPaymentRemindersAction (v63)</span></div>
-<p class="why"><b>Why it matters:</b> a class written before API v67 defaults to <b>system mode</b> — its queries and writes bypass the running user’s sharing and field-level security unless the code adds an explicit <code>WITH USER_MODE</code> / <code>as user</code> clause. Upgrading the apiVersion flips that default, so orgs deliberately leave old classes as-is — and the risk is permanent until each is reviewed. Every pre-v67 class is also flagged individually (PS511).</p>
+<div class="posture ok">
+<div class="ptop"><div class="ptotal"><b>8</b><span>Apex classes<br>analysed</span></div><div class="psplit"><div class="pseg safe"><b>8</b> at API v67+ <span>secure-by-default (user mode)</span></div><div class="pseg legacy"><b>0</b> pre-v67 <span>system-mode default — sharing/FLS bypassed by default</span></div></div></div>
+<div class="pbar"><i class="safe" style="width:100%"></i></div>
+<p class="why">Every analysed Apex class runs at API v67 or later, so the platform enforces the running user’s access by default. This is the strong baseline; the findings still apply to explicit system-mode code, Flows and legacy triggers.</p>
 </div>
 <p class="censnote"><b>Evidence grade:</b> every Apex action was read from a real parse tree, so the Authority Path is traced and a finding downgraded to WARN was <i>proven</i> not to reach the model &mdash; not merely unobserved.</p>
-<div class="hero"><div>
-<div class="gapnum">6</div>
-<div class="gaplabel"><b>fields reachable beyond the running user</b> — <b>1</b> GDPR-labelled.</div>
-<div class="legend"><span><i class="dot" style="background:var(--user)"></i>User sees</span><span><i class="dot" style="background:var(--gap)"></i>Agent reaches / gap</span></div>
-</div><div>
-
-    <svg viewBox="0 0 400 372" width="100%" role="img"
-         aria-label="Agent code reaches 8 fields; running user sees 2; escalation gap 6">
-      <defs>
-        <radialGradient id="abrGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="var(--gap)" stop-opacity="0.18"/>
-          <stop offset="65%" stop-color="var(--gap)" stop-opacity="0.05"/>
-          <stop offset="100%" stop-color="var(--gap)" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-      <circle cx="200" cy="208" r="152" fill="url(#abrGlow)"/>
-      <circle cx="200" cy="208" r="118.0" fill="var(--gap)" fill-opacity="0.17"
-              stroke="var(--gap)" stroke-width="2.5"/>
-      <circle cx="200" cy="208" r="59.0" fill="var(--surface)"/>
-      <circle cx="200" cy="208" r="59.0" fill="var(--user)" fill-opacity="0.14"
-              stroke="var(--user)" stroke-width="2.5"/>
-      <text class="c-outer-label c-cap" x="200" y="24" text-anchor="middle">AGENT CODE REACHES</text>
-      <text class="c-outer-label c-num" x="200" y="46" text-anchor="middle">8 fields</text>
-      <text class="c-inner-label c-big" x="200" y="214" text-anchor="middle">2</text>
-      <text class="c-inner-label c-cap" x="200" y="234" text-anchor="middle">USER SEES</text>
-      <text class="c-gap-label c-cap" x="200" y="356" text-anchor="middle">ESCALATION GAP: 6 FIELDS &#8226; 1 GDPR</text>
-    </svg>
-    
-</div></div>
+<div class="hero allclear unres"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="var(--user)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></div><div><h2 class="ch">No field escalation proven — but the reach is not fully resolved.</h2><p class="csub">No field the agent&rsquo;s code reads is one its running user cannot see &mdash; among the reach we could resolve. <b>2</b> reach paths stayed undetermined, so this is &ldquo;nothing proven&rdquo;, not &ldquo;nothing there&rdquo;.</p></div></div>
 <div class="stats">
-<div class="stat"><div class="n">2</div><div class="k">Actions</div></div>
-<div class="stat"><div class="n">2</div><div class="k">Objects reachable</div></div>
-<div class="stat"><div class="n">8</div><div class="k">Fields reachable</div></div>
-<div class="stat flag"><div class="n">2/2</div><div class="k">System-mode</div></div>
+<div class="stat"><div class="n">9</div><div class="k">Actions</div></div>
+<div class="stat"><div class="n">4</div><div class="k">Objects reachable</div></div>
+<div class="stat"><div class="n">4</div><div class="k">Fields reachable</div></div>
+<div class="stat flag"><div class="n">2/9</div><div class="k">System-mode</div></div>
 <div class="stat"><div class="n">100%</div><div class="k">Classification coverage</div></div>
 </div>
 <p class="eyebrow">Record reach — the system-mode ceiling, not a measured result</p>
-<div class="clean" style="border-left:4px solid var(--gap)">The agent&rsquo;s <b>system-mode</b> reads could reach <b>up to 4</b> records where the running user sees <b>0</b> &mdash; an <b>upper-bound</b> record gap of <b>4</b>. <span style="color:var(--muted)">(measured system-mode objects only)</span> <span style="color:var(--muted)">The whole measured gap is a <b>CRUD escalation</b> — the user has no object permission at all, so it is deterministic, not sharing-dependent.</span></div>
+<div class="clean" style="border-left:4px solid var(--proof)">Every read the agent performs <b>enforces sharing</b>, so the agent is bounded by the running user &mdash; there is <b>no record escalation</b>.</div>
 <div class="recwrap"><table class="rec"><thead><tr><th>Object</th><th style="text-align:left">Read mode</th><th>Records in org</th><th>User sees</th><th>Gap (upper bound)</th><th style="text-align:left">Cause</th><th style="width:20%">&nbsp;</th></tr></thead><tbody>
-<tr><td>Invoice</td><td style="text-align:left">system</td><td>4</td><td>0</td><td class="gap">&le; 4</td><td style="text-align:left" class="">no object permission (CRUD)</td><td><div class="recbar"><i class="u" style="width:0%"></i><i class="g" style="width:100%"></i></div></td></tr>
+<tr><td>Case</td><td style="text-align:left">user</td><td>33</td><td class="na">= agent (sharing enforced)</td><td>0</td><td style="text-align:left" class="na">—</td><td></td></tr>
+<tr><td>Tariff_Change_Request__c</td><td style="text-align:left">user</td><td>1</td><td class="na">= agent (sharing enforced)</td><td>0</td><td style="text-align:left" class="na">—</td><td></td></tr>
 </tbody></table></div>
 <div class="clean" style="border-left:4px solid var(--info); font-size:12.5px">Only objects the agent&rsquo;s code actually <b>reads</b> are counted here (a create/insert target is a write, not a read of N records). <b>Records in org</b> is a live <code>COUNT()</code> of the whole object &mdash; it is an <b>upper bound, not the agent&rsquo;s result</b>: query predicates and <code>LIMIT</code> are not resolved statically. It is an escalation ceiling only for <b>system-mode</b> reads; a <b>user-mode</b> read enforces sharing, so the agent is bounded by the running user and the gap is 0 by construction. <b>n/a</b> marks record visibility that is sharing/ownership dependent and cannot be measured without running as the user &mdash; it is never estimated.</div>
 <p class="eyebrow">What to do next</p>
 <p class="sub" style="margin:0 0 12px">Each item below is a concrete fix. Clear them and re-run; the report regenerates deterministically.</p>
 <div class="remed">
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS506</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.Stripe_Payment_Status__c</span><div class="rfix"><b>Fix</b>Remove the field from the query/output, or enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS502</span><span class="rwhere">SendPaymentRemindersAction -&gt; BillToContact.Email</span><div class="rfix"><b>Fix</b>Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS502</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.BillToContactId</span><div class="rfix"><b>Fix</b>Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS502</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.BillingAccountId</span><div class="rfix"><b>Fix</b>Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS502</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.DocumentNumber</span><div class="rfix"><b>Fix</b>Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS502</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.TotalAmountWithTax</span><div class="rfix"><b>Fix</b>Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS503</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice</span><div class="rfix"><b>Fix</b>Enforce user mode (`update as user` / AccessLevel.USER_MODE) or grant the permission intentionally and document it.</div></div></div>
-<div class="ritem err"><div class="box"></div><div class="rbody"><span class="rrule">PS503</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice_Payment_Requested__e</span><div class="rfix"><b>Fix</b>Enforce user mode (`publish as user` / AccessLevel.USER_MODE) or grant the permission intentionally and document it.</div></div></div>
-<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS504</span><span class="rwhere">GetRevenueSummaryAction -&gt; Invoice</span><div class="rfix"><b>Fix</b>Ours to close - there is nothing to change in your code. Review this operation by hand, or re-run on an analyzer build that models the shape.</div></div></div>
-<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS509</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice</span><div class="rfix"><b>Fix</b>Review what &#x27;InvoiceTrigger&#x27; writes downstream; upgrade it to API v67+ to remove the legacy default entirely.</div></div></div>
-<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS514</span><span class="rwhere">SendPaymentRemindersAction (platform event: Invoice_Payment_Requested__e)</span><div class="rfix"><b>Fix</b>List the subscribers of Invoice_Payment_Requested__e (Flow, process, and external) and review each as its own entry point.</div></div></div>
-<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS516</span><span class="rwhere">SendPaymentRemindersAction -&gt; Invoice.TotalAmountWithTax</span><div class="rfix"><b>Fix</b>Open Invoice.TotalAmountWithTax&#x27;s formula and check whether any field it references is invisible to this user or carries a compliance label.</div></div></div>
+<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS504</span><span class="rwhere">HWConfirmTariffChangeAction -&gt; ?</span><div class="rfix"><b>Fix</b>Yours to close: make the query static, or add WITH USER_MODE so the runtime enforces this user&#x27;s access whatever the query resolves to.</div></div></div>
+<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS504</span><span class="rwhere">HWProposeTariffChangeAction -&gt; ?</span><div class="rfix"><b>Fix</b>Yours to close: make the query static, or add WITH USER_MODE so the runtime enforces this user&#x27;s access whatever the query resolves to.</div></div></div>
+<div class="ritem warn"><div class="box"></div><div class="rbody"><span class="rrule">PS514</span><span class="rwhere">HWConfirmTariffChangeAction (platform event: Tariff_Change_Requested__e)</span><div class="rfix"><b>Fix</b>List the subscribers of Tariff_Change_Requested__e (Flow, process, and external) and review each as its own entry point.</div></div></div>
 </div>
 <p class="eyebrow" style="margin-top:30px">Findings in detail</p>
-<h2>ERROR <span class="count">· 8</span></h2>
-<div class="find error"><div class="top"><span class="rule">PS506</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.Stripe_Payment_Status__c</span></div><div class="msg">GDPR/PII field Invoice.Stripe_Payment_Status__c is read in system mode and reaches the model, but the running user has no FLS on it.</div><div class="meta"><b>Why</b> ComplianceGroup GDPR. A field the running user cannot see can reach the LLM and the end user&#x27;s screen. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Remove the field from the query/output, or enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS502</span><span class="where">SendPaymentRemindersAction -&gt; BillToContact.Email</span></div><div class="msg">Field BillToContact.Email is read in system mode; the running user has no FLS on it.</div><div class="meta"><b>Why</b> In system mode Apex ignores FLS, so the field&#x27;s data can reach the agent. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS502</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.BillToContactId</span></div><div class="msg">Field Invoice.BillToContactId is read in system mode; the running user has no FLS on it.</div><div class="meta"><b>Why</b> In system mode Apex ignores FLS, so the field&#x27;s data can reach the agent. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS502</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.BillingAccountId</span></div><div class="msg">Field Invoice.BillingAccountId is read in system mode; the running user has no FLS on it.</div><div class="meta"><b>Why</b> In system mode Apex ignores FLS, so the field&#x27;s data can reach the agent. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS502</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.DocumentNumber</span></div><div class="msg">Field Invoice.DocumentNumber is read in system mode; the running user has no FLS on it.</div><div class="meta"><b>Why</b> In system mode Apex ignores FLS, so the field&#x27;s data can reach the agent. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS502</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.TotalAmountWithTax</span></div><div class="msg">Field Invoice.TotalAmountWithTax is read in system mode; the running user has no FLS on it.</div><div class="meta"><b>Why</b> In system mode Apex ignores FLS, so the field&#x27;s data can reach the agent. Authority Path CONFIRMED: the field&#x27;s value flows to the action&#x27;s @InvocableVariable output, so it reaches the model.</div><div class="meta"><b>Fix</b> Enforce FLS (WITH USER_MODE / Security.stripInaccessible).</div></div>
-<div class="find error"><div class="top"><span class="rule">PS503</span><span class="where">SendPaymentRemindersAction -&gt; Invoice</span></div><div class="msg">update on Invoice in system mode; the running user has no edit permission on this object (dml API v&lt;=66 default).</div><div class="meta"><b>Why</b> In system mode Apex ignores CRUD, so the action writes an object the running user cannot - a write escalation.</div><div class="meta"><b>Fix</b> Enforce user mode (`update as user` / AccessLevel.USER_MODE) or grant the permission intentionally and document it.</div></div>
-<div class="find error"><div class="top"><span class="rule">PS503</span><span class="where">SendPaymentRemindersAction -&gt; Invoice_Payment_Requested__e</span></div><div class="msg">publish on Invoice_Payment_Requested__e in system mode; the running user has no create permission on this object (EventBus.publish API v&lt;=66 default).</div><div class="meta"><b>Why</b> In system mode Apex ignores CRUD, so the action writes an object the running user cannot - a write escalation.</div><div class="meta"><b>Fix</b> Enforce user mode (`publish as user` / AccessLevel.USER_MODE) or grant the permission intentionally and document it.</div></div>
-<h2>WARN <span class="count">· 4</span></h2>
-<div class="find warn"><div class="top"><span class="rule">PS504</span><span class="where">GetRevenueSummaryAction -&gt; Invoice</span></div><div class="msg">Reach for this operation could not be fully determined - this analyzer does not model the shape (aggregate/function select - fields not enumerated).</div><div class="meta"><b>Why</b> A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build 65e31fb90c7c does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.</div><div class="meta"><b>Fix</b> Ours to close - there is nothing to change in your code. Review this operation by hand, or re-run on an analyzer build that models the shape.</div></div>
-<div class="find warn"><div class="top"><span class="rule">PS509</span><span class="where">SendPaymentRemindersAction -&gt; Invoice</span></div><div class="msg">DML (update) on Invoice fires trigger &#x27;InvoiceTrigger&#x27; at API v60 (&lt; v67) — a legacy cascade boundary, but no escalating write was proven.</div><div class="meta"><b>Why</b> A pre-v67 trigger runs its DML in system mode, so this is a real boundary to review; however no DML was observed in its own body (it may delegate to a handler, or perform none), so this is flagged as a boundary rather than a proven escalation.</div><div class="meta"><b>Fix</b> Review what &#x27;InvoiceTrigger&#x27; writes downstream; upgrade it to API v67+ to remove the legacy default entirely.</div></div>
-<div class="find warn"><div class="top"><span class="rule">PS514</span><span class="where">SendPaymentRemindersAction (platform event: Invoice_Payment_Requested__e)</span></div><div class="msg">This action publishes Invoice_Payment_Requested__e. The publish is analysed as a write; any Flow, process, or external subscriber is NOT.</div><div class="meta"><b>Why</b> No Apex subscriber trigger exists on it, but a platform event can also be consumed by a Flow, a process, or an off-platform subscriber, each running in its own transaction as a different user. Publishing is how an agent starts work it could not do inline, so the true blast radius can be larger than this report. An honest unknown edge, not a proven leak.</div><div class="meta"><b>Fix</b> List the subscribers of Invoice_Payment_Requested__e (Flow, process, and external) and review each as its own entry point.</div></div>
-<div class="find warn"><div class="top"><span class="rule">PS516</span><span class="where">SendPaymentRemindersAction -&gt; Invoice.TotalAmountWithTax</span></div><div class="msg">This field is a FORMULA; the fields it reads are not resolved here.</div><div class="meta"><b>Why</b> A formula&#x27;s value is computed from other fields, so the running user&#x27;s FLS on THIS field does not bound what its value carries - a formula they are allowed can echo one they are not. Unlike every other reach, this is not settled by user mode: a v67 read enforces FLS on the formula, not on its inputs. Reported as an unresolved reach, not as a proven leak - what the platform does here is not measured.</div><div class="meta"><b>Fix</b> Open Invoice.TotalAmountWithTax&#x27;s formula and check whether any field it references is invisible to this user or carries a compliance label.</div></div>
-<h2>INFO <span class="count">· 2</span></h2>
-<div class="find info"><div class="top"><span class="rule">PS511</span><span class="where">GetRevenueSummaryAction (API v63.0)</span></div><div class="msg">Custom action class predates API v67 (secure-by-default).</div><div class="meta"><b>Why</b> Pre-v67 classes keep legacy execution semantics indefinitely until upgraded.</div><div class="meta"><b>Fix</b> Plan a migration to API v67 and re-review.</div></div>
-<div class="find info"><div class="top"><span class="rule">PS511</span><span class="where">SendPaymentRemindersAction (API v63.0)</span></div><div class="msg">Custom action class predates API v67 (secure-by-default).</div><div class="meta"><b>Why</b> Pre-v67 classes keep legacy execution semantics indefinitely until upgraded.</div><div class="meta"><b>Fix</b> Plan a migration to API v67 and re-review.</div></div>
+<h2>WARN <span class="count">· 3</span></h2>
+<div class="find warn"><div class="top"><span class="rule">PS504</span><span class="where">HWConfirmTariffChangeAction -&gt; ?</span></div><div class="msg">Reach for this operation could not be fully determined - the query is assembled at runtime (dynamic SOQL - reach cannot be determined statically).</div><div class="meta"><b>Why</b> A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. The query does not exist until runtime, so no static analysis - this one or any other - can enumerate what it reaches. It stays unresolved until the code changes.</div><div class="meta"><b>Fix</b> Yours to close: make the query static, or add WITH USER_MODE so the runtime enforces this user&#x27;s access whatever the query resolves to.</div></div>
+<div class="find warn"><div class="top"><span class="rule">PS504</span><span class="where">HWProposeTariffChangeAction -&gt; ?</span></div><div class="msg">Reach for this operation could not be fully determined - the query is assembled at runtime (dynamic SOQL - reach cannot be determined statically).</div><div class="meta"><b>Why</b> A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. The query does not exist until runtime, so no static analysis - this one or any other - can enumerate what it reaches. It stays unresolved until the code changes.</div><div class="meta"><b>Fix</b> Yours to close: make the query static, or add WITH USER_MODE so the runtime enforces this user&#x27;s access whatever the query resolves to.</div></div>
+<div class="find warn"><div class="top"><span class="rule">PS514</span><span class="where">HWConfirmTariffChangeAction (platform event: Tariff_Change_Requested__e)</span></div><div class="msg">This action publishes Tariff_Change_Requested__e. The publish is analysed as a write; any Flow, process, or external subscriber is NOT.</div><div class="meta"><b>Why</b> No Apex subscriber trigger exists on it, but a platform event can also be consumed by a Flow, a process, or an off-platform subscriber, each running in its own transaction as a different user. Publishing is how an agent starts work it could not do inline, so the true blast radius can be larger than this report. An honest unknown edge, not a proven leak.</div><div class="meta"><b>Fix</b> List the subscribers of Tariff_Change_Requested__e (Flow, process, and external) and review each as its own entry point.</div></div>
 <div class="pgbreak"><p class="eyebrow" style="margin-top:32px">Org health — beyond this agent</p>
-<p class="sub">Whole-org signals that don&rsquo;t concern <b>TechnoStore Revenue Assistant</b> directly, but anyone securing this org should know. Static Tooling-API reads — zero credits, no records returned.</p>
+<p class="sub">Whole-org signals that don&rsquo;t concern <b>HW Energy Agent</b> directly, but anyone securing this org should know. Static Tooling-API reads — zero credits, no records returned.</p>
 
 <style>
   .abr .orgframe{border:1px solid var(--line); border-radius:12px; padding:16px 18px;
@@ -487,16 +437,16 @@
   .abr .orgframe code{font-family:var(--mono); font-size:12px;
     background:color-mix(in srgb,var(--line) 45%,transparent); padding:1px 5px; border-radius:4px}
 </style>
-<div class="orgframe err"><p><b>Why this matters for TechnoStore Revenue Assistant:</b> an agent can only reach what the code behind it reaches. Where no explicit access mode overrides it, the Apex <b>API version</b> sets the default for every database operation. At <b>v67+</b> that default is the running user&rsquo;s mode, so an agent reaches <i>nothing its user cannot see</i>. <b>Below v67</b> it flips to system mode and the agent reaches <i>past</i> its user. An explicit <code>WITH SYSTEM_MODE</code> still overrides either. That is exactly the <b>6-field escalation</b> this report found above: TechnoStore Revenue Assistant&rsquo;s action code is pre-v67, so it reads fields its running user has no access to. Had those classes been v67, that gap would be <b>0</b> &mdash; the agent would be bounded to its user by the platform itself. This agent&rsquo;s own action code: <b>2</b> of 2 class(es) are pre-v67.</p><p class="of2">The whole-org counts below are that same condition at scale &mdash; a map of where the <i>next</i> agent or action will escalate, before it is built.</p></div>
+<div class="orgframe warn"><p><b>Why this matters for HW Energy Agent:</b> an agent can only reach what the code behind it reaches. Where no explicit access mode overrides it, the Apex <b>API version</b> sets the default for every database operation. At <b>v67+</b> that default is the running user&rsquo;s mode, so an agent reaches <i>nothing its user cannot see</i>. <b>Below v67</b> it flips to system mode and the agent reaches <i>past</i> its user. An explicit <code>WITH SYSTEM_MODE</code> still overrides either. HW Energy Agent has <b>0 proven</b> escalation &mdash; but 2 operations could not be resolved at all, so this is <b>not</b> a clean result: an unknown never becomes clean. And if the code is still pre-v67, even that zero rests on the code <i>explicitly</i> opting in (<code>WITH USER_MODE</code> / <code>as user</code>), not on the platform default.</p><p class="of2">The whole-org counts below are that same condition at scale &mdash; a map of where the <i>next</i> agent or action will escalate, before it is built.</p></div>
 <div class="stats" style="margin-top:12px">
-<div class="stat flag"><div class="n">113/113</div><div class="k">Your Apex still pre-v67</div><div class="k" style="text-transform:none;letter-spacing:0;opacity:.8">100% system-mode by default</div></div>
-<div class="stat flag"><div class="n">2</div><div class="k">Grant “Modify All Data”</div></div>
-<div class="stat flag"><div class="n">1</div><div class="k">Grant “View All Data” only</div></div>
+<div class="stat flag"><div class="n">182/219</div><div class="k">Your Apex still pre-v67</div><div class="k" style="text-transform:none;letter-spacing:0;opacity:.8">83% system-mode by default</div></div>
+<div class="stat flag"><div class="n">1</div><div class="k">Grant “Modify All Data”</div></div>
+<div class="stat flag"><div class="n">3</div><div class="k">Grant “View All Data” only</div></div>
 <div class="stat"><div class="n">0</div><div class="k">Public-OWD custom objects</div></div>
 </div>
-<div class="pbar" style="max-width:520px"><i class="legacy" style="width:100%"></i></div>
-<p class="censnote"><b>Why this matters:</b> a class or trigger below API v67 defaults to <b>system mode</b>, so its queries and writes bypass the running user’s sharing and field-level security unless the code opts in — this agent uses only a couple of them, but the same latent escalation sits in every other pre-v67 file; <b>2</b> permission sets grant <b>Modify All Data</b>, which overrides all sharing and FLS for whoever holds them — an agent running as such a user has no access boundary at all; every custom object defaults to <b>Private</b> sharing — a healthy baseline.</p></div>
-<div class="foot">Produced by static analysis. No agent was invoked. 0 Flex Credits. Bound to fingerprint 9d3ba9d2e6c4, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer 65e31fb90c7c, parser 5.1.0; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change. The Aksu Index is defined by a public specification, v1.0: aksuindex.com</div>
+<div class="pbar" style="max-width:520px"><i class="safe" style="width:17%"></i><i class="legacy" style="width:83%"></i></div>
+<p class="censnote"><b>Why this matters:</b> a class or trigger below API v67 defaults to <b>system mode</b>, so its queries and writes bypass the running user’s sharing and field-level security unless the code opts in — this agent uses only a couple of them, but the same latent escalation sits in every other pre-v67 file; <b>1</b> permission set grant <b>Modify All Data</b>, which overrides all sharing and FLS for whoever holds it — an agent running as such a user has no access boundary at all; every custom object defaults to <b>Private</b> sharing — a healthy baseline.</p></div>
+<div class="foot">Produced by static analysis. No agent was invoked. 0 Flex Credits. Bound to fingerprint ca8d728bfeb2, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer 65e31fb90c7c, parser 5.1.0; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change. The Aksu Index is defined by a public specification, v1.0: aksuindex.com</div>
 </div>
 </body>
 </html>

@@ -204,6 +204,116 @@ _CSS = """
   .abr .censnote{font-size:13px; color:var(--muted); margin:12px 0 0; max-width:760px}
   .abr .censnote b{color:var(--ink)}
 
+  /* ===================================================================
+     The Aksu Index band - the first thing the reader meets, directly
+     under the <h1>. It replaces nothing: .gapnum and the circles stay
+     further down, where they EXPLAIN the number instead of competing
+     with it.
+
+     Two layout rules here are spec, not taste (docs/AKSU_INDEX_SPEC.md §1):
+       - all four numbers live inside ONE object, so no crop, no page
+         break and no screenshot can present P alone;
+       - C is a SUBSET of P, so it is rendered nested INSIDE the P column
+         (indented, tinted, explicitly "counted inside"), never as a
+         fourth peer tile the eye would add to P.
+     =================================================================== */
+  .abr .aksu{border:1px solid var(--line); border-radius:16px;
+    background:var(--surface); margin:16px 0 6px; padding:20px 24px 16px;
+    border-left:6px solid var(--line)}
+  .abr .aksu.err{border-color:color-mix(in srgb,var(--error) 32%,var(--line));
+    background:color-mix(in srgb,var(--error) 6%,var(--surface));
+    border-left-color:var(--error)}
+  /* P=0 with unresolved reach is NOT a pass, so it must never wear the
+     green of one. Amber is the honest colour of "unproven". */
+  .abr .aksu.unproven{border-color:color-mix(in srgb,var(--warn) 42%,var(--line));
+    background:color-mix(in srgb,var(--warn) 6%,var(--surface));
+    border-left-color:var(--warn)}
+  .abr .aksu.clear{border-color:color-mix(in srgb,var(--proof) 38%,var(--line));
+    border-left-color:var(--proof)}
+  /* The label is the metric's name and has to survive being screenshotted, so it
+     is set at headline size rather than as an eyebrow. It carries the VERDICT
+     colour, not a fixed one: red only when something is proven. A permanently
+     red brand mark on a clean report would be an alarm the report is not raising. */
+  .abr .aksu .aeyebrow{font-family:var(--mono); text-transform:uppercase;
+    letter-spacing:.2em; font-size:26px; font-weight:800; line-height:1.05;
+    color:var(--accent); margin:0 0 14px}
+  .abr .aksu.err .aeyebrow{color:var(--gap)}
+  .abr .aksu.unproven .aeyebrow{color:var(--warn)}
+  .abr .aksu.clear .aeyebrow{color:var(--proof)}
+  .abr .aksu .anums{display:grid; grid-template-columns:minmax(240px,auto) 1fr;
+    gap:18px 26px; margin-top:10px}
+  @media(max-width:700px){.abr .aksu .anums{grid-template-columns:1fr}}
+  .abr .aksu .apn{border-right:1px solid var(--line); padding-right:28px}
+  @media(max-width:700px){.abr .aksu .apn{border-right:none; padding-right:0;
+    border-bottom:1px solid var(--line); padding-bottom:16px}}
+  /* deliberately larger than .gapnum's 64px: the Index is the headline and the
+     gap number below it is the explanation, not the other way round */
+  .abr .aksu .apbig{font-family:var(--mono); font-size:110px; font-weight:800;
+    line-height:.86; letter-spacing:-.045em; font-variant-numeric:tabular-nums;
+    color:var(--ink)}
+  /* The number is set in ink, not in the verdict colour: the coloured label above
+     already says which way the verdict went, and two 100px elements in the same
+     red compete instead of reading as a hierarchy. The state still reaches the
+     number through a tinted halo, so it is not colour-neutral - just not shouting
+     the same word twice. */
+  .abr .aksu.err .apbig{text-shadow:0 0 34px color-mix(in srgb,var(--gap) 45%,transparent)}
+  .abr .aksu.unproven .apbig{text-shadow:0 0 34px color-mix(in srgb,var(--warn) 45%,transparent)}
+  .abr .aksu.clear .apbig{text-shadow:0 0 34px color-mix(in srgb,var(--proof) 40%,transparent)}
+  .abr .aksu .aplab{font-size:15px; font-weight:650; color:var(--ink);
+    margin-top:10px; max-width:24ch}
+  .abr .aksu .aplab em{display:block; font-style:normal; font-weight:400;
+    font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.45}
+  .abr .aksu .ac{margin-top:13px; padding:9px 12px; border-radius:9px;
+    border:1px dashed color-mix(in srgb,var(--warn) 45%,var(--line));
+    background:color-mix(in srgb,var(--warn) 10%,transparent);
+    font-size:12.5px; color:var(--ink); line-height:1.45; max-width:30ch}
+  .abr .aksu .ac b.n{font-family:var(--mono); font-size:20px; font-weight:750;
+    color:var(--warn); margin-right:5px; font-variant-numeric:tabular-nums}
+  .abr .aksu .ac.none{border-color:var(--line); background:transparent; color:var(--muted)}
+  .abr .aksu .ac.none b.n{color:var(--muted)}
+  .abr .aksu .aside{display:grid; grid-template-columns:1fr 1fr; gap:12px;
+    align-content:start}
+  @media(max-width:560px){.abr .aksu .aside{grid-template-columns:1fr}}
+  .abr .aksu .atile{border:1px solid var(--line); border-radius:11px;
+    padding:13px 15px; background:var(--bg)}
+  /* direct child only: the explanatory <em> underneath carries <b> emphasis of
+     its own, which must not inherit the big-number treatment */
+  .abr .aksu .atile > b{display:block; font-family:var(--mono); font-size:32px;
+    font-weight:750; line-height:1; color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  .abr .aksu .atile.hot > b{color:var(--warn)}
+  .abr .aksu .atile em b{font-weight:650; color:var(--ink)}
+  .abr .aksu .atile span{display:block; font-size:13px; font-weight:650;
+    color:var(--ink); margin-top:7px}
+  .abr .aksu .atile em{display:block; font-style:normal; font-size:12px;
+    color:var(--muted); margin-top:5px; line-height:1.45}
+  .abr .aksu .anotclean{margin:16px 0 0; padding:13px 16px; border-radius:11px;
+    background:color-mix(in srgb,var(--warn) 15%,transparent);
+    border:1px solid color-mix(in srgb,var(--warn) 55%,var(--line));
+    font-size:14px; color:var(--ink); line-height:1.5}
+  .abr .aksu .anotclean b.hd{color:var(--warn); font-weight:750; letter-spacing:.01em}
+  .abr .aksu .areach{margin-top:16px; border-top:1px solid var(--line); padding-top:13px}
+  .abr .aksu .arh{font-family:var(--mono); text-transform:uppercase;
+    letter-spacing:.13em; font-size:10.5px; color:var(--muted); margin:0 0 9px}
+  /* absolute segments (user-visible | proven | unproven), never a percentage */
+  .abr .aksu .arbar{display:flex; height:15px; border-radius:8px; overflow:hidden;
+    border:1px solid var(--line); margin-bottom:12px; background:var(--bg)}
+  .abr .aksu .arbar i{display:block}
+  .abr .aksu .arbar .u{background:var(--user)}
+  .abr .aksu .arbar .p{background:var(--gap)}
+  .abr .aksu .arbar .b{background:var(--warn)}
+  .abr .aksu .argrid{display:flex; flex-wrap:wrap; gap:9px 30px}
+  .abr .aksu .arcell{display:flex; align-items:baseline; font-size:13px; color:var(--muted)}
+  .abr .aksu .arcell b{font-family:var(--mono); font-size:23px; font-weight:750;
+    margin-right:9px; color:var(--ink); font-variant-numeric:tabular-nums}
+  .abr .aksu .arcell.user b{color:var(--user)}
+  .abr .aksu .arcell.gapc b{color:var(--gap)}
+  .abr .aksu .arcell.gapc.zero b{color:var(--muted)}   /* a red 0 reads as an alarm */
+  .abr .aksu .anote{font-size:12.5px; color:var(--muted); margin:12px 0 0; max-width:80ch}
+  .abr .aksu .acanon{font-family:var(--mono); font-size:12px; color:var(--muted);
+    margin:13px 0 0; border-top:1px dashed var(--line); padding-top:10px}
+  .abr .aksu .acanon b{color:var(--ink); font-weight:600}
+
   /* clean hero */
   .abr .hero.allclear{grid-template-columns:auto 1fr; align-items:center}
   .abr .checkmark{width:64px; height:64px; border-radius:50%;
@@ -213,6 +323,10 @@ _CSS = """
   .abr .hero.allclear h2.ch{margin:0 0 4px; font-family:var(--sans); font-size:20px;
     font-weight:650; color:var(--ink); text-transform:none; letter-spacing:0; display:block}
   .abr .hero.allclear .csub{font-size:14px; color:var(--muted); margin:0; max-width:60ch}
+  /* "no gap proven" with unresolved reach is not the same news as "no gap", so
+     it must not wear the same blue tick. */
+  .abr .hero.allclear.unres .checkmark{background:color-mix(in srgb,var(--warn) 18%,transparent)}
+  .abr .hero.allclear.unres .checkmark svg{stroke:var(--warn)}
 </style>
 """
 
@@ -330,6 +444,124 @@ _CHECK_SVG = ('<svg viewBox="0 0 24 24" fill="none" stroke="var(--user)" '
               '<path d="M4 12.5l5 5L20 6"/></svg>')
 
 
+def _aksu_band(ix, outer_n: int, inner_n: int, gap_n: int, n_objects: int) -> str:
+    """The Aksu Index, rendered as the report's headline (spec §1, §3).
+
+    Everything here is a RENDERING of numbers computed elsewhere; nothing is
+    derived, divided or thresholded. Three things are load-bearing:
+
+      1. P, C, B and U are emitted inside one element. The spec forbids
+         quoting P alone while U > 0, and the enforcement is structural -
+         `aksu_index_line()` offers no shorter form, and this band offers no
+         crop where P stands by itself.
+      2. C is a subset of P (`gdpr <= proven` by construction), so it is
+         nested inside the P column and says "counted inside" in words. A
+         fourth peer tile would invite the reader to add it.
+      3. P == 0 while U > 0 is NOT a pass. It gets the amber "unproven"
+         treatment and the spec §4.3 sentence, never the green of a clean
+         result. This is the exact false-clean the tool exists to prevent,
+         and until now the HTML report did not say it at all.
+    """
+    p, c = len(ix["proven"]), len(ix["gdpr"])
+    b, u = len(ix["boundary"]), ix["unresolved"]
+
+    if p:
+        state = "err"
+    elif b or u:
+        state = "unproven"
+    else:
+        state = "clear"
+
+    fw = "field" if p == 1 else "fields"
+    out = [f'<section class="aksu {state}">',
+           '<p class="aeyebrow">Aksu Index</p>',
+           '<div class="anums">']
+
+    # --- P, with C nested inside it ---------------------------------------
+    out.append('<div class="apn">')
+    out.append(f'<div class="apbig">{p}</div>')
+    if p:
+        out.append(f'<div class="aplab">{fw} <b>proven</b> reachable beyond this user'
+                   '<em>The code executes not bounded by the running user, and these '
+                   'fields are ones that user may not read.</em></div>')
+    else:
+        out.append('<div class="aplab">fields <b>proven</b> reachable beyond this user'
+                   '<em>No field escalation could be proven for this agent and this '
+                   'user. Proven is not the same as safe &mdash; read the two columns '
+                   'to the right.</em></div>')
+    if c:
+        cls, verb = "ac", ("is" if c == 1 else "are")
+        body = (f'<b class="n">{c}</b> of those fields {verb} labelled <b>regulated</b> by the '
+                f'org itself (GDPR / PII compliance group). Counted <b>inside</b> the '
+                f'{p} above, never added to it.')
+    else:
+        cls = "ac none"
+        body = ('<b class="n">0</b> of those carry the org&rsquo;s own <b>regulated</b> '
+                '(GDPR / PII) label. This bucket is a subset of the number above, '
+                'never an addition to it.')
+    out.append(f'<div class="{cls}">{body}</div>')
+    out.append('</div>')
+
+    # --- B and U, as separate columns -------------------------------------
+    out.append('<div class="aside">')
+    out.append(
+        f'<div class="atile{" hot" if b else ""}"><b>{b}</b>'
+        f'<span>unproven boundaries</span>'
+        f'<em>Real access boundaries the analysis could not prove were crossed. '
+        f'Reported separately and <b>never merged into proven</b> &mdash; severity is '
+        f'this tool&rsquo;s proof claim.</em></div>')
+    out.append(
+        f'<div class="atile{" hot" if u else ""}"><b>{u}</b>'
+        f'<span>unresolved</span>'
+        f'<em>Reach the analysis could not determine at all &mdash; dynamic SOQL, or a '
+        f'run context that stayed undetermined. An unknown never reads as clean.</em></div>')
+    out.append('</div>')
+    out.append('</div>')
+
+    # --- the spec §4.3 sentence, inside the band, next to the zero ---------
+    if p == 0 and u:
+        path = "path" if u == 1 else "paths"
+        out.append(
+            f'<p class="anotclean"><b class="hd">0 proven with unresolved reach is NOT '
+            f'clean &mdash; unknown never becomes clean.</b> {u} reach {path} could not be '
+            f'resolved at all, so this report proves nothing about {"it" if u == 1 else "them"}. '
+            f'Read this as <b>unproven</b>, not as a pass.</p>')
+
+    # --- the reach comparison, immediately beneath the numbers ------------
+    # Fields only. The set of objects the RUNNING USER can see is not computed
+    # anywhere in the report path (the renderers never receive
+    # EffectivePermissions), and deriving it from the field names would be
+    # wrong twice over - a relationship path like BillToContact.Email has a
+    # relationship name, not an SObject, in front of the dot. So the object
+    # axis is stated agent-side only and the absence is disclosed, rather
+    # than a plausible number being invented for symmetry.
+    out.append('<div class="areach">')
+    out.append('<p class="arh">What the agent reaches vs. what the user sees &mdash; fields</p>')
+    segs = [("u", inner_n), ("p", p), ("b", b)]
+    bar = "".join(f'<i class="{k}" style="flex:{n}"></i>' for k, n in segs if n)
+    if bar:
+        out.append(f'<div class="arbar">{bar}</div>')
+    out.append('<div class="argrid">')
+    out.append(f'<div class="arcell agent"><b>{outer_n}</b>fields the agent&rsquo;s code reaches</div>')
+    out.append(f'<div class="arcell user"><b>{inner_n}</b>of those, this user could read anyway</div>')
+    out.append(f'<div class="arcell gapc{"" if gap_n else " zero"}"><b>{gap_n}</b>the gap between them '
+               f'({p} proven &middot; {b} unproven)</div>')
+    out.append('</div>')
+    obj_word = "object" if n_objects == 1 else "objects"
+    out.append(
+        f'<p class="anote">Across <b>{n_objects}</b> {obj_word} the agent&rsquo;s code touches. '
+        f'This report does not compute the set of objects the running user can see, so no '
+        f'object-level comparison is claimed here.</p>')
+    out.append('</div>')
+
+    # the canonical short form, verbatim, so what gets quoted is the whole thing
+    out.append(f'<p class="acanon"><b>{_esc(aksu_index_line(ix))}</b><br>'
+               f'One agent &times; one running user, at one moment, under one tool version '
+               f'&mdash; not an org score.</p>')
+    out.append('</section>')
+    return "\n".join(out)
+
+
 def _verdict(gap, gdpr, all_findings, reach) -> str:
     """ok | warn | err - the overall posture, plain-language friendly."""
     sev = {f.severity for _a, f in all_findings}
@@ -341,7 +573,8 @@ def _verdict(gap, gdpr, all_findings, reach) -> str:
 
 
 def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
-                         n_actions, n_objects, n_fields, coverage) -> str:
+                         n_actions, n_objects, n_fields, coverage,
+                         unresolved: int = 0) -> str:
     """A plain-language box a non-engineer (a DPO, a manager) can read and act on.
     No jargon: what we checked, the bottom line, what to do."""
     level = _verdict(gap, gdpr, all_findings, reach)
@@ -351,17 +584,30 @@ def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
         "warn": "This agent is mostly clean, but one or two things are worth a look.",
         "err": "This agent's code can reach data beyond what its user is allowed to see.",
     }[level]
+    # "Mostly clean" a few hundred pixels under an Index band that says "0 proven
+    # with unresolved reach is NOT clean" is the same page giving two verdicts.
+    # With no gap proven but reach left unresolved, the honest headline is that
+    # part of the surface was not readable, not that it was read and found fine.
+    if level == "warn" and not gap and unresolved:
+        head = ("Nothing was proven to escape here — but part of this agent's "
+                "reach could not be determined at all.")
 
     p = [f'<div class="plain {level}">',
          f'<div class="vhead"><span class="badge">{badge}</span>'
          f'<h3>{_esc(head)}</h3></div>']
 
-    # 1) what we checked, in plain terms
+    # 1) what we checked, in plain terms.
+    # NOT "everything the code can touch": the same report prints U for reach that
+    # could not be resolved, so an unqualified "everything" is a claim the report
+    # itself contradicts two panels later. Scope it to what was actually resolved
+    # and let U carry the rest - that is the whole point of having a U.
     p.append(
-        f'<p>We inspected everything the code behind <b>{_esc(agent)}</b> can touch '
+        f'<p>We statically resolved every action discovered behind <b>{_esc(agent)}</b> '
         f'— <b>{n_actions}</b> action(s), reaching <b>{n_objects}</b> data object(s) '
-        f'and <b>{n_fields}</b> field(s) — and compared it against what its user is '
-        f'actually allowed to see. Nothing was run and no data left the org.</p>')
+        f'and <b>{n_fields}</b> field(s) — and compared that against what its user is '
+        f'actually allowed to see. Reach that could not be resolved is reported '
+        f'separately as <b>unresolved</b>, never folded into this. Nothing was run and '
+        f'no data left the org.</p>')
 
     # 2) the bottom line
     if level == "ok":
@@ -401,9 +647,14 @@ def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
             f'account we scanned with, so a &ldquo;no personal data&rdquo; result is not a '
             f'guarantee for those. Re-run with a broader-read user to close this gap.</p>')
     elif coverage:
-        p.append('<p class="sub2">The scan could see every field the agent reaches '
-                 f'({coverage["coverage_pct"]}% classification coverage), so the personal-data '
-                 'result above is a real measurement, not a blind spot.</p>')
+        # "every field the agent reaches" overstates it whenever U > 0: coverage is
+        # a percentage of the fields that were RESOLVED, and says nothing about the
+        # paths that were not. Naming the denominator is what makes the number
+        # checkable rather than reassuring.
+        p.append('<p class="sub2">Every field this scan could resolve carries a '
+                 f'classification lookup ({coverage["coverage_pct"]}% of resolved fields), so the '
+                 'personal-data result above is a real measurement rather than a blind '
+                 'spot — within what was resolved. Unresolved reach is counted separately.</p>')
 
     if level != "ok" and any(f.severity in ("ERROR", "WARN") for _a, f in all_findings):
         p.append('<p class="sub2">The exact fixes are listed under <b>What to do next</b> below.</p>')
@@ -632,11 +883,17 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     # the tool ever writes — the report is the term's distribution vehicle. All
     # four numbers always: quoting proven alone while unresolved > 0 is a spec
     # violation, so the report never offers a shorter form to copy.
-    parts.append(f'<p class="sub"><b>{_esc(aksu_index_line(ix))}</b></p>')
+    #
+    # It used to ship here as a <p class="sub"> — 14px muted subtitle text, i.e.
+    # a caption under a report NAMED after it, while the eye landed on the 64px
+    # .gapnum further down. The band inverts that: the Index first, dominant and
+    # whole; .gapnum and the circles stay below and explain it.
+    parts.append(_aksu_band(ix, outer_n, inner_n, len(gap), len(objects)))
 
     # plain-language summary a non-engineer (a DPO, a manager) can read and act on
     parts.append(_stakeholder_summary(agent, gap, gdpr, all_findings, reach,
-                                      len(actions), len(objects), outer_n, coverage))
+                                      len(actions), len(objects), outer_n, coverage,
+                                      ix["unresolved"]))
 
     # API-version posture near the top: the single strongest at-a-glance risk signal,
     # and the number companies most need to see (how many classes are still pre-v67)
@@ -665,12 +922,29 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     else:
         rk = (' The wider record-reach boundary is summarised below.'
               if reach and reach.get("has_measured_gap") else '')
+        # An empty gap is not automatically a pass. With unresolved reach in the
+        # Index, this panel used to say "stays within its user" a few hundred
+        # pixels under a band that says the opposite - two verdicts on one page.
+        # The checkmark is kept (no field escalation WAS proven absent) but the
+        # sentence is qualified to match the Index.
+        unres = " unres" if ix["unresolved"] else ""
+        if ix["unresolved"]:
+            u = ix["unresolved"]
+            path = "path" if u == 1 else "paths"
+            head = "No field escalation proven — but the reach is not fully resolved."
+            body = (f'No field the agent&rsquo;s code reads is one its running user cannot see '
+                    f'&mdash; among the reach we could resolve. <b>{u}</b> reach {path} stayed '
+                    f'undetermined, so this is &ldquo;nothing proven&rdquo;, not &ldquo;nothing '
+                    f'there&rdquo;.{rk}')
+        else:
+            head = "No field escalation — the agent stays within its user."
+            body = (f'Every field the agent&rsquo;s code reads is one its running user '
+                    f'is already allowed to see.{rk}')
         parts.append(
-            '<div class="hero allclear">'
+            f'<div class="hero allclear{unres}">'
             f'<div class="checkmark">{_CHECK_SVG}</div>'
-            '<div><h2 class="ch">No field escalation — the agent stays within its user.</h2>'
-            f'<p class="csub">Every field the agent&rsquo;s code reads is one its running user '
-            f'is already allowed to see.{rk}</p></div></div>')
+            f'<div><h2 class="ch">{_esc(head)}</h2>'
+            f'<p class="csub">{body}</p></div></div>')
 
     # stats
     stat_rows = [
@@ -751,7 +1025,13 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
                  f'this verdict (analyzer {_esc(_av())}, parser '
                  f'{_esc(_pv() or "none - regex fallback")}; each analysed class\'s own '
                  f'apiVersion is bound per action, since it decides the verdict). '
-                 f'Regenerate if any of these change.</div>')
+                 f'Regenerate if any of these change. '
+                 # These reports get forwarded, printed and attached to DPIA files
+                 # long after they leave here, so each one has to carry the address
+                 # where its own definition can be checked by someone who did not
+                 # produce it. A number without its specification is an assertion.
+                 f'The Aksu Index is defined by a public specification, v1.0: '
+                 f'aksuindex.com</div>')
     parts.append('</div>')
     return "\n".join(parts)
 
@@ -786,6 +1066,12 @@ _PRINT_CSS = """
     /* keep a card whole rather than letting a page break slice it in half */
     .abr .plain, .abr .posture, .abr .hero, .abr .find, .abr .remed .ritem,
     .abr .orgframe, .abr .recwrap, .abr .stat { break-inside: avoid; }
+    /* Spec §1: P may never appear without C, B and U. A page break through
+       the Index band would do exactly that, so the numbers row and the reach
+       strip are each kept whole. The band itself is deliberately NOT in the
+       list above - forcing the whole tall band onto one page could push it
+       off page 1, which defeats the point of putting it first. */
+    .abr .aksu .anums, .abr .aksu .areach, .abr .aksu .anotclean { break-inside: avoid; }
     .abr .eyebrow, .abr h2 { break-after: avoid; }
     /* start a major scope shift (Org health) on its own page */
     .abr .pgbreak { break-before: page; }

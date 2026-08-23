@@ -27,9 +27,11 @@ from agent_metadata_loader import load_agent_config  # noqa: E402
 from apex_introspect import parse_apex  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
+import baseline as baseline_mod  # noqa: E402
 from report import (aksu_index, aksu_index_line,  # noqa: E402
                     classification_coverage, escalation_gap,
-                    render_markdown)
+                    render_markdown, resolution_coverage,
+                    resolution_coverage_line, analyzer_version, fingerprint)
 from report_html import render_html, wrap_document  # noqa: E402
 from snapshot_loader import build_snapshot  # noqa: E402
 
@@ -190,6 +192,16 @@ def main():
                          "could not be read from a real parse tree. The fallback cannot "
                          "trace the Authority Path, so its findings are weaker evidence - "
                          "use this for a production gate")
+    ap.add_argument("--baseline", metavar="PATH",
+                    help="compare this run against a recorded baseline and exit "
+                         "non-zero if ANY of the four numbers rose. This is the "
+                         "gate a team can keep: --fail-on asks 'is it perfect', "
+                         "which a legacy org fails forever until someone deletes "
+                         "the gate; --baseline asks 'is it worse than last time'")
+    ap.add_argument("--write-baseline", metavar="PATH",
+                    help="record this run's four numbers as the line not to cross. "
+                         "Run it once to adopt the current state, then again "
+                         "whenever an improvement should be held")
     ap.add_argument("--no-org-health", action="store_true",
                     help="skip the whole-org health section (API-version debt, god-mode "
                          "grants, permissive OWD) appended to the foot of the report")
@@ -333,8 +345,12 @@ def main():
             gap_fields, _ = escalation_gap(summaries)
             apex_actions = [s for s in summaries if s.api_version is not None]
             legacy_actions = [s for s in apex_actions if s.api_version < 67]
+            # The footer must not contradict the Index band. A gap of 0 with
+            # unresolved reach is "0 proven, N unresolved", never "stays within
+            # its user" - spec section 4.3, and the reason PS504 exists.
             ctx = dict(gap_n=len(gap_fields), agent_legacy=len(legacy_actions),
-                       agent_apex_total=len(apex_actions))
+                       agent_apex_total=len(apex_actions),
+                       unresolved=aksu_index(summaries)["unresolved"])
             org_health_html = org_health.render_health_section(health, agent.name, **ctx)
             org_health_md = org_health.render_health_md(health, agent.name, **ctx)
         except Exception as e:
@@ -376,6 +392,36 @@ def main():
             print(f"  {sev}: {n}")
     print(f"reports written: {args.out}.md , {args.out}.html")
     print("=" * 60)
+
+    ix = aksu_index(summaries)
+    rc = resolution_coverage(summaries)
+    print(resolution_coverage_line(rc, ascii_only=True).upper())
+
+    # The baseline gate runs BEFORE --fail-on. A team adopting this on a legacy
+    # org wants "did today make it worse", and would never see that answer if an
+    # absolute threshold had already exited on findings that were there yesterday.
+    if args.baseline or args.write_baseline:
+        av = analyzer_version()
+        fp = fingerprint(agent.name, agent.running_user, agent.channel, summaries)
+        if args.baseline:
+            base = baseline_mod.load(args.baseline)
+            if base is None:
+                print()
+                print(f"No baseline at {args.baseline} - nothing to compare against.")
+                print("Write one with --write-baseline to start the ratchet.")
+            else:
+                v = baseline_mod.compare(base, ix, rc, agent=agent.name,
+                                         running_user=agent.running_user, analyzer=av)
+                print()
+                print(baseline_mod.render(v, base, ix, rc))
+                if not v.ok:
+                    sys.exit(1)
+        if args.write_baseline:
+            baseline_mod.write(args.write_baseline, ix, rc, agent=agent.name,
+                               running_user=agent.running_user, analyzer=av,
+                               fingerprint=fp)
+            print()
+            print(f"baseline written: {args.write_baseline}")
 
     if args.fail_on != "none":
         threshold = order[args.fail_on]

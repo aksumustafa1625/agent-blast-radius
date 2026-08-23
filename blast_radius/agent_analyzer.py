@@ -288,5 +288,12 @@ def _unresolved(action: AgentAction, why: str) -> ActionSummary:
     return ActionSummary(
         action.name, action.target_type, None, False, [], [],
         [Finding("PS504", "WARN", action.name,
-                 f"Could not analyse action '{action.name}' -> {action.target}.",
-                 why, "Ensure the target source is retrieved before analysis.")])
+                 f"Could not analyse action '{action.name}' -> {action.target} - the "
+                 "source never reached the scan.",
+                 why,
+                 # A third owner again: not the code's shape and not the analyzer's
+                 # model, but what the scan was given. Naming it matters because the
+                 # other two are not actionable here - there is nothing to rewrite
+                 # and nothing to wait for, only a retrieval to redo.
+                 "The scan's to close: retrieve the target source (and check the "
+                 "analysis identity can see it) before re-running.")])

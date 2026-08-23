@@ -181,6 +181,26 @@ fewer features.
   partly on that false ground. **An external review can only be as good as the ground
   you hand it** — false modesty produces confidently wrong advice, and it is not
   humility, it is an inaccurate input.
+- **An honest unknown still has to be actionable, and that means naming whose it
+  is.** *(2026-08-23.)* PS504 said "could not be determined" for two situations that
+  need different people: a query assembled at runtime, which **no** static analysis
+  can resolve and only the customer can change, and a shape **we** do not model,
+  where the code is already static and correct and there is nothing for them to
+  rewrite. Measured on the two demo orgs: HanseWatt's two PS504s are dynamic SOQL
+  (theirs), TechnoStore's one is an aggregate select (**ours**). Undifferentiated,
+  half of every unresolved list went to the wrong desk, and telling a customer to
+  "make the query static" when it already is reads as the tool not understanding
+  their code. Now each PS504 carries `unresolved_kind` — `code` or `analyzer` — set
+  by **both** extractors, and an unlabelled cause claims **no** owner rather than
+  guessing one: a wrong owner is worse than none, because it sends real work
+  somewhere it cannot be done, confidently. The "ours" text is bound to the
+  analyzer digest so a later build resolving the shape does not falsify old
+  reports. **The rule id and the count are untouched** — the Index's U bucket is
+  the PS504 count and the spec is frozen.
+  Also fixed on the way: the message printed the **mode-resolution** source as if
+  it were the reason, so TechnoStore's report explained an aggregate select with
+  "API v<=66 system-mode default". True sentence, different question, and it read
+  like an answer.
 
 ---
 
@@ -247,7 +267,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 | PS501 | ERROR/WARN | Potential record-scope expansion (system mode + Private OWD). "Potential" is deliberate: predicates aren't analysed. |
 | PS502 | ERROR/WARN | Field read in system mode; user has no FLS. |
 | PS503 | ERROR/WARN | System-mode DML on an object the user can't write. |
-| PS504 | WARN | **Honest unknown** — dynamic SOQL, SOSL without RETURNING, unresolved reach, and (since 2026-08-19) a Flow whose run context is undetermined (no `runInMode` tag on an author-selectable type). Fires even when the object is unknown. |
+| PS504 | WARN | **Honest unknown** — dynamic SOQL, SOSL without RETURNING, aggregate/function selects, polymorphic TYPEOF, unresolved reach, and (since 2026-08-19) a Flow whose run context is undetermined (no `runInMode` tag on an author-selectable type). Fires even when the object is unknown. **Since 2026-08-23 it names the cause and its OWNER** (§3): `code` = no static analysis can resolve it, the customer acts; `analyzer` = we do not model the shape, we act. Same rule id, same count. |
 | PS505 | WARN | Classified field reaches the model although the user IS allowed it (data minimisation). |
 | PS506 | ERROR/WARN | **The headline.** GDPR/PII-labelled field, invisible to the user, reaches the model. Sorted first in the report. |
 | PS507 | WARN | Opaque/standard action; names the documented channel when catalogued. |
@@ -375,6 +395,25 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   observation?** The runtime oracle has a negative control for exactly this reason;
   E13 did not, and nobody noticed until an external brief forced a re-read.
 
+- **Adding information to a finding can change what an EXISTING mechanism does to
+  it.** PS504 gained a cause and an owner (§3). `dedupe_findings` keys on
+  `(rule, where)` and keeps whichever finding arrived **first** — correct and
+  harmless while every PS504 said one generic sentence, because collapsing two
+  identical statements loses nothing. The moment a PS504 named an owner it stopped
+  being harmless: two different causes on the same object would silently become
+  one, and the survivor would attribute the other party's work to itself in the
+  tool's own confident voice. Caught by a test that asserted three units produced
+  three findings and got one. The fix merges the causes into the one finding
+  instead of racing for it — **so the count is identical**, which it had to be:
+  the Index's U bucket is defined as the PS504 count and the spec is frozen at
+  v1.0. **Ask of any change that enriches a finding: what downstream code was
+  relying on those findings being interchangeable?**
+- **A version-bound claim needs a version that cannot be forgotten.** "This shape
+  is not modelled" is true of a build, not of the world; unbound, every report ever
+  issued is falsified the day the shape IS modelled. The claim therefore carries
+  `analyzer_version()[:12]` — the same digest the fingerprint uses, for the same
+  reason §9.5 rejected `schema_version`: a constant someone must remember to bump
+  is the mechanism that lies.
 - **Reports are written AFTER render.** A render crash leaves a **stale report on
   disk** that looks like a successful run. Always check the console summary line,
   not the file. (This hid two bugs at once: a `KeyError` on a renamed key, and an
@@ -421,7 +460,8 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 
 ## 8. Proof surface — what backs the claims
 
-- **241 unit tests** in 12 files (2026-08-19; was 224 before the Flow-context fix).
+- **303 unit tests** in 15 files (2026-08-23; was 241 before the baseline gate and
+  the PS504 ownership split).
 - **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): **28 hand-labelled
   cases → 28 passed** — 100% precision/recall on this corpus, and **8/8 mutation
   score** (break the analyzer on purpose; the corpus catches it).

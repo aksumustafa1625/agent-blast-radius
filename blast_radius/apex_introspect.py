@@ -100,19 +100,21 @@ def _sosl_operations(source: str, api_version, sharing) -> list:
         if not ret:
             ops.append(ApexOperation(
                 operation="read", sobject=None, fields=[], fields_complete=False,
-                resolved=resolved,
+                resolved=resolved, unresolved_kind="code",
                 note="PS504: SOSL without RETURNING - reach undetermined"))
             continue
         objs = _parse_sosl_returning(ret.group(1))
         if not objs:
             ops.append(ApexOperation(
                 operation="read", sobject=None, fields=[], fields_complete=False,
-                resolved=resolved, note="PS504: SOSL RETURNING could not be parsed"))
+                resolved=resolved, unresolved_kind="analyzer",
+                note="PS504: SOSL RETURNING could not be parsed"))
             continue
         for obj, fields, complete in objs:
             ops.append(ApexOperation(
                 operation="read", sobject=obj, fields=fields, fields_complete=complete,
-                resolved=resolved, note=None if complete else "SOSL RETURNING incomplete"))
+                resolved=resolved, note=None if complete else "SOSL RETURNING incomplete",
+                unresolved_kind=None if complete else "analyzer"))
     return ops
 
 # DML extraction (for PS509 trigger-cascade). We resolve the target object where
@@ -336,6 +338,14 @@ class ApexOperation:
     resolved: ResolvedMode
     dynamic: bool = False
     note: Optional[str] = None
+    # WHOSE limit made this operation unresolved - only set when fields_complete
+    # is False. 'code' = the source as written cannot be resolved by any static
+    # analysis (the query is assembled at runtime); 'analyzer' = the source IS
+    # statically determined and THIS analyzer does not model the shape. The two
+    # need different people to act, so reporting one honest-unknown for both
+    # sends half of them to the wrong desk. See UNRESOLVED_* in
+    # authority_analyzer for the wording each one gets.
+    unresolved_kind: Optional[str] = None
     # Authority Path (AST backend only): {field: 'returned'|'internal'|'undetermined'}
     # - whether the field's VALUE actually flows to the @InvocableMethod output
     # (the model). None (regex backend) means "not traced" -> worst case applies.
@@ -400,6 +410,7 @@ def _flag_polymorphic(reach) -> None:
             continue
         op.fields = [f for f in op.fields if f not in garbage]
         op.fields_complete = False
+        op.unresolved_kind = "analyzer"
         op.note = ("PS504: polymorphic TYPEOF select - the branch fields belong to "
                    "related objects and are not resolved")
 
@@ -588,16 +599,22 @@ def _queries_in(body: str) -> List[tuple]:
     return out
 
 
-def _parse_select_fields(select_clause: str) -> tuple[List[str], bool, Optional[str]]:
+def _parse_select_fields(select_clause: str):
+    """-> (fields, complete, note, unresolved_kind).
+
+    Every incomplete answer here is 'analyzer': the SELECT list is written out in
+    the source, so a better extractor could enumerate it. Saying so is the point -
+    a customer cannot fix an aggregate select by changing their code, and telling
+    them to would be an unresolved finding sent to the wrong desk."""
     sc = select_clause.strip()
     if re.search(r"\bSELECT\b", sc, re.IGNORECASE):
-        return [], False, "subquery present - field list incomplete"
+        return [], False, "subquery present - field list incomplete", "analyzer"
     if re.fullmatch(r"COUNT\s*\(\s*\)", sc, re.IGNORECASE):
-        return [], True, "COUNT() - no field data returned"
+        return [], True, "COUNT() - no field data returned", None
     if "(" in sc:
-        return [], False, "aggregate/function select - fields not enumerated"
+        return [], False, "aggregate/function select - fields not enumerated", "analyzer"
     fields = [f.strip() for f in sc.split(",") if f.strip()]
-    return fields, True, None
+    return fields, True, None, None
 
 
 def _read_api_version(cls_path: str) -> Optional[float]:
@@ -625,7 +642,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
         clause_m = _MODE_CLAUSE.search(body)
         clause = clause_m.group(1) if clause_m else None
         for sel, obj, tail in _queries_in(body):
-            fields, complete, fnote = _parse_select_fields(sel)
+            fields, complete, fnote, fkind = _parse_select_fields(sel)
             reach.operations.append(ApexOperation(
                 operation="read",
                 sobject=obj,
@@ -633,6 +650,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
                 fields_complete=complete,
                 resolved=_resolve(clause, api_version, sharing),
                 note=fnote,
+                unresolved_kind=fkind,
             ))
 
     if reach.dynamic_soql:
@@ -640,6 +658,7 @@ def parse_apex_source(source: str, api_version: Optional[float],
             operation="read", sobject=None, fields=[], fields_complete=False,
             resolved=ResolvedMode(None, None, "dynamic SOQL", "reach undetermined"),
             dynamic=True, note="PS504: dynamic SOQL - reach cannot be determined statically",
+            unresolved_kind="code",
         ))
 
     for verb, obj, mode in _dml_operations(source):
@@ -677,7 +696,8 @@ def _reach_from_ir(ir: dict, api_version: Optional[float],
                 fields_complete=bool(op.get("fields_complete")),
                 resolved=_resolve(op.get("mode"), api_version, sharing),
                 note=op.get("note"), field_flow=op.get("field_flow"),
-                field_sinks=op.get("field_sinks")))
+                field_sinks=op.get("field_sinks"),
+                unresolved_kind=op.get("unresolved_kind")))
         else:  # a DML verb
             mode = op.get("mode")
             src = "dml " + (mode or ("v>=67 user default"
@@ -691,7 +711,8 @@ def _reach_from_ir(ir: dict, api_version: Optional[float],
         reach.operations.append(ApexOperation(
             operation="read", sobject=None, fields=[], fields_complete=False,
             resolved=ResolvedMode(None, None, "dynamic SOQL", "reach undetermined"),
-            dynamic=True, note="PS504: dynamic SOQL - reach cannot be determined statically"))
+            dynamic=True, unresolved_kind="code",
+            note="PS504: dynamic SOQL - reach cannot be determined statically"))
     return reach
 
 

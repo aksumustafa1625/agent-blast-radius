@@ -28,6 +28,16 @@ def _minimal_perms():
         return EffectivePermissions(json.load(f))
 
 
+def _headline_block(md: str) -> str:
+    """The report's first fenced block - the Aksu Index headline. Sliced by
+    position on purpose: 'the Index opens the report' is the contract under
+    test, so a test that searched for it anywhere would not be testing it."""
+    lines = md.splitlines()
+    assert lines[0] == "```", "the headline block must open the report"
+    end = lines.index("```", 1)
+    return "\n".join(lines[1:end])
+
+
 def _flow_action():
     reach = parse_flow(REAL_FLOW)
     findings = analyze_flow(reach, _minimal_perms(), CLASSIFICATION, OBJECT_SHARING)
@@ -162,6 +172,10 @@ class CleanReportTest(unittest.TestCase):
         md = render_markdown("Agent", "user", "in-app", [clean])
         self.assertIn("No authority findings", md)
         self.assertIn("ESCALATION GAP ......... 0 fields", md)
+        # 0 proven AND 0 unresolved genuinely is clean - the not-clean sentence
+        # must not fire here, or it would cry wolf and stop being read where it
+        # matters (the P=0, U>0 case).
+        self.assertNotIn("NOT clean", md)
 
 
 class RecordReachTest(unittest.TestCase):
@@ -428,11 +442,112 @@ class AksuIndexTest(unittest.TestCase):
 
     def test_zero_proven_with_unresolved_is_not_clean(self):
         # Spec §4.3: "Index = 0 with U > 0 is not clean" — the report must say so
-        # in its own voice, not leave a bare 0 to be quoted as a pass.
+        # in its own voice, not leave a bare 0 to be quoted as a pass. The
+        # sentence has to sit inside the headline block, attached to the zero it
+        # qualifies: a caveat further down the document is a footnote, and the
+        # whole point of the headline is that it is read on its own.
         md = render_markdown("A", "u", "c",
                              [self._action([self._f("PS504", "WARN", "?")])])
         self.assertIn("Aksu Index: 0 proven (0 GDPR) · 0 unproven boundaries · 1 unresolved", md)
         self.assertIn("NOT clean", md)
+        head = _headline_block(md)
+        self.assertIn("NOT clean", head)
+        # ...and it must follow the zero it qualifies, not precede it
+        self.assertLess(head.index("0  PROVEN"), head.index("NOT clean"))
+
+
+class AksuIndexHeadlineTest(unittest.TestCase):
+    """The Index is the report's RESULT, so it is the report's first screen —
+    CLAUDE.md §0.1. These pin the layout contract, not the prose: whoever
+    reflows this block keeps the four numbers together, C inside P, the P=0/U>0
+    caveat attached, and the reach comparison honest."""
+
+    @staticmethod
+    def _f(rule, sev, field):
+        from authority_analyzer import Finding
+        return Finding(rule, sev, f"A -> {field}", "m", "w", "x")
+
+    def _md(self):
+        return render_markdown(
+            "Demo Agent", "u", "c",
+            [ActionSummary("A", "apex", 58.0, True, ["X", "Y"],
+                           ["X.A__c", "X.Iban__c", "X.Ok__c"],
+                           [self._f("PS506", "ERROR", "X.Iban__c"),
+                            self._f("PS502", "ERROR", "X.A__c"),
+                            self._f("PS502", "WARN", "Y.B__c"),
+                            self._f("PS504", "WARN", "?")])])
+
+    def test_index_is_the_first_thing_in_the_report(self):
+        md = self._md()
+        self.assertEqual(md.splitlines()[0], "```")
+        self.assertIn("AKSU INDEX", "\n".join(md.splitlines()[:4]))
+        # and it precedes everything that used to outrank it
+        for later in ("AGENT BLAST RADIUS REPORT", "REACH SUMMARY",
+                      "ESCALATION GAP", "Config fingerprint"):
+            self.assertLess(md.index("AKSU INDEX"), md.index(later), later)
+
+    def test_all_four_numbers_are_in_the_headline_block(self):
+        # Spec §1: P alone is a violation. There is no branch of the headline
+        # that prints fewer than four, so assert all four AND the canonical line
+        # that makes the block quotable in one piece.
+        head = _headline_block(self._md())
+        self.assertIn("2  PROVEN", head)
+        self.assertIn("1 of them carries", head)          # C, expressed inside P
+        self.assertIn("1  unproven boundaries", head)
+        self.assertIn("1  unresolved", head)
+        self.assertIn("Aksu Index: 2 proven (1 GDPR) · 1 unproven boundaries · 1 unresolved",
+                      head)
+        self.assertIn("none of them may be quoted alone", head)
+
+    def test_classified_is_rendered_inside_proven_never_added_to_it(self):
+        # C ⊆ P. The headline must never read as P + C, so the C number is only
+        # ever spoken as a subset ("N of them ...") of the P line above it.
+        head = _headline_block(self._md())
+        self.assertLess(head.index("2  PROVEN"), head.index("1 of them carries"))
+        self.assertNotIn("1  classified", head)
+        self.assertNotIn("1  GDPR ", head)
+
+    def test_reach_comparison_sits_under_the_index_and_reconciles(self):
+        # The maintainer's ask: the Index, then what the agent reaches vs what
+        # this user may see. outer = inner + gap (spec §3) must hold in the
+        # PRINTED numbers, not just in the sets.
+        head = _headline_block(self._md())
+        self.assertLess(head.index("PROVEN"), head.index("WHAT THE AGENT'S CODE REACHES"))
+        self.assertIn("Objects reached by the agent ............. 2", head)
+        self.assertIn("Fields reached by the agent .............. 4", head)   # 3 | gap
+        self.assertIn("of those, readable by this user ........ 1", head)
+        self.assertIn("beyond this user - the gap ............. 3", head)
+        self.assertIn("that gap = 2 proven + 1 unproven", head)
+
+    def test_no_user_side_object_count_is_invented(self):
+        # How many objects the running user can see is not computed by this run.
+        # Deriving it from the field names would be wrong twice over (a
+        # relationship path is not an object name), so the report says so.
+        head = _headline_block(self._md())
+        self.assertIn("does not measure how", head)
+        self.assertIn("no user-side object count is", head)
+        self.assertIn("counts fields, never records", head)
+
+    def test_no_ratio_score_or_grade_is_introduced(self):
+        # Spec §3 has no division and no threshold; a percentage in the headline
+        # would read as a grade the Index does not define.
+        head = _headline_block(self._md())
+        self.assertNotIn("%", head)
+        self.assertNotIn("/ 4", head)
+
+    def test_headline_fits_a_fixed_width_terminal(self):
+        # It is read in a console before it is read in a browser: an 80-column
+        # wrap would break the frame and could push a number onto its own line.
+        # The agent-name line is the one exception and deliberately so - the
+        # report never truncates an identifier, and that line carries no number.
+        long_name = "A Very Long Agent Name That Nobody Would Ever Type But Someone Will"
+        for md in (self._md(),
+                   render_markdown(long_name, "u", "c", [], counts=None)):
+            for ln in _headline_block(md).splitlines():
+                if "AKSU INDEX" in ln:
+                    continue
+                self.assertLessEqual(len(ln), 78, ln)
+        self.assertIn(long_name, render_markdown(long_name, "u", "c", []))
 
     def test_ascii_form_for_the_console(self):
         # Windows console is cp1252 — the ASCII form must carry no middle dot.
@@ -440,3 +555,105 @@ class AksuIndexTest(unittest.TestCase):
         line = aksu_index_line(aksu_index([]), ascii_only=True)
         self.assertNotIn("·", line)
         self.assertIn("Aksu Index: 0 proven (0 GDPR) / 0 unproven boundaries / 0 unresolved", line)
+
+
+class AksuBandHtmlTest(unittest.TestCase):
+    """The HTML Index band — prominence AND the spec's non-negotiables.
+
+    Until this class existed, NOTHING pinned the Aksu Index into the HTML
+    report at all: the canonical line shipped as a 14px caption and the spec
+    §4.3 'not clean' sentence was absent from the HTML path entirely, so a
+    P=0/U>0 report rendered a bare zero above a green 'stays within its user'
+    panel. Every assertion below is a rule from docs/AKSU_INDEX_SPEC.md, not a
+    styling preference."""
+
+    @staticmethod
+    def _f(rule, sev, field):
+        from authority_analyzer import Finding
+        return Finding(rule, sev, f"A -> {field}", "m", "w", "x")
+
+    def _html(self, findings, fields=("X.A__c", "X.B__c", "X.C__c")):
+        from report_html import render_html
+        act = ActionSummary("A", "apex", 58.0, True, ["X"], list(fields), findings)
+        return render_html("A", "u", "c", [act])
+
+    @staticmethod
+    def _band(html):
+        return html[html.index('<section class="aksu'):html.index("</section>")]
+
+    def test_index_comes_before_the_prose_and_the_gap_number(self):
+        # The whole point of the change: a reader opening a report named after
+        # the Index must meet the Index, not a caption under a 64px gap number.
+        html = self._html([self._f("PS502", "ERROR", "X.A__c")])
+        i_band = html.index('<section class="aksu')
+        self.assertLess(i_band, html.index('class="plain'))     # stakeholder prose
+        self.assertLess(i_band, html.index('class="gapnum"'))   # the old visual hero
+        self.assertLess(i_band, html.index('class="posture'))   # API-version band
+
+    def test_all_four_numbers_live_in_one_element(self):
+        # Spec §1: quoting proven alone while unresolved > 0 is a violation. The
+        # enforcement is structural — there is no crop of this band, and no page
+        # break through it, that yields P by itself.
+        band = self._band(self._html([self._f("PS502", "ERROR", "X.A__c"),
+                                      self._f("PS506", "ERROR", "X.B__c"),
+                                      self._f("PS502", "WARN", "X.C__c"),
+                                      self._f("PS504", "WARN", "?")]))
+        self.assertIn("proven", band)
+        self.assertIn("regulated", band)
+        self.assertIn("unproven boundaries", band)
+        self.assertIn("unresolved", band)
+        self.assertIn("Aksu Index: 2 proven (1 GDPR) · 1 unproven boundaries · 1 unresolved",
+                      band)
+
+    def test_classified_is_rendered_inside_proven_not_beside_it(self):
+        # C ⊆ P. It must never read as a fourth peer the eye adds to P.
+        band = self._band(self._html([self._f("PS506", "ERROR", "X.A__c")]))
+        self.assertIn("Counted <b>inside</b>", band)
+        # and it sits within the P column, not in the B/U column pair
+        p_col = band[band.index('<div class="apn">'):band.index('<div class="aside">')]
+        self.assertIn("regulated", p_col)
+
+    def test_zero_proven_with_unresolved_is_not_a_pass(self):
+        # The HanseWatt shape. A big green zero here would be the exact
+        # false-clean the whole project exists to prevent.
+        html = self._html([self._f("PS504", "WARN", "?"),
+                           self._f("PS504", "WARN", "?2")])
+        band = self._band(html)
+        self.assertIn('<section class="aksu unproven"', html)
+        self.assertNotIn('aksu clear', html)
+        self.assertIn("NOT clean", band)
+        self.assertIn("unknown never becomes clean", band)
+        self.assertIn("2 reach paths could not be resolved", band)
+        # ...and nothing further down the page may contradict the band
+        self.assertIn("No field escalation proven", html)
+        self.assertNotIn("the agent stays within its user", html)
+        self.assertNotIn("mostly clean", html)
+
+    def test_a_truly_clean_report_may_read_clean(self):
+        html = self._html([])
+        self.assertIn('<section class="aksu clear"', html)
+        self.assertNotIn("NOT clean", html)
+        self.assertIn("No field escalation — the agent stays within its user.", html)
+
+    def test_reach_comparison_sits_under_the_numbers(self):
+        band = self._band(self._html([self._f("PS502", "ERROR", "X.A__c")]))
+        self.assertIn("fields the agent&rsquo;s code reaches", band)
+        self.assertIn("of those, this user could read anyway", band)
+        self.assertIn("the gap between them", band)
+        self.assertLess(band.index('class="apbig"'), band.index('class="areach"'))
+
+    def test_no_user_side_object_count_is_invented(self):
+        # The renderers never receive EffectivePermissions, so the set of
+        # objects the running user can see is genuinely not computed. Say so;
+        # do not derive a plausible number from field-name prefixes (a
+        # relationship path puts a relationship name, not an SObject, in front
+        # of the dot — CLAUDE.md §7).
+        band = self._band(self._html([self._f("PS502", "ERROR", "X.A__c")]))
+        self.assertIn("does not compute the set of objects the running user can see", band)
+
+    def test_band_states_no_ratio_or_grade(self):
+        # Spec has no division and no threshold; a percentage in the headline
+        # band would invent one.
+        band = self._band(self._html([self._f("PS502", "ERROR", "X.A__c"),
+                                      self._f("PS504", "WARN", "?")]))
+        self.assertNotIn("%", band)

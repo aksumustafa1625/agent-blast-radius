@@ -138,6 +138,46 @@ def aksu_index(actions: List[ActionSummary]) -> dict:
             "unresolved": unresolved}
 
 
+def resolution_coverage(actions: List[ActionSummary]) -> dict:
+    """How much of the agent could be resolved at all - the honest complement of U.
+
+    U says "2 unresolved". It does not say whether that is 2 out of 3 or 2 out of
+    200, and those are different reports. This gives the denominator.
+
+    The unit is the ACTION, not the operation, for two reasons: it is the unit a
+    Salesforce team already thinks in ("my agent has nine actions"), and it is the
+    unit ActionSummary actually carries, so the number is counted rather than
+    estimated. An action counts as resolved when nothing in it raised PS504.
+    That is deliberately strict - one unresolved read makes the whole action
+    partial - so the figure can only understate how much was understood, never
+    overstate it.
+
+    It is NOT code coverage and must never be labelled as such: it says how much
+    of the agent's reach this analysis could determine, not how much of the org's
+    code was exercised.
+
+    Reported ALONGSIDE the four numbers, never instead of one (spec section 8 allows
+    additions that leave P/C/B/U unchanged). Its real job is in CI: a team that
+    makes a query dynamic to move a finding from proven to unresolved will see
+    coverage FALL, which is the signal a ratchet on the buckets alone would miss.
+    """
+    total = len(actions)
+    unresolved = sum(1 for a in actions
+                     if any(f.rule == "PS504" for f in a.findings))
+    resolved = total - unresolved
+    return {"resolved": resolved, "total": total, "unresolved_actions": unresolved,
+            "pct": (round(100.0 * resolved / total) if total else 100)}
+
+
+def resolution_coverage_line(rc: dict, ascii_only: bool = False) -> str:
+    """One line, with the denominator in it. A bare percentage would hide the
+    thing that makes it meaningful."""
+    sep = " - " if ascii_only else " — "
+    return (f"Resolution coverage: {rc['resolved']} of {rc['total']} action(s) "
+            f"fully resolved ({rc['pct']}%){sep}"
+            f"{rc['unresolved_actions']} carry reach this analysis could not determine")
+
+
 def aksu_index_line(ix: dict, ascii_only: bool = False) -> str:
     """Canonical form (spec §1). Always all four numbers — quoting `proven`
     alone while unresolved > 0 is defined by the spec as a violation, so no
@@ -147,6 +187,88 @@ def aksu_index_line(ix: dict, ascii_only: bool = False) -> str:
     return (f"Aksu Index: {len(ix['proven'])} proven ({len(ix['gdpr'])} GDPR)"
             f"{sep}{len(ix['boundary'])} unproven boundaries"
             f"{sep}{ix['unresolved']} unresolved")
+
+
+# The headline banner is left-aligned inside a rule of this width and draws NO
+# right border. That is deliberate: nothing has to be padded to a column, so a
+# long agent name or a three-digit count can never split the frame, and the
+# whole block still fits an 80-column terminal.
+_BANNER_W = 78
+
+
+def _index_headline(agent: str, ix: dict, gap_n: int, objects_n: int,
+                    outer_n: int, inner_n: int) -> List[str]:
+    """The report's first screen: the Aksu Index as the RESULT of the report,
+    not as one row of the reach summary.
+
+    Three spec rules are structural here rather than editorial:
+      * all four numbers ship together and C is rendered INSIDE P (spec §1, §3)
+        — no branch of this function prints P without B, U and the C clause, and
+        the canonical `aksu_index_line()` closes the block as the quotable form;
+      * P = 0 with U > 0 carries the not-clean sentence in the SAME block, right
+        under the zero, so the zero can never be read alone as a pass (§4.3);
+      * the reach comparison states only measured quantities. The Index counts
+        fields, never records (§4.1), and how many OBJECTS the running user can
+        see is not computed by this run — so it is disclosed as unmeasured
+        instead of derived from the field names, whose relationship paths
+        (`BillToContact.Email`) are not object names at all.
+    """
+    P, C = len(ix["proven"]), len(ix["gdpr"])
+    B, U = len(ix["boundary"]), ix["unresolved"]
+    rule, thin = "=" * _BANNER_W, "-" * _BANNER_W
+
+    L = [rule, f"  AKSU INDEX  -  {agent}", rule, ""]
+
+    L.append(f"      {P}  PROVEN")
+    if P:
+        L.append("         fields the agent's code can reach beyond this running user.")
+        if C:
+            L.append(f"         {C} of them {'carries' if C == 1 else 'carry'} "
+                     f"the org's own compliance labels (GDPR/PII).")
+        else:
+            L.append("         None of them carry the org's own compliance labels "
+                     "(GDPR/PII).")
+    else:
+        L.append("         no field is PROVEN reachable beyond this running user.")
+    if not ix["proven"] and ix["unresolved"]:
+        # Spec §4.3 in the report's own voice, attached to the zero it qualifies:
+        # a bare 0 with unresolved reach must never be quotable as a pass.
+        L.append("")
+        L.append("!!" + "-" * (_BANNER_W - 2))
+        L.append("!! (0 proven with unresolved reach is NOT clean - unknown never becomes clean)")
+        L.append(f'!! Read this as "0 proven, {U} unresolved", never as a pass.')
+        L.append("!!" + "-" * (_BANNER_W - 2))
+
+    L.append("")
+    L.append("      " + f"{B}  unproven boundaries".ljust(28)
+             + "real boundaries we could not prove crossed")
+    L.append("      " + f"{U}  unresolved".ljust(28)
+             + "reach we could not determine at all")
+    L.append("")
+    L.append(f"  {aksu_index_line(ix)}")
+    L.append("  (all four numbers ARE the metric - none of them may be quoted alone)")
+
+    def row(label: str, value) -> str:
+        return "      " + f"{label} ".ljust(42, ".") + f" {value}"
+
+    L.append("")
+    L.append(thin)
+    L.append("  WHAT THE AGENT'S CODE REACHES  vs  WHAT THIS RUNNING USER MAY SEE")
+    L.append("")
+    L.append(row("Objects reached by the agent", objects_n))
+    L.append(row("Fields reached by the agent", outer_n))
+    L.append(row("  of those, readable by this user", inner_n))
+    L.append(row("  beyond this user - the gap", gap_n))
+    # The gap is the spec's P ∪ B (§3), so it is spelled out rather than left to
+    # be mistaken for the headline: the circles keep the union, the quoted
+    # number may not.
+    L.append(f"           that gap = {P} proven + {B} unproven, the two numbers above")
+    L.append("")
+    L.append("  The Index counts fields, never records. This run does not measure how")
+    L.append("  many objects the running user can see, so no user-side object count is")
+    L.append("  claimed here.")
+    L.append(rule)
+    return L
 
 
 _STD_FIELDS = {"Id", "Name", "OwnerId", "IsDeleted", "CreatedDate", "CreatedById",
@@ -314,7 +436,14 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     reach = record_reach(counts)
 
     objects = sorted({o for a in actions for o in a.objects})
-    fields = sorted({f for a in actions for f in a.fields})
+    # The spec's `outer` (§3): every field the resolved code chain reaches. The
+    # gap is unioned in for the same reason report_html.py does it - a gap field
+    # must be inside outer or `outer = inner + gap` stops reconciling. Both
+    # renderers now count this one way, so the md and the html can never print
+    # two different reach numbers for the same run.
+    reached = {f for a in actions for f in a.fields} | gap
+    outer_n = len(reached)
+    inner_n = len(reached - gap)
     system_actions = [a for a in actions if a.system_mode]
     legacy = [a for a in actions if a.api_version is not None and a.api_version < 67]
 
@@ -322,24 +451,27 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     all_findings.sort(key=finding_sort_key)
 
     L: List[str] = []
+    # The Index IS the report's result, so it opens the document in its own
+    # block. Everything below explains it; nothing above competes with it.
+    L.append("```")
+    L.extend(_index_headline(agent, ix, len(gap), len(objects), outer_n, inner_n))
+    L.append("```")
+    L.append("")
     L.append("```")
     L.append(f"AGENT BLAST RADIUS REPORT - {agent}")
     L.append(f"Running user: {running_user}   (channel: {channel or 'n/a'})")
     L.append(f"Config fingerprint: {fp}      Generated: {generated}")
+    # A forwarded report has to carry the address of its own definition.
+    L.append("Aksu Index spec v1.0: aksuindex.com")
     L.append("=" * 64)
     L.append("")
-    L.append(aksu_index_line(ix))
-    if not ix["proven"] and ix["unresolved"]:
-        # Spec §4.3 in the report's own voice: 0 proven with unresolved reach
-        # is "0 proven, U unresolved" — never "clean".
-        L.append("  (0 proven with unresolved reach is NOT clean - unknown never becomes clean)")
     L.append(f"ESCALATION GAP ......... {len(gap)} fields  /  {len(gdpr)} GDPR-labelled"
              + ("   <==" if gap else ""))
     L.append("")
     L.append("REACH SUMMARY")
     L.append(f"  Actions analysed ....... {len(actions)}")
     L.append(f"  Objects reachable ...... {len(objects)}")
-    L.append(f"  Fields reachable ....... {len(fields)}")
+    L.append(f"  Fields reachable ....... {outer_n}")
     L.append(f"  System-mode actions .... {len(system_actions)} / {len(actions)}")
     L.append(f"  Legacy API (< v67) ..... {len(legacy)} / {len(actions)}")
     if coverage:

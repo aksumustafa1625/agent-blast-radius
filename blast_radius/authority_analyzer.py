@@ -15,6 +15,96 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+
+def _analyzer_build() -> str:
+    """The digest of the analyzer's own source, for the version-bound half of
+    PS504. Imported lazily because `report` is a heavier module than the rules
+    need, and it is deliberately NOT a hand-maintained constant: a version string
+    someone must remember to bump is exactly the mechanism that lies (see the
+    docstring on report.analyzer_version)."""
+    try:
+        from report import analyzer_version
+        return analyzer_version()[:12]
+    except Exception:
+        return "unknown"
+
+
+# PS504 has one severity and one count, but three different people close it. Which
+# one is not cosmetic: "make the query static" is useless advice for an aggregate
+# select the customer wrote correctly, and "wait for a new analyzer" is useless
+# advice for a query assembled at runtime. One undifferentiated honest-unknown
+# sends half of them to the wrong desk, so the cause and its OWNER are stated.
+#
+# The 'analyzer' text is bound to the analyzer build on purpose. "This shape is
+# not modelled" is true of a build, not of the world; unbound, every report ever
+# issued would be falsified the day the shape IS modelled. Bound, an old report
+# stays exactly as true as it was the day it was produced.
+_UNRESOLVED_PREAMBLE = (
+    "A silent false-clean is worse than an honest unknown, so this is counted as "
+    "unresolved rather than passed.")
+
+_UNRESOLVED_WHY = {
+    "code": (
+        "The query does not exist until runtime, so no static analysis - this one "
+        "or any other - can enumerate what it reaches. It stays unresolved until "
+        "the code changes."),
+    "analyzer": (
+        "This one is OUR limit, not a property of your code: the reach is written "
+        "out in the source and analyzer build {build} does not model this shape. "
+        "Stated as of that build - a later one may resolve it, and this report is "
+        "not falsified when it does."),
+}
+
+_UNRESOLVED_FIX = {
+    "code": ("Yours to close: make the query static, or add WITH USER_MODE so the "
+             "runtime enforces this user's access whatever the query resolves to."),
+    "analyzer": ("Ours to close - there is nothing to change in your code. Review "
+                 "this operation by hand, or re-run on an analyzer build that "
+                 "models the shape."),
+}
+
+_UNRESOLVED_CAUSE = {
+    "code": "the query is assembled at runtime",
+    "analyzer": "this analyzer does not model the shape",
+}
+
+_UNCLASSIFIED_WHY = (
+    "Which side this one belongs to is not classified, so no owner is claimed "
+    "for it.")
+_UNCLASSIFIED_FIX = (
+    "Review manually; consider WITH USER_MODE so runtime enforces access.")
+
+
+def _ps504(where: str, causes) -> Finding:
+    """One PS504 for one (action, object), naming every cause behind it.
+
+    `causes` is an ordered, kind-deduplicated list of (kind, reason).
+
+    Why this merges instead of letting dedupe_findings pick one: that function
+    keys on (rule, where) and keeps whichever arrived first, which was harmless
+    while every PS504 said the same generic sentence. Now that a PS504 names an
+    OWNER, dropping the second cause would attribute one party's work to the
+    other in the tool's own confident voice - the fabricated attribution this
+    rule exists to avoid. Merging keeps the count identical (still one finding
+    per action and object, so the Index's U bucket is untouched and the frozen
+    specification still describes it) while telling the truth about both.
+    """
+    build = _analyzer_build()
+    labels = [_UNRESOLVED_CAUSE.get(k, "cause not classified") for k, _r in causes]
+    # Some extractor notes are written as "PS504: ..." for their own logs. The
+    # finding already carries the rule id, so repeating it inside the reason reads
+    # like a second finding.
+    reasons = "; ".join(r.split("PS504: ", 1)[-1] for _k, r in causes if r)
+    message = ("Reach for this operation could not be fully determined - "
+               + " and ".join(labels) + (f" ({reasons})." if reasons else "."))
+    # The preamble is the same sentence for every cause, so it is said once even
+    # when two causes merge - repeating it reads like two separate verdicts.
+    why = " ".join([_UNRESOLVED_PREAMBLE] +
+                   [_UNRESOLVED_WHY[k].format(build=build) if k in _UNRESOLVED_WHY
+                    else _UNCLASSIFIED_WHY for k, _r in causes])
+    fix = " ".join(_UNRESOLVED_FIX.get(k, _UNCLASSIFIED_FIX) for k, _r in causes)
+    return Finding("PS504", "WARN", where, message, why, fix)
+
 _CLASSIFIED_TAGS = ("GDPR", "PII", "HIPAA", "PCI", "CCPA")
 # `publish` is here on purpose: publishing a platform event needs Create on the
 # event object and fires that event's trigger, so it is a write with a cascade -
@@ -84,6 +174,14 @@ class AccessUnit:
     # Authority Path: {field: 'returned'|'internal'|'undetermined'}. None means
     # the flow was not traced (regex backend / Flow) -> worst case is assumed.
     field_flow: Optional[Dict[str, str]] = None
+    # 'code' | 'analyzer' | None - who has to act on this unresolved reach.
+    # Only meaningful when fields_complete is False.
+    unresolved_kind: Optional[str] = None
+    # The extractor's own reason ("aggregate/function select - fields not
+    # enumerated"). PS504 used to print `source` here, which is the MODE
+    # resolution's origin ("API v<=66 system-mode default") - true, but not an
+    # answer to "why could you not resolve the reach", and it read like one.
+    note: Optional[str] = None
 
 
 # -- normalization: apex / flow reach -> AccessUnits --------------------------
@@ -94,7 +192,9 @@ def units_from_apex(reach) -> List[AccessUnit]:
         units.append(AccessUnit(
             op.operation, op.sobject, op.fields, op.fields_complete,
             op.resolved.enforces_sharing, op.resolved.enforces_fls, op.resolved.source,
-            getattr(op, "field_flow", None)))
+            getattr(op, "field_flow", None),
+            getattr(op, "unresolved_kind", None),
+            getattr(op, "note", None)))
     return units
 
 
@@ -157,6 +257,10 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                    calculated: set = None) -> List[Finding]:
     triggers_by_object = triggers_by_object or {}
     findings: List[Finding] = []
+    # where -> (index in `findings`, [(kind, reason), ...]). See _ps504: two causes
+    # on the same object must merge into the one finding dedupe would have kept,
+    # not silently lose whichever arrived second.
+    ps504_at: Dict[str, tuple] = {}
 
     # Security.stripInaccessible is the platform's real FLS sanitizer. We cannot
     # prove WHICH list reaches the sink without alias tracking, so it never clears
@@ -334,11 +438,23 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                     "invisible to this user or carries a compliance label."))
 
         if u.operation == "read" and not u.fields_complete:
-            findings.append(Finding(
-                "PS504", "WARN", f"{action} -> {u.sobject or '?'}",
-                f"Reach for this operation could not be fully determined ({u.source}).",
-                "A silent false-clean is worse than an honest unknown.",
-                "Review manually; consider WITH USER_MODE so runtime enforces access."))
+            # The rule id stays PS504 and the count stays identical - the Index's U
+            # bucket is defined as the PS504 count (spec 3.1) and that definition is
+            # frozen. What changes is that the report now says WHY it could not be
+            # resolved and WHOSE job it is, which moves no verdict and no number.
+            where = f"{action} -> {u.sobject or '?'}"
+            cause = (u.unresolved_kind, u.note or u.source)
+            slot = ps504_at.get(where)
+            if slot is None:
+                ps504_at[where] = (len(findings), [cause])
+                findings.append(_ps504(where, [cause]))
+            elif u.unresolved_kind not in {k for k, _r in slot[1]}:
+                # A second, DIFFERENT cause on the same object. Rewrite the finding
+                # in place rather than appending: appending would raise U for this
+                # org, and the number is what the specification froze.
+                idx, causes = slot
+                causes.append(cause)
+                findings[idx] = _ps504(where, causes)
 
         if u.operation != "read" or not u.sobject:
             continue
@@ -538,8 +654,8 @@ def analyze_flow(reach, perms, classification, object_sharing,
             "produces is not established here, so every read and write in this flow "
             "is reported as possibly system mode. A silent false-clean is worse than "
             "an honest unknown.",
-            "Set runInMode explicitly (DefaultMode to run as the user) so the context "
-            "is declared in the metadata rather than inherited."))
+            "Yours to close: set runInMode explicitly (DefaultMode to run as the "
+            "user) so the context is declared in the metadata rather than inherited."))
     return findings
 
 
@@ -556,8 +672,13 @@ def units_from_prompt(reach) -> List[AccessUnit]:
     enumerated = {f.split(".")[0] for f in reach.fields}
     for obj in reach.objects:                        # whole-record merge / unenumerated
         if obj not in enumerated or not reach.fields_complete:
+            # 'code': a whole-record merge names no fields anywhere in the source -
+            # what it carries is decided by the template's own configuration, not by
+            # anything a better extractor could read out of it.
             units.append(AccessUnit("read", obj, [], False, True, True,
-                                    "prompt template whole-record merge"))
+                                    "prompt template whole-record merge",
+                                    None, "code",
+                                    "whole-record merge - no field list in the template"))
     return units
 
 

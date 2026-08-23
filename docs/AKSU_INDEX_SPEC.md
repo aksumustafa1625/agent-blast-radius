@@ -104,14 +104,15 @@ be trusted** — they are printed, never absorbed into P and never dropped.
 Every claim the Index rests on carries its evidence class — `experiment` (measured
 in a real org), `platform-doc`, or `reasoned` — and severity equals proof level:
 ERROR only for the proven. The precedence law itself is backed by in-org
-experiments (E1–E13), a 23-case labelled benchmark (100% precision/recall, 8/8
+experiments (E1–E16), a **28**-case labelled benchmark (100% precision/recall, 8/8
 mutation score), and a runtime oracle in which **the org, not the author, judges**
-the analyzer's predictions.
+the analyzer's predictions. These counts live in the tool and go stale here first —
+re-run `benchmark/run.py` before quoting them.
 
 ## 7. Reproducibility
 
 Same org state + same running user + same tool version ⇒ **byte-identical
-reports** (proven live: two runs, equal sha256). To verify a Index someone quotes:
+reports** (proven live: two runs, equal sha256). To verify an Index someone quotes:
 run the tool twice on the same inputs, hash both outputs, compare fingerprints.
 The live `COUNT()` context lines are outside the deterministic fingerprint and say
 so.
@@ -131,9 +132,16 @@ so.
   vs 0, at both the CRUD and the sharing layer (E1).
 - **The version cliff is real**: identical `without sharing` source — v58 reads 5,
   v67 reads 0, and at v67 the FLS read is BLOCKED, not silently stripped (E2, E2b).
-- **Both ends of the scale exist in production**: one measured org is 100% pre-v67
-  across 106 classes (a large legacy gap surface); another is all-v67 and reports
-  clean. Near-zero is achievable and *measured*, not hypothetical.
+- **Both ends of the scale exist in production**, and the second end is the more
+  instructive: one measured org is 100% pre-v67 across all **113** of its Apex files,
+  and its agent's two actions sit on that legacy code —
+  `6 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved`. A second org is **83%**
+  pre-v67 org-wide, yet its agent's nine actions are all v67 —
+  `0 proven (0 GDPR) · 0 unproven boundaries · 2 unresolved`.
+  Note what the second one is **not**: it is not "clean". Zero proven beside two
+  unresolved is precisely the reading §4.3 requires, and the tool prints that caveat
+  about it unprompted. Near-zero is achievable and *measured* — and it is still only
+  a zero next to what could not be resolved.
 - **The headline case is real**: a GDPR-labelled field, invisible to the running
   user, reaching the model (PS506) — found by intersection with the org's own
   compliance labels, not by our opinion of what is sensitive.

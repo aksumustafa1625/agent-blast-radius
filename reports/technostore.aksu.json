@@ -1,0 +1,18 @@
+{
+  "agent": "TechnoStore Revenue Assistant",
+  "analyzer": "65e31fb90c7c",
+  "coverage": {
+    "pct": 50,
+    "resolved": 1,
+    "total": 2
+  },
+  "fingerprint": "ab318f19ca42",
+  "index": {
+    "boundary": 0,
+    "gdpr": 1,
+    "proven": 6,
+    "unresolved": 1
+  },
+  "running_user": "(hypothetical grant model - permission set: TechnoStore_Revenue_Assistant2098228049_Permissions)",
+  "schema": "aksuindex-baseline/1"
+}

@@ -1,10 +1,40 @@
 ```
+==============================================================================
+  AKSU INDEX  -  TechnoStore Revenue Assistant
+==============================================================================
+
+      6  PROVEN
+         fields the agent's code can reach beyond this running user.
+         1 of them carries the org's own compliance labels (GDPR/PII).
+
+      0  unproven boundaries      real boundaries we could not prove crossed
+      1  unresolved               reach we could not determine at all
+
+  Aksu Index: 6 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved
+  (all four numbers ARE the metric - none of them may be quoted alone)
+
+------------------------------------------------------------------------------
+  WHAT THE AGENT'S CODE REACHES  vs  WHAT THIS RUNNING USER MAY SEE
+
+      Objects reached by the agent ............. 2
+      Fields reached by the agent .............. 8
+        of those, readable by this user ........ 2
+        beyond this user - the gap ............. 6
+           that gap = 6 proven + 0 unproven, the two numbers above
+
+  The Index counts fields, never records. This run does not measure how
+  many objects the running user can see, so no user-side object count is
+  claimed here.
+==============================================================================
+```
+
+```
 AGENT BLAST RADIUS REPORT - TechnoStore Revenue Assistant
 Running user: (hypothetical grant model - permission set: TechnoStore_Revenue_Assistant2098228049_Permissions)   (channel: agent)
-Config fingerprint: aa24ff41e4f9      Generated: deterministic
+Config fingerprint: 9d3ba9d2e6c4      Generated: deterministic
+Aksu Index spec v1.0: aksuindex.com
 ================================================================
 
-Aksu Index: 6 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved
 ESCALATION GAP ......... 6 fields  /  1 GDPR-labelled   <==
 
 REACH SUMMARY
@@ -72,9 +102,9 @@ CLASSIFICATION COVERAGE
 ## WARN - 4 finding(s)
 
 - **[PS504] GetRevenueSummaryAction -> Invoice**
-  - Reach for this operation could not be fully determined (API v<=66 system-mode default).
-  - _Why:_ A silent false-clean is worse than an honest unknown.
-  - _Fix:_ Review manually; consider WITH USER_MODE so runtime enforces access.
+  - Reach for this operation could not be fully determined - this analyzer does not model the shape (aggregate/function select - fields not enumerated).
+  - _Why:_ A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build 65e31fb90c7c does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.
+  - _Fix:_ Ours to close - there is nothing to change in your code. Review this operation by hand, or re-run on an analyzer build that models the shape.
 - **[PS509] SendPaymentRemindersAction -> Invoice**
   - DML (update) on Invoice fires trigger 'InvoiceTrigger' at API v60 (< v67) — a legacy cascade boundary, but no escalating write was proven.
   - _Why:_ A pre-v67 trigger runs its DML in system mode, so this is a real boundary to review; however no DML was observed in its own body (it may delegate to a handler, or perform none), so this is flagged as a boundary rather than a proven escalation.
@@ -114,6 +144,6 @@ _Whole-org signals that don't concern TechnoStore Revenue Assistant directly, bu
 
 ---
 Produced by static analysis. No agent was invoked. 0 Flex Credits.
-Bound to fingerprint `aa24ff41e4f9`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `ef9f7320ebb8`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
+Bound to fingerprint `9d3ba9d2e6c4`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `65e31fb90c7c`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
 
 _The fingerprint seals the **static analysis** — the agent's config, the analysed Apex/Flow, the permission snapshot, and the analyzer itself. It does **not** cover the live `COUNT()` figures above: those are a measurement of the org at the moment of the run. Two runs sharing a fingerprint can legitimately show different counts._

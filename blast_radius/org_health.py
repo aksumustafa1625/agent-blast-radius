@@ -89,6 +89,8 @@ _HEALTH_CSS = """
     margin:6px 0 14px; background:var(--surface); border-left-width:5px}
   .abr .orgframe.err{border-left-color:var(--warn);
     background:color-mix(in srgb,var(--warn) 5%,var(--surface))}
+  .abr .orgframe.warn{border-left-color:var(--warn);
+    background:color-mix(in srgb,var(--warn) 5%,var(--surface))}
   .abr .orgframe.ok{border-left-color:var(--proof,#1a9d6b)}
   .abr .orgframe p{font-size:14px; margin:0 0 8px; color:var(--ink); line-height:1.55}
   .abr .orgframe p:last-child{margin-bottom:0}
@@ -99,7 +101,7 @@ _HEALTH_CSS = """
 </style>"""
 
 
-def _agent_frame(agent: str, gap_n, agent_legacy, agent_apex_total) -> str:
+def _agent_frame(agent: str, gap_n, agent_legacy, agent_apex_total, unresolved=0) -> str:
     """The purpose line: connect the org-wide API-version posture back to WHY this
     specific agent escalates (or is safe). An agent's data boundary is set by the
     API version of the code behind it - v67+ defaults to the running user's mode
@@ -107,11 +109,17 @@ def _agent_frame(agent: str, gap_n, agent_legacy, agent_apex_total) -> str:
     (the agent reaches PAST its user). So the org posture is not trivia: it is the
     root cause of this agent's blast radius."""
     a = _esc(agent)
+    # Not "set by one thing": the specification's own precedence law puts an explicit
+    # mode clause ABOVE the apiVersion default, and a WITH SYSTEM_MODE at v67 bypasses
+    # exactly what this paragraph would otherwise promise. State the default as a
+    # default, which is what it is.
     lead = (f'<b>Why this matters for {a}:</b> an agent can only reach what the code behind '
-            'it reaches. That boundary is set by one thing &mdash; the Apex <b>API version</b>. '
-            'At <b>v67+</b>, database operations default to the running user&rsquo;s mode, so an '
-            'agent reaches <i>nothing its user cannot see</i>. <b>Below v67</b> the default flips '
-            'to system mode and the agent reaches <i>past</i> its user. ')
+            'it reaches. Where no explicit access mode overrides it, the Apex '
+            '<b>API version</b> sets the default for every database operation. '
+            'At <b>v67+</b> that default is the running user&rsquo;s mode, so an agent '
+            'reaches <i>nothing its user cannot see</i>. <b>Below v67</b> it flips to system '
+            'mode and the agent reaches <i>past</i> its user. An explicit '
+            '<code>WITH SYSTEM_MODE</code> still overrides either. ')
 
     if gap_n:
         mid = (f'That is exactly the <b>{gap_n}-field escalation</b> this report found above: '
@@ -119,6 +127,16 @@ def _agent_frame(agent: str, gap_n, agent_legacy, agent_apex_total) -> str:
                'access to. Had those classes been v67, that gap would be <b>0</b> &mdash; the '
                'agent would be bounded to its user by the platform itself.')
         cls = "err"
+    elif gap_n == 0 and unresolved:
+        # A zero next to unresolved reach is not a pass, and this footer must not
+        # say otherwise while the Index band above says NOT clean.
+        mid = (f'{a} has <b>0 proven</b> escalation &mdash; but {unresolved} operation'
+               f'{"" if unresolved == 1 else "s"} could not be resolved at all, so this is '
+               '<b>not</b> a clean result: an unknown never becomes clean. And if the code is '
+               'still pre-v67, even that zero rests on the code <i>explicitly</i> opting in '
+               '(<code>WITH USER_MODE</code> / <code>as user</code>), not on the platform '
+               'default.')
+        cls = "warn"
     elif gap_n == 0:
         mid = (f'{a} currently stays within its user (gap <b>0</b>) &mdash; but if its code is '
                'still pre-v67, that safety rests on the code <i>explicitly</i> opting in '
@@ -142,7 +160,8 @@ def _agent_frame(agent: str, gap_n, agent_legacy, agent_apex_total) -> str:
 
 
 def render_health_section(health: OrgHealth, agent: str, gap_n=None,
-                          agent_legacy=None, agent_apex_total=None) -> str:
+                          agent_legacy=None, agent_apex_total=None,
+                          unresolved=0) -> str:
     """A compact HTML fragment (eyebrow + agent-connected frame + stat grid + note),
     appended near the foot of the agent report. Returns '' if nothing to show.
 
@@ -165,7 +184,7 @@ def render_health_section(health: OrgHealth, agent: str, gap_n=None,
 
     # the purpose frame: connect org posture -> this agent's boundary
     p.append(_HEALTH_CSS)
-    p.append(_agent_frame(agent, gap_n, agent_legacy, agent_apex_total))
+    p.append(_agent_frame(agent, gap_n, agent_legacy, agent_apex_total, unresolved))
 
     # compact stat grid
     p.append('<div class="stats" style="margin-top:12px">')
@@ -219,7 +238,8 @@ def render_health_section(health: OrgHealth, agent: str, gap_n=None,
 
 
 def render_health_md(health: OrgHealth, agent: str, gap_n=None,
-                     agent_legacy=None, agent_apex_total=None) -> str:
+                     agent_legacy=None, agent_apex_total=None,
+                     unresolved=0) -> str:
     """Compact markdown parity of the org-health section."""
     if not health.has_any:
         return ""
@@ -234,6 +254,12 @@ def render_health_md(health: OrgHealth, agent: str, gap_n=None,
                  f"system mode (reaches *past* the user). That is exactly the **{gap_n}-field "
                  f"escalation** above — {agent}'s pre-v67 code reads fields its user can't. At "
                  "v67 that gap would be **0**.")
+    elif gap_n == 0 and unresolved:
+        L.append(f"> **Why this matters for {agent}:** **0 proven** escalation — but "
+                 f"{unresolved} operation{'' if unresolved == 1 else 's'} could not be resolved "
+                 "at all, so this is **not** clean: an unknown never becomes clean. And if the "
+                 "code is still pre-v67, even that zero rests on the code explicitly opting in "
+                 "(`WITH USER_MODE`), not the platform default.")
     elif gap_n == 0:
         L.append(f"> **Why this matters for {agent}:** it stays within its user (gap 0), but if "
                  "its code is still pre-v67 that rests on the code explicitly opting in "

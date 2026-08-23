@@ -146,12 +146,21 @@ function readsFromQuery(query, ops, root, outTypes) {
     }
     fields.push(text(e));
   }
-  let complete = true, note = null;
+  // `kind` names WHOSE limit left this incomplete, and it is decided here rather
+  // than inferred in Python because the decision lives here: both backends must
+  // answer the same way, and matching on the note text later is how they drift.
+  // Every case below is 'analyzer' - the SELECT list is written out in the
+  // source, so this is a shape we do not model, not a property of the code.
+  let complete = true, note = null, kind = null;
   if (hasFunction && fields.length === 0) {
     if (onlyCount) { note = 'COUNT() - no field data returned'; }
-    else { complete = false; note = 'aggregate/function select - fields not enumerated'; }
+    else {
+      complete = false; kind = 'analyzer';
+      note = 'aggregate/function select - fields not enumerated';
+    }
   } else if (hasFunction) {
-    complete = false; note = 'aggregate/function select alongside fields';
+    complete = false; kind = 'analyzer';
+    note = 'aggregate/function select alongside fields';
   }
   const isSub = typeName(query) === 'SubQueryContext';
   const { flow, sinks } = isSub
@@ -159,6 +168,7 @@ function readsFromQuery(query, ops, root, outTypes) {
     : queryFlow(query, root, outTypes, fields);
   ops.push({ operation: 'read', sobject: objectOfQuery(query), fields: fields,
              fields_complete: complete, mode: mode, note: note,
+             unresolved_kind: kind,
              field_flow: flow, field_sinks: sinks });
 }
 
