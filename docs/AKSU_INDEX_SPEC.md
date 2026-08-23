@@ -146,8 +146,49 @@ so.
   user, reaching the model (PS506) — found by intersection with the org's own
   compliance labels, not by our opinion of what is sensitive.
 
+## 10. Licence
+
+**This specification text is licensed under Creative Commons Attribution 4.0
+International (CC BY 4.0).** Copy it, quote it, translate it, teach from it,
+redistribute it whole, and build on it — commercially included — provided you
+give attribution.
+
+Three things this settles, because leaving them unstated was itself a defect:
+
+- **The specification and the implementation are two different works under two
+  different licences.** The reference implementation, *Agent Blast Radius*,
+  remains under the MIT licence (Copyright © 2026 Mustafa Aksu). The MIT grant
+  covers that software; this document is not part of it, and the separation is
+  deliberate rather than an oversight.
+- **A modified version must say that it is modified.** CC BY 4.0 §3(a)(1)(B)
+  requires it. So the text may be forked, and a fork cannot silently present
+  itself as this document — which is the outcome that matters here, not a ban on
+  derivatives.
+- **The licence grants the text, not the name.** "Aksu Index" is the name under
+  which Aksu Software publishes this specification; no trade mark registration is
+  claimed. Attribution is a licence term; the name is not licensed by it.
+
+Why a permissive licence rather than a protective one: §1 exists so that a number
+carrying this name can be checked by people who did not produce it. A licence
+under which a reviewer, a regulator or a competitor had to ask permission before
+quoting the definition would defeat the document's only purpose. This follows the
+established practice for published specifications — semver.org is licensed the
+same way — and it is the reason the *methodology* is given away while the
+*measurement* is the product.
+
+Note that §4.3's rule — that P is never quoted alone while U is above zero — is a
+rule of the **definition**, not a licence term. It is not enforceable against
+anyone. It means only that a number quoted that way is not the number this
+document defines.
+
+**Adding this section does not open the freeze.** §8 binds §3 (the formula) and
+§4 (the non-claims); this states the document's licence and changes neither, so
+P/C/B/U for an unchanged input are untouched. Recorded here rather than adjusted
+silently, because a frozen document that quietly grows is worth less than one
+that says what changed.
+
 ---
 
-*Specification draft — Aksu Software. The Index is computed by Agent Blast Radius;
-the methodology above is public precisely so that the number can be checked by
-people who did not produce it.*
+*Aksu Software. The Index is computed by Agent Blast Radius; the methodology above
+is public precisely so that the number can be checked by people who did not
+produce it.*
