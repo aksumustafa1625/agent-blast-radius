@@ -242,6 +242,24 @@ a later release, that is a finding and I want to hear about it.
 ## Licence
 
 Cases and corpus data: **CC BY 4.0** — use, adapt and redistribute with attribution.
+The full legal text is in [`LICENSE`](LICENSE); SPDX identifier `CC-BY-4.0`.
+
+Run your own analyzer against this corpus and publish the score — that is what it
+is for, and no permission is needed. Attribution, if you want a form to copy:
+
+    Agent Authority Benchmark, Mustafa Aksu, CC BY 4.0
+    https://github.com/aksumustafa1625/agent-authority-benchmark
+
+Two things worth knowing before you fork it. The licence requires that a modified
+version **say** it was modified (CC BY 4.0 §3(a)(1)(B)); that matters more here
+than in most repositories, because the value of this corpus is its labels, and a
+silently retuned label set carrying the same name would be worth nothing to
+anyone. And the licence covers the text and data, not the name — so a fork is
+your benchmark, published under your own name, with attribution back to this one.
+
+If you think a label is wrong, that is the most useful thing you can send: 21 of
+the 28 carry an org verdict, and a case that stops reproducing on a later
+Salesforce release is a finding, not a nuisance.
 
 ---
 
