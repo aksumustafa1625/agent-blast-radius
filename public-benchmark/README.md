@@ -1,5 +1,9 @@
 # Agent Authority Benchmark
 
+*Does the Apex behind your **Agentforce** agent run in **user mode**? At **API version 67**
+Salesforce changed the default — and whether a given class sits on the old side or the new
+one decides what your agent can read past its running user. These 28 cases measure that.*
+
 **Version 1.1 (2026-08-19).** *v1.0 carried a defect in its scoring field — see
 [Errata](#errata) before comparing against a copy you already hold.*
 
@@ -242,7 +246,8 @@ a later release, that is a finding and I want to hear about it.
 ## Licence
 
 Cases and corpus data: **CC BY 4.0** — use, adapt and redistribute with attribution.
-The full legal text is in [`LICENSE`](LICENSE); SPDX identifier `CC-BY-4.0`.
+The full legal text is in [`LICENSE`](LICENSE) and the attribution note is in
+[`NOTICE`](NOTICE); SPDX identifier `CC-BY-4.0`.
 
 Run your own analyzer against this corpus and publish the score — that is what it
 is for, and no permission is needed. Attribution, if you want a form to copy:
