@@ -1,5 +1,5 @@
 {
-  "runningUser": "svc@example.com",
+  "runningUser": "hw-svc@example.com",
   "channel": "web-unauthenticated",
   "systemPermissions": { "ViewAllData": false, "ModifyAllData": false },
   "objectPermissions": [

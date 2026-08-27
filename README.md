@@ -5,9 +5,25 @@ Salesforce Agentforce agent — at the execution-semantics layer — and flags e
 that surface exceeds the running user's own permissions or reaches a field the org has
 labelled GDPR / PII.**
 
-The headline number is the **Escalation Gap**: the fields the agent's *code* can reach
-beyond its *user*. No agent is ever invoked; no Flex Credits are consumed; it runs on
-every commit and fails the build on ERROR.
+What it reports is the **[Aksu Index](https://aksuindex.com/en)** — four numbers for one
+agent and one running user:
+
+```
+Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
+```
+
+**proven** — fields the code demonstrably reaches past the user · **regulated** — the subset
+carrying the org's own compliance labels · **unproven boundaries** — a real boundary the
+analysis could not prove was crossed · **unresolved** — reach it could not determine at all.
+
+Quoting the proven number alone while unresolved is above zero is a **violation of the
+specification**, and no API here returns fewer than four numbers. An unknown never reads as
+clean. The Index is defined by a **[public specification](https://aksuindex.com/en)** and
+licensed CC BY 4.0, precisely so a number carrying its name can be checked by someone who
+did not produce it — including against this tool.
+
+No agent is ever invoked; no Flex Credits are consumed; it runs on every commit and can fail
+the build when the number gets worse.
 
 And on an agent authored in Salesforce's open-source **Agent Script**, it does not stop at
 *reachability* — it follows the value all the way into the prompt:
@@ -29,13 +45,25 @@ survives only in the Agent Script source. So for the compiled forms tested, a
 metadata-based scanner has nothing to read.
 
 > **Honest framing.** A reference implementation built on my own initiative, not client
-> work. The analyzer, the in-org experiments, the **241 unit tests**, the accuracy
+> work. The analyzer, the in-org experiments, the **303 unit tests**, the accuracy
 > benchmark, the live agent *authored in Agent Script and published to the org*, and the
 > reports against four real orgs are all real, produced at zero Flex Credits. The
 > health-records domain is fictional demo data. This is **not a certificate** — it is an
 > agent-scoped security review accelerator that produces evidence for a DPIA.
 >
 > Full case study: **[mustafaaksu.dev/en/projects/agent-blast-radius](https://mustafaaksu.dev/en/projects/agent-blast-radius)**
+
+**Everything this README claims is published and checkable:**
+
+| | |
+|---|---|
+| The specification, CC BY 4.0 | **[aksuindex.com](https://aksuindex.com/en)** |
+| The benchmark — 28 cases, 21 adjudicated by a live org, sha256-sealed, CC BY 4.0 | **[agent-authority-benchmark](https://github.com/aksumustafa1625/agent-authority-benchmark)** |
+| Two real reports, as the analyzer wrote them | **[TechnoStore](https://agentblastradius.com/reports/technostore-aksu-index.html)** · **[HanseWatt](https://agentblastradius.com/reports/hansewatt-aksu-index.html)** |
+| What the tool refuses to say, and why | **[agentblastradius.com](https://agentblastradius.com/en)** |
+
+Run your own analyzer against that corpus and publish the score. That is what it is for, and
+no permission is needed.
 
 ---
 
@@ -178,7 +206,7 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 241 unit tests (AST/Agent-Script suites skip cleanly without Node)
+# 303 unit tests (AST/Agent-Script suites skip cleanly without Node)
 python -m unittest discover -s blast_radius -p "test_*.py"
 
 # accuracy, not just green tests
@@ -212,10 +240,19 @@ A pre-v67 action reads a Private object in system mode (**PS501**);
 user's FLS (**PS506**); the value is *traced* into the prompt at a specific line (**PS522**).
 The safe twin (v67 + `USER_MODE`) reports clean — no false positive.
 
-**HanseWatt** (10/10 classes at v67) comes back **clean** — the tool stays quiet on a
-modern org. **TechnoStore** is the opposite and the more common case: **106 classes + 7
-triggers, 100% pre-v67**, a 6-field escalation gap with a GDPR field reaching the model, and
-a build-failing gate. The report's *Org health* footer ties the two together: the org-wide
+**HanseWatt** reports `0 proven (0 regulated) · 0 unproven boundaries · 2 unresolved`.
+Read that carefully, because the tool insists on it: **it is not clean.** Zero proven beside
+two unresolved means zero proven and two unresolved, and the report prints that caveat
+unprompted — in the author's own demonstration org.
+
+It is also the most instructive measurement in the project. The **org** is **182 of 219 Apex
+files pre-v67 — 83% legacy** — yet all **nine** of its agent's actions are v67. So the
+actionable sentence is not *"modernise your org"*; it is that **you cannot know which part
+matters until it is measured, and it is a far smaller part than you fear.**
+
+**TechnoStore** is the opposite and the more common case: **113 Apex files, 100% pre-v67**,
+reporting `6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved` with a
+regulated field reaching the model, and a build-failing gate. The report's *Org health* footer ties the two together: the org-wide
 pre-v67 debt is the *root cause* of that agent's blast radius — at v67 the gap would be zero.
 
 ## What external review changed

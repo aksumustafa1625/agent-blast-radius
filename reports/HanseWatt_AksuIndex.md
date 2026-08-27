@@ -63,7 +63,7 @@ CLASSIFICATION COVERAGE
 | Object | Read mode | Records in org | User sees | Gap (upper bound) | Cause |
 | --- | --- | ---: | ---: | ---: | --- |
 | `Case` | user | 33 | _= agent (sharing enforced)_ | 0 | — |
-| `Tariff_Change_Request__c` | user | 1 | _= agent (sharing enforced)_ | 0 | — |
+| `Tariff_Change_Request__c` | user | ? | _= agent (sharing enforced)_ | 0 | — |
 
 > _`Records in org` is a live `COUNT()` of the whole object run as the analysis identity. **It is an upper bound, not the agent's result**: query predicates and `LIMIT` are not resolved statically. It is an escalation ceiling only for **system-mode** reads — a **user-mode** read enforces sharing, so the agent is bounded by the running user and the gap is 0 by construction. **CRUD** = the user has no object permission at all (deterministic); **sharing** = the user can read the object but record-level sharing may hide rows, which is data-dependent and shown as `n/a` — never estimated._
 

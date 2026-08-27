@@ -329,10 +329,27 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 ## 6.1 The Aksu Index — the public metric (spec: `docs/AKSU_INDEX_SPEC.md`)
 
-The market-facing name for what the tool computes. **The term is public; the
-measurement is the product** — the specification is published precisely so a number
-can be checked by people who did not produce it (the FICO shape: everyone quotes the
-score, one company computes it).
+The market-facing name for what the tool computes. The specification is published
+precisely so a number can be checked by people who did not produce it.
+
+**The shape of this changed on 2026-08-26, and the old sentence is worth recording
+because it was load-bearing for a year.** It used to read *"the term is public; the
+measurement is the product — the FICO shape: everyone quotes the score, one company
+computes it."* That required the analyzer to stay closed, and the analyzer is now
+**MIT open source**. So the FICO shape is gone.
+
+What replaces it is the **standard-author shape** — semver.org, not FICO. The
+definition is public (CC BY 4.0), the corpus that scores an implementation is public
+(CC BY 4.0), and now the reference implementation is public too. Anyone can compute
+an Aksu Index; what remains is having **defined** it and having done the measurement
+that grounds it — 16 in-org experiments, an org-adjudicated benchmark, and a
+determinism proof.
+
+The reasoning behind the switch, and the alternative that was rejected, is in
+`docs/SELF_SERVE_PLAN_2026-08.md`. The short version: the moat was thinner than it
+looked, because the spec and the corpus were already public — the closed analyzer was
+the last wall around a house with no other walls. And the goal it was defending
+(revenue) was not the goal actually being pursued (recognition, and work).
 
 ```
 Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved

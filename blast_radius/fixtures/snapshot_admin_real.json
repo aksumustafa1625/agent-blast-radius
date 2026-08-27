@@ -1,6 +1,6 @@
 {
   "_note": "Captured from HospitalOrg via snapshot_loader.py on 2026-07-14 (admin user, scoped to Blast_Test__c). Real data, used to test the loader->resolver pipeline deterministically.",
-  "runningUser": "agent-user@example.com",
+  "runningUser": "analysis-user@example.com",
   "channel": null,
   "systemPermissions": { "ViewAllData": true, "ModifyAllData": true },
   "objectPermissions": [

@@ -1,6 +1,6 @@
 ```
 AGENT BLAST RADIUS REPORT - HW_Energy_Agent
-Running user: svc@example.com   (channel: web-unauthenticated)
+Running user: hw-svc@example.com   (channel: web-unauthenticated)
 Config fingerprint: f87e939a63c2      Generated: 2026-07-14
 ================================================================
 

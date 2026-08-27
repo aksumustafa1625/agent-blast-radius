@@ -57,7 +57,7 @@ class HeadlineTest(unittest.TestCase):
         self.assertIn("Blast_Test__c.Customer_IBAN__c", gdpr)
 
     def test_report_contains_headline_and_findings(self):
-        md = render_markdown("HW_Energy_Agent", "svc@example.com",
+        md = render_markdown("HW_Energy_Agent", "hw-svc@example.com",
                              "web-unauthenticated", self.actions)
         self.assertIn("ESCALATION GAP", md)
         self.assertIn("PS506", md)

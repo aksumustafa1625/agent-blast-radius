@@ -1,5 +1,5 @@
 {
-  "runningUser": "admin@example.com",
+  "runningUser": "hw-admin@example.com",
   "channel": "in-app",
   "systemPermissions": { "ViewAllData": true, "ModifyAllData": false },
   "objectPermissions": [],

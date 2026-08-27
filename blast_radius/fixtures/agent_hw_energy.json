@@ -1,7 +1,7 @@
 {
   "_note": "Normalized agent config standing in for a GenAiPlanner(Bundle)/GenAiPlugin/GenAiFunction retrieve. Targets are REAL deployed artifacts in this org.",
   "agent": "HW_Energy_Agent",
-  "runningUser": "svc@example.com",
+  "runningUser": "hw-svc@example.com",
   "channel": "web-unauthenticated",
   "topics": [
     {
