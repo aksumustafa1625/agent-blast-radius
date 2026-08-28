@@ -1,4 +1,4 @@
-"""The join: reach x running-user permissions x GDPR labels -> findings (M3).
+"""The join: reach x running-user permissions x the org's compliance labels -> findings (M3).
 
 This is where the pieces meet. For each action's resolved reach (from
 apex_introspect / flow_introspect), it diffs against the running user's
@@ -527,7 +527,7 @@ def _analyze_units(action: str, units: List[AccessUnit], perms,
                         f"is read in {mode_word} mode and may reach the model")
                 findings.append(Finding(
                     "PS506", sev, f"{action} -> {full}",
-                    f"GDPR/PII field {full} {verb}, but the running user has no FLS on it.",
+                    f"Regulated field {full} {verb}, but the running user has no FLS on it.",
                     f"ComplianceGroup {tag}. A field the running user cannot see can reach the "
                     f"LLM and the end user's screen. {_PATH_NOTE[path]}{san_note}{mode_note}",
                     "Remove the field from the query/output, or enforce FLS "

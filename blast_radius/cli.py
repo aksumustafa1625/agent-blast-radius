@@ -1,7 +1,7 @@
 """Agent Blast Radius - one command, any org.
 
 Point it at an authenticated org + an agent, and it pulls the agent config,
-Apex/Flow reach, the running user's permissions, the org's GDPR labels and
+Apex/Flow reach, the running user's permissions, the org's compliance labels and
 sharing models - all live - and writes the deterministic report.
 
     python blast_radius/cli.py --agent HealthRecord_Assistant --permission-set HR_Agent_Minimal
@@ -102,7 +102,7 @@ def _reached_fields(agent, source_root: str, backend: str = "auto"):
     (`BillToContact.Email`), a direct field gets `Object.Field`.
 
     Needed BEFORE classification runs, because a relationship path is the only clue
-    that the agent traverses into another object - and that object's GDPR labels
+    that the agent traverses into another object - and that object's compliance labels
     have to be loaded for PS506 to see them."""
     from report import _qualify
     fields = set()
@@ -295,7 +295,7 @@ def main():
     print("loading classifications, sharing models, permissions ...")
     # Pass the reached field paths too: a relationship path (BillToContact.Email)
     # is what tells the loader to resolve that relationship and pull the TARGET
-    # object's GDPR labels - without it, PS506 silently misses every cross-object
+    # object's compliance labels - without it, PS506 silently misses every cross-object
     # personal field the agent reads.
     classification, visible = org_loaders.classification(
         objects, args.org, fields=_reached_fields(agent, root, args.apex_backend))
@@ -397,7 +397,7 @@ def main():
     print(f"AGENT: {agent.name}   RUNNING USER: {agent.running_user}")
     # ASCII form on purpose: the Windows console is cp1252.
     print(aksu_index_line(aksu_index(summaries), ascii_only=True).upper())
-    print(f"ESCALATION GAP: {len(gap)} field(s), {len(gdpr)} GDPR-labelled")
+    print(f"ESCALATION GAP: {len(gap)} field(s), {len(gdpr)} regulated")
     if counts:
         from report import record_reach
         rr = record_reach(counts)

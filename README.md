@@ -3,7 +3,7 @@
 **A static, zero-credit analyzer that computes the *real* data-access surface of a
 Salesforce Agentforce agent — at the execution-semantics layer — and flags every place
 that surface exceeds the running user's own permissions or reaches a field the org has
-labelled GDPR / PII.**
+labelled as regulated.**
 
 What it reports is the **[Aksu Index](https://aksuindex.com/en)** — four numbers for one
 agent and one running user:
@@ -29,7 +29,7 @@ And on an agent authored in Salesforce's open-source **Agent Script**, it does n
 *reachability* — it follows the value all the way into the prompt:
 
 ```
-[PS522] GDPR/PII field HealthRecord__c.Diagnosis__c is interpolated into the
+[PS522] Regulated field HealthRecord__c.Diagnosis__c is interpolated into the
         model's prompt at line 125, and the running user has no FLS on it.
 
   Traced:  HealthRecord__c.Diagnosis__c
@@ -94,7 +94,7 @@ claim "clean" either — it says WARN.
 
 **This is not "sfge is bad."** It is a general-purpose, deliberately conservative scanner
 answering a different question — *"is an FLS check present?"* — with no notion of a running
-user or a GDPR label. The supportable claim is narrow: for *this* question — what can this
+user or a compliance label. The supportable claim is narrow: for *this* question — what can this
 agent reach as *this* user — a version-aware, user-scoped analysis is measurably more
 precise, and **the org is what says so**.
 
@@ -233,7 +233,7 @@ python blast_radius/verify_deterministic.py -- --agent <X> --permission-set <Y> 
 Agent Script*, validated by Salesforce's own compiler and published with `sf agent publish`.
 One line justifies the tool:
 
-> **Escalation Gap: 1 field — 1 GDPR-labelled.**
+> **Escalation Gap: 1 field — 1 regulated.**
 
 A pre-v67 action reads a Private object in system mode (**PS501**);
 `HealthRecord__c.Diagnosis__c` — `ComplianceGroup: PII;GDPR;HIPAA` — is read past the running

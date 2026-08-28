@@ -61,7 +61,7 @@ when the thing being measured is not the query but what happens to the data afte
 
 It needs an org carrying the Milestone 0 fixture (`Blast_Test__c` with
 `Customer_IBAN__c`). The test builds its own throwaway user and permission set — object
-read, and deliberately **no** field permission on the GDPR field — so the field is out of
+read, and deliberately **no** field permission on the regulated field — so the field is out of
 the user's reach unless execution mode puts it back, which is exactly the thing under test.
 
 **Adding a `runtime` shape to a `reasoned` case is worth more than ten new reasoned cases.**

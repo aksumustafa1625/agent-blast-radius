@@ -3,7 +3,7 @@
 A static, zero-credit tool that computes the **real** data-access surface of a
 Salesforce Agentforce agent at the *execution-semantics* layer — and flags every
 place that surface exceeds the running user's own permissions, or reaches a field
-the org has labelled GDPR / PII.
+the org has labelled as regulated.
 
 No agent is ever invoked. Every input is a free metadata read. It runs on every
 commit.
@@ -86,7 +86,7 @@ Short form:
 | PS503 | ERROR/WARN | system-mode DML on an object the user cannot write |
 | PS504 | WARN | honest unknown: dynamic SOQL, SOSL without RETURNING, unresolved reach, undetermined Flow context |
 | PS505 | WARN | a classified field reaches the model although the user IS allowed it |
-| PS506 | ERROR/WARN | a GDPR/PII-labelled field invisible to the running user reaches the model |
+| PS506 | ERROR/WARN | a regulated field invisible to the running user reaches the model |
 | PS507 | WARN | standard/opaque action; documented channel named when catalogued |
 | PS508 | WARN | delegation chain deeper than one level |
 | PS509 | ERROR/WARN | trigger cascade — ERROR only when the trigger's own body performs DML the user cannot |

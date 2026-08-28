@@ -15,7 +15,7 @@ reach the model" and becomes "this field enters the prompt, at this line".
 
 Rules:
   PS520 INFO   an action output reaches the prompt (a data->prompt path exists)
-  PS521 WARN   ... and the backing field is GDPR/PII-classified (data minimization)
+  PS521 WARN   ... and the backing field carries a compliance label (data minimization)
   PS522 ERROR  ... and the running user has no FLS on it - a field the user
                cannot see is interpolated into the model's prompt. This is the
                PROVEN form of PS506.
@@ -122,7 +122,7 @@ def analyze_prompt_flow(action_name: str, reach, perms,
                 if tag and not user_sees:
                     findings.append(Finding(
                         "PS522", "ERROR", where,
-                        f"GDPR/PII field {full} is interpolated into the model's prompt "
+                        f"Regulated field {full} is interpolated into the model's prompt "
                         f"at line {prompt_line}, and the running user has no FLS on it.",
                         f"ComplianceGroup {tag}. Traced end to end: {path}. This is not "
                         f"inferred reachability - every hop is a node in the parse tree.",
