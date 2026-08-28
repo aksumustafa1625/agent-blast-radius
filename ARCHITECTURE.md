@@ -39,7 +39,7 @@ agent-blast-radius/
 │   ├── benchmark/                corpus + runner + mutation + runtime oracle
 │   │                             + sfge differential (see ADR-005/006)
 │   ├── fixtures/                 permission snapshots + apex/prompt fixtures
-│   └── test_*.py                 241 unit tests
+│   └── test_*.py                 307 unit tests
 │
 ├── sfdx-blast-radius/            sf CLI plugin (linked; `sf blast-radius ...`)
 ├── docs/adr/                     12 decision records incl. the rejections

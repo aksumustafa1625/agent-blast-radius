@@ -137,6 +137,6 @@ standing ones:
 ## Status
 
 Functionally complete end-to-end (single class → whole agent, classic bundle or
-Agent Script). 241 tests; benchmark 28/28 with an 8/8 mutation score; runtime
+Agent Script). 307 tests; benchmark 28/28 with an 8/8 mutation score; runtime
 oracle on 21 of 28 cases. What is still open is listed, in priority order, in
 `../CLAUDE.md` §9 — this file does not keep a second copy of that list.

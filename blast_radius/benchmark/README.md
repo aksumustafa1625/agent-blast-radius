@@ -1,6 +1,6 @@
 # Agent Authority Benchmark v1
 
-**Why:** "241 tests green" is not an accuracy claim. A test suite proves the code does
+**Why:** "307 tests green" is not an accuracy claim. A test suite proves the code does
 what its author expected. This measures how often that expectation is *right* — per
 rule, against labels written to be independent of the implementation.
 
