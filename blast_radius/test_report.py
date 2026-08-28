@@ -6,6 +6,7 @@ Run from the repo root:  python blast_radius/test_report.py
 import json
 import os
 import sys
+import re
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -438,7 +439,7 @@ class AksuIndexTest(unittest.TestCase):
         md = render_markdown("A", "u", "c",
                              [self._action([self._f("PS506", "ERROR", "X.Iban__c"),
                                             self._f("PS504", "WARN", "?")])])
-        self.assertIn("Aksu Index: 1 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved", md)
+        self.assertIn("Aksu Index: 1 proven (1 regulated) · 0 unproven boundaries · 1 unresolved", md)
 
     def test_zero_proven_with_unresolved_is_not_clean(self):
         # Spec §4.3: "Index = 0 with U > 0 is not clean" — the report must say so
@@ -448,7 +449,7 @@ class AksuIndexTest(unittest.TestCase):
         # whole point of the headline is that it is read on its own.
         md = render_markdown("A", "u", "c",
                              [self._action([self._f("PS504", "WARN", "?")])])
-        self.assertIn("Aksu Index: 0 proven (0 GDPR) · 0 unproven boundaries · 1 unresolved", md)
+        self.assertIn("Aksu Index: 0 proven (0 regulated) · 0 unproven boundaries · 1 unresolved", md)
         self.assertIn("NOT clean", md)
         head = _headline_block(md)
         self.assertIn("NOT clean", head)
@@ -495,7 +496,7 @@ class AksuIndexHeadlineTest(unittest.TestCase):
         self.assertIn("1 of them carries", head)          # C, expressed inside P
         self.assertIn("1  unproven boundaries", head)
         self.assertIn("1  unresolved", head)
-        self.assertIn("Aksu Index: 2 proven (1 GDPR) · 1 unproven boundaries · 1 unresolved",
+        self.assertIn("Aksu Index: 2 proven (1 regulated) · 1 unproven boundaries · 1 unresolved",
                       head)
         self.assertIn("none of them may be quoted alone", head)
 
@@ -554,7 +555,7 @@ class AksuIndexHeadlineTest(unittest.TestCase):
         from report import aksu_index, aksu_index_line
         line = aksu_index_line(aksu_index([]), ascii_only=True)
         self.assertNotIn("·", line)
-        self.assertIn("Aksu Index: 0 proven (0 GDPR) / 0 unproven boundaries / 0 unresolved", line)
+        self.assertIn("Aksu Index: 0 proven (0 regulated) / 0 unproven boundaries / 0 unresolved", line)
 
 
 class AksuBandHtmlTest(unittest.TestCase):
@@ -602,7 +603,7 @@ class AksuBandHtmlTest(unittest.TestCase):
         self.assertIn("regulated", band)
         self.assertIn("unproven boundaries", band)
         self.assertIn("unresolved", band)
-        self.assertIn("Aksu Index: 2 proven (1 GDPR) · 1 unproven boundaries · 1 unresolved",
+        self.assertIn("Aksu Index: 2 proven (1 regulated) · 1 unproven boundaries · 1 unresolved",
                       band)
 
     def test_classified_is_rendered_inside_proven_not_beside_it(self):
@@ -657,3 +658,36 @@ class AksuBandHtmlTest(unittest.TestCase):
         band = self._band(self._html([self._f("PS502", "ERROR", "X.A__c"),
                                       self._f("PS504", "WARN", "?")]))
         self.assertNotIn("%", band)
+
+
+class SnapshotDateTest(unittest.TestCase):
+    """A stated capture date, and the two things it must NOT do."""
+
+    def setUp(self):
+        self.actions = [ActionSummary("A", "apex", 67.0, False,
+                                      ["X__c"], ["X__c.F__c"], [])]
+
+    def test_the_date_appears_when_stated(self):
+        md = render_markdown("A", "u", "c", self.actions, generated="measured 2026-08-28")
+        self.assertIn("measured 2026-08-28", md)
+
+    def test_omitted_it_still_says_deterministic(self):
+        self.assertIn("deterministic", render_markdown("A", "u", "c", self.actions))
+
+    def test_the_date_does_not_move_the_fingerprint(self):
+        """The same analysis captured on two dates is the same analysis.
+
+        A caption that changed the seal would make the fingerprint useless for the
+        one thing it exists for: telling a reader whether two reports describe the
+        same verdict.
+        """
+        a = render_markdown("A", "u", "c", self.actions, generated="measured 2026-01-01")
+        b = render_markdown("A", "u", "c", self.actions, generated="measured 2026-12-31")
+        fp = lambda s: re.search(r"Config fingerprint: (\w+)", s).group(1)
+        self.assertEqual(fp(a), fp(b))
+
+    def test_same_date_still_renders_byte_identical(self):
+        """Determinism survives: the date is an input, never a clock read."""
+        args = ("A", "u", "c", self.actions)
+        self.assertEqual(render_markdown(*args, generated="measured 2026-08-28"),
+                         render_markdown(*args, generated="measured 2026-08-28"))

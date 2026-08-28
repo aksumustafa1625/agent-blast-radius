@@ -192,3 +192,38 @@ that says what changed.
 *Aksu Software. The Index is computed by Agent Blast Radius; the methodology above
 is public precisely so that the number can be checked by people who did not
 produce it.*
+
+---
+
+## Erratum 1 — 2026-08-28 — the printed label for C
+
+**No number, formula or non-claim changes. This records a wording correction, in
+the open, rather than editing a frozen document silently.**
+
+The C bucket has always been defined as *"the subset of P carrying **the org's own
+compliance labels**"* (§3), and that definition is unchanged. But the canonical
+examples in §1 and §9, and the tool that produced them, printed the label as
+`GDPR`:
+
+    Aksu Index: 6 proven (2 GDPR) · 3 unproven boundaries · 1 unresolved
+
+That word is too narrow, and describes one jurisdiction's use of a
+jurisdiction-agnostic mechanism. What the implementation reads is Salesforce's
+`FieldDefinition.ComplianceGroup` — **whatever label the org's own administrators
+applied.** An org tagging fields under CCPA, HIPAA, PCI-DSS or an internal data
+policy produces a C count by the identical mechanism, and always did. A reader
+outside the EU could reasonably have concluded the bucket did not apply to them.
+It does.
+
+From this erratum, implementations should print **`regulated`**:
+
+    Aksu Index: 6 proven (2 regulated) · 3 unproven boundaries · 1 unresolved
+
+**The frozen text above is left exactly as published.** An Index quoted with the
+older label is the same Index — same definition, same count, same four numbers —
+and remains valid without reissue. The reference implementation changed its output
+on 2026-08-28; a report carrying `GDPR` predates that build and is not thereby
+wrong.
+
+This is an editorial correction under §8, not a new version: §3 and §4 are
+untouched, and P/C/B/U are unchanged for every input.

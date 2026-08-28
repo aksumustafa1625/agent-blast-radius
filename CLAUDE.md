@@ -706,11 +706,19 @@ the fingerprint binding the analyzer's own source hash + parser version.
    external reviewer caught the docs classifying this as a *conservative* limitation;
    it is the opposite — optimistic. Muting is no longer in this bucket (E9 measured
    the aggregate applies it).
-9. **No suppression / baseline.** There is no way to silence a reviewed PS501 or
-   PS507. A CI gate nobody can silence gets switched off — a real product risk, raised
-   by an external review and not yet addressed. If it is built, the honest shape is
-   sfge's: an inline directive **with a reason**, and unreasoned suppressions listed in
-   the report.
+9. **Suppression — the baseline half is BUILT; the per-finding half is not.**
+   *(This entry claimed the whole thing was unaddressed until 2026-08-28, while
+   `--baseline` / `--write-baseline` and 16 tests in `test_baseline.py` had been
+   shipping. An external reviewer caught the contradiction between this file and
+   the code. A working-context file that misstates its own project's state is the
+   same defect class as a stale docstring — see §3.)*
+   What exists: a **ratchet**. `--write-baseline` records the four Index numbers
+   plus the analyzer digest; `--baseline` then asks *"is it worse than last time"*
+   rather than *"is it zero"*, and every bucket ratchets — so moving a finding from
+   P into U by making a query dynamic breaks the gate instead of passing it.
+   What does **not** exist: a way to silence one reviewed PS501 or PS507. If it is
+   built, the honest shape is sfge's — an inline directive **with a reason**, and
+   unreasoned suppressions listed in the report.
 10. Managed-package internals, Knowledge/Data Cloud retrieval — opaque today.
 
 ---

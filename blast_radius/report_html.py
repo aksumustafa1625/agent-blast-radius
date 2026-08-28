@@ -363,7 +363,7 @@ def _circle_svg(inner_n: int, outer_n: int, gap_n: int, gdpr_n: int) -> str:
       <text class="c-outer-label c-num" x="{cx}" y="46" text-anchor="middle">{outer_n} fields</text>
       <text class="c-inner-label c-big" x="{cx}" y="{cy + 6}" text-anchor="middle">{inner_n}</text>
       <text class="c-inner-label c-cap" x="{cx}" y="{cy + 26}" text-anchor="middle">USER SEES</text>
-      <text class="c-gap-label c-cap" x="{cx}" y="356" text-anchor="middle">ESCALATION GAP: {gap_n} FIELD{plural} &#8226; {gdpr_n} GDPR</text>
+      <text class="c-gap-label c-cap" x="{cx}" y="356" text-anchor="middle">ESCALATION GAP: {gap_n} FIELD{plural} &#8226; {gdpr_n} REGULATED</text>
     </svg>
     """
 
@@ -492,12 +492,12 @@ def _aksu_band(ix, outer_n: int, inner_n: int, gap_n: int, n_objects: int) -> st
     if c:
         cls, verb = "ac", ("is" if c == 1 else "are")
         body = (f'<b class="n">{c}</b> of those fields {verb} labelled <b>regulated</b> by the '
-                f'org itself (GDPR / PII compliance group). Counted <b>inside</b> the '
+                f'org itself, in its own compliance group. Counted <b>inside</b> the '
                 f'{p} above, never added to it.')
     else:
         cls = "ac none"
         body = ('<b class="n">0</b> of those carry the org&rsquo;s own <b>regulated</b> '
-                '(GDPR / PII) label. This bucket is a subset of the number above, '
+                'compliance label. This bucket is a subset of the number above, '
                 'never an addition to it.')
     out.append(f'<div class="{cls}">{body}</div>')
     out.append('</div>')
@@ -617,12 +617,12 @@ def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
         if gdpr:
             p.append(
                 f'<p>Its code can read <b>{len(gap)}</b> field(s) the user cannot see '
-                f'— <b>{len(gdpr)}</b> of them personal-data (GDPR) fields — and that '
+                f'— <b>{len(gdpr)}</b> of them carrying a compliance label the org itself applied — and that '
                 f'data can reach the AI model. <b>This should be fixed before go-live.</b></p>')
         elif gap:
             p.append(
                 f'<p>Its code can read <b>{len(gap)}</b> field(s) that its user has no '
-                f'permission to see. None are GDPR-labelled, but it is still an access mismatch '
+                f'permission to see. None carry a compliance label, but it is still an access mismatch '
                 f'worth reviewing.</p>')
 
     # 3) record reach, plainly. Only system-mode reads have a ceiling; and the org
@@ -911,7 +911,7 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
         parts.append('<div class="hero"><div>')
         parts.append(f'<div class="gapnum">{len(gap)}</div>')
         parts.append(f'<div class="gaplabel"><b>{gap_word} reachable beyond the running user</b>'
-                     f'{f" — <b>{len(gdpr)}</b> GDPR-labelled." if gdpr else "."}</div>')
+                     f'{f" — <b>{len(gdpr)}</b> regulated." if gdpr else "."}</div>')
         parts.append('<div class="legend">'
                      '<span><i class="dot" style="background:var(--user)"></i>User sees</span>'
                      '<span><i class="dot" style="background:var(--gap)"></i>Agent reaches / gap</span>'
@@ -967,7 +967,7 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
             f'<div class="clean" style="border-left:4px solid var(--warn)">'
             f'Classification coverage {coverage["coverage_pct"]}%: '
             f'{coverage["not_visible"]} reachable field(s) are not visible to the analysis '
-            f'identity. A &ldquo;0 GDPR&rdquo; result is not proof of safety for those fields.'
+            f'identity. A &ldquo;0 regulated&rdquo; result is not proof of safety for those fields.'
             f'</div>')
 
     section = _record_section(reach)

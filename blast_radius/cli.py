@@ -14,6 +14,7 @@ invoked; zero Flex Credits.
 from __future__ import annotations
 
 import argparse
+from datetime import date as _date
 import os
 import subprocess
 import sys
@@ -192,6 +193,15 @@ def main():
                          "could not be read from a real parse tree. The fallback cannot "
                          "trace the Authority Path, so its findings are weaker evidence - "
                          "use this for a production gate")
+    # A report with no date cannot be told from a report made in March, and the
+    # reader has no way to ask. It is an INPUT the operator states, never a clock
+    # read at render time: a wall-clock stamp would make two runs of the same
+    # analysis differ byte for byte and take the determinism proof with it. It is
+    # also deliberately OUTSIDE the fingerprint - the same analysis captured on two
+    # dates is the same analysis, and a caption must not change the seal.
+    ap.add_argument("--snapshot-date", metavar="YYYY-MM-DD",
+                    help="date the org data was captured, printed on the report. "
+                         "Omitted, the report says 'deterministic' as before")
     ap.add_argument("--baseline", metavar="PATH",
                     help="compare this run against a recorded baseline and exit "
                          "non-zero if ANY of the four numbers rose. This is the "
@@ -356,9 +366,23 @@ def main():
         except Exception as e:
             print(f"  (org health skipped: {e})")
 
+    stamp = "deterministic"
+    if args.snapshot_date:
+        # Validate rather than print whatever arrived. A malformed date on a
+        # security report is worse than no date: it reads as precision.
+        try:
+            y, m, d = (int(x) for x in args.snapshot_date.split("-"))
+            _date(y, m, d)
+            stamp = f"measured {args.snapshot_date}"
+        except (ValueError, TypeError):
+            print(f"  [!] --snapshot-date '{args.snapshot_date}' is not YYYY-MM-DD; "
+                  "the report will not carry a date")
+
     md = render_markdown(agent.name, agent.running_user, agent.channel, summaries,
+                         generated=stamp,
                          coverage=coverage, counts=counts, org_health_md=org_health_md)
     html = render_html(agent.name, agent.running_user, agent.channel, summaries,
+                       generated=stamp,
                        coverage=coverage, counts=counts, org_health=org_health_html)
     with open(args.out + ".md", "w", encoding="utf-8") as f:
         f.write(md)

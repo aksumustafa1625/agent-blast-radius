@@ -1,7 +1,7 @@
 """Deterministic report renderer + Escalation Gap headline (Milestone 4).
 
 Turns authority findings into the artifact: one number (the Escalation Gap -
-fields the agent's code can reach beyond the running user, with the GDPR subset
+fields the agent's code can reach beyond the running user, with the regulated subset
 called out), a reach summary, and the findings grouped by severity. The report
 is fingerprint-bound (a sha256 over the analysed inputs) so it is byte
 reproducible and STALE-guarded - regenerate when the fingerprint changes.
@@ -31,7 +31,7 @@ _CAUSE_LABEL = {
     None: "—",
 }
 
-# Within a severity, surface the highest-value rule first. PS506 (a GDPR/PII-
+# Within a severity, surface the highest-value rule first. PS506 (a regulated
 # labelled field escaping past the running user's FLS into the model) is the
 # single most decision-relevant finding for a DPO, so it leads the section; the
 # rest keep a stable alphabetical order. Lower number = earlier.
@@ -101,7 +101,15 @@ def _field_of(where: str) -> str:
 
 
 def escalation_gap(actions: List[ActionSummary]) -> tuple[set, set]:
-    """(fields reachable beyond the user, GDPR-labelled subset)."""
+    """(fields reachable beyond the user, the regulated subset of it).
+
+    The dict key stays `gdpr` although nothing printed says GDPR any more. It is
+    NOT a leftover: `baseline.py` writes this key into the ratchet file on disk,
+    so renaming it would silently invalidate every baseline a user already holds
+    - and a ratchet that cannot read yesterday's file is not a ratchet. The label
+    is what a reader sees; the key is a storage format with its own compatibility
+    obligation, and the two are allowed to differ when the reason is written down.
+    """
     gap, gdpr = set(), set()
     for a in actions:
         for f in a.findings:
@@ -117,7 +125,8 @@ def aksu_index(actions: List[ActionSummary]) -> dict:
     proof level. The circles keep the union — the spec's `gap` IS P ∪ B — but the
     quoted number may not mix them, because severity is the tool's proof claim:
     a WARN inside the proven count would present a boundary we could not prove
-    as if we had proven it. GDPR counts only within proven, for the same reason.
+    as if we had proven it. The regulated count sits only within proven, for the
+    same reason.
     `unresolved` counts PS504 findings — reach we could not determine at all —
     and the spec forbids quoting `proven` without it: an unknown never reads
     as clean."""
@@ -184,7 +193,7 @@ def aksu_index_line(ix: dict, ascii_only: bool = False) -> str:
     caller gets a shorter form to misquote. ascii_only is for the Windows
     console (cp1252); the md/html files are utf-8 and keep the canonical dot."""
     sep = " / " if ascii_only else " · "
-    return (f"Aksu Index: {len(ix['proven'])} proven ({len(ix['gdpr'])} GDPR)"
+    return (f"Aksu Index: {len(ix['proven'])} proven ({len(ix['gdpr'])} regulated)"
             f"{sep}{len(ix['boundary'])} unproven boundaries"
             f"{sep}{ix['unresolved']} unresolved")
 
@@ -224,10 +233,10 @@ def _index_headline(agent: str, ix: dict, gap_n: int, objects_n: int,
         L.append("         fields the agent's code can reach beyond this running user.")
         if C:
             L.append(f"         {C} of them {'carries' if C == 1 else 'carry'} "
-                     f"the org's own compliance labels (GDPR/PII).")
+                     f"the org's own compliance labels.")
         else:
             L.append("         None of them carry the org's own compliance labels "
-                     "(GDPR/PII).")
+                     "carrying the org's own compliance labels.")
     else:
         L.append("         no field is PROVEN reachable beyond this running user.")
     if not ix["proven"] and ix["unresolved"]:
@@ -278,7 +287,7 @@ _STD_FIELDS = {"Id", "Name", "OwnerId", "IsDeleted", "CreatedDate", "CreatedById
 def classification_coverage(actions: List[ActionSummary], classification: dict,
                             visible_by_object: Optional[dict]) -> dict:
     """How much classification visibility we actually had over the fields the
-    agent reaches. `not_visible` are blind spots (FLS-gated), so a '0 GDPR'
+    agent reaches. `not_visible` are blind spots (FLS-gated), so a '0 regulated'
     result with not_visible > 0 must not be read as 'clean'."""
     reached = {f for a in actions for f in a.fields}
     classified = visible_unclassified = not_visible = 0
@@ -397,7 +406,7 @@ def fingerprint(agent: str, running_user: str, channel: Optional[str],
         # too. FieldDefinition is FLS-gated (E4 measured exactly this), so a narrow
         # analysis identity sees fewer labels, produces fewer PS506s, and reports a
         # CLEANER agent. Without this, two runs whose only difference was who ran them
-        # could share a fingerprint and disagree about "0 GDPR" - the precise lie the
+        # could share a fingerprint and disagree about "0 regulated" - the precise lie the
         # fingerprint exists to prevent, and the twin of the analyzer-hash gap. Caught
         # by an external reviewer; our own E4 had predicted the mechanism.
         "coverage": (None if not coverage else
@@ -465,7 +474,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     L.append("Aksu Index spec v1.0: aksuindex.com")
     L.append("=" * 64)
     L.append("")
-    L.append(f"ESCALATION GAP ......... {len(gap)} fields  /  {len(gdpr)} GDPR-labelled"
+    L.append(f"ESCALATION GAP ......... {len(gap)} fields  /  {len(gdpr)} regulated"
              + ("   <==" if gap else ""))
     L.append("")
     L.append("REACH SUMMARY")
@@ -478,7 +487,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
         L.append("")
         L.append("CLASSIFICATION COVERAGE")
         L.append(f"  Reachable fields ....... {coverage['total']}")
-        L.append(f"  Classified (GDPR/PII) .. {coverage['classified']}")
+        L.append(f"  Classified (regulated) . {coverage['classified']}")
         L.append(f"  Visible, unclassified .. {coverage['visible_unclassified']}")
         L.append(f"  Not visible to analyzer  {coverage['not_visible']}"
                  + ("   <== blind spot" if coverage['not_visible'] else ""))
@@ -489,7 +498,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     if coverage and coverage["not_visible"]:
         L.append(f"> _Classification coverage {coverage['coverage_pct']}%: "
                  f"{coverage['not_visible']} reachable field(s) are not visible to the "
-                 f"analysis identity — a `0 GDPR` result is not proof of safety for those._")
+                 f"analysis identity — a `0 regulated` result is not proof of safety for those._")
         L.append("")
 
     if reach:
@@ -539,7 +548,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
 
     if gap:
         L.append(f"> **{len(gap)} fields can be reached beyond the running user"
-                 f"{f' - {len(gdpr)} of them GDPR-labelled' if gdpr else ''}.**")
+                 f"{f' - {len(gdpr)} of them regulated' if gdpr else ''}.**")
         L.append("")
 
     by_sev = {"ERROR": [], "WARN": [], "INFO": []}
@@ -619,6 +628,6 @@ def render_svg(agent: str, user_field_count: int, agent_field_count: int,
         f'<text x="180" y="70" text-anchor="middle" font-family="sans-serif" '
         f'font-size="15" fill="#e5484d">agent reaches {agent_field_count}</text>'
         f'<text x="180" y="330" text-anchor="middle" font-family="sans-serif" '
-        f'font-size="15" fill="#e5484d">Escalation Gap: {gap} ({gdpr_gap} GDPR)</text>'
+        f'font-size="15" fill="#e5484d">Escalation Gap: {gap} ({gdpr_gap} regulated)</text>'
         f'</svg>'
     )
