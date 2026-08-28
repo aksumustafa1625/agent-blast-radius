@@ -206,7 +206,8 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 307 unit tests (AST/Agent-Script suites skip cleanly without Node)
+# 307 tests. Without `npm install`, 34 of them skip cleanly - the AST and
+# Agent-Script suites need Node - and the run still reports OK.
 python -m unittest discover -s blast_radius -p "test_*.py"
 
 # accuracy, not just green tests
