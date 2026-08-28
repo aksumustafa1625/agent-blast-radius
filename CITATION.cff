@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software or cite the Aksu Index, please cite it as below."
+title: "Agent Blast Radius"
+abstract: >-
+  A static, zero-credit analyzer that resolves what the Apex and Flow behind a
+  Salesforce Agentforce agent can reach at the execution-semantics layer, diffs
+  that against the running user's effective permissions, and reports the result
+  as the Aksu Index. The precedence law it implements was established by
+  measurement in live orgs rather than from documentation.
+authors:
+  - family-names: Aksu
+    given-names: Mustafa
+type: software
+license: MIT
+repository-code: "https://github.com/aksumustafa1625/agent-blast-radius"
+url: "https://agentblastradius.com"
+keywords:
+  - salesforce
+  - agentforce
+  - apex
+  - static-analysis
+  - field-level-security
+references:
+  - type: standard
+    title: "Aksu Index Specification, version 1.0"
+    authors:
+      - family-names: Aksu
+        given-names: Mustafa
+    url: "https://aksuindex.com/en"
+    license: CC-BY-4.0
+  - type: data
+    title: "Agent Authority Benchmark"
+    authors:
+      - family-names: Aksu
+        given-names: Mustafa
+    url: "https://github.com/aksumustafa1625/agent-authority-benchmark"
+    license: CC-BY-4.0

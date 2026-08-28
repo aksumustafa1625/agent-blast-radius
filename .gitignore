@@ -77,3 +77,35 @@ body.txt
 
 # Career plan - personal, not for the repo (2026-08-19)
 private-career-plan.md
+
+# ---------------------------------------------------------------------------
+# Kept locally, never published.
+#
+# Strategy, planning and review-request documents. They describe what this
+# project is FOR - the commercial posture that was abandoned, the adoption plan,
+# the author's own job search - and none of that is documentation of the tool.
+# A reader of the analyzer needs none of it, and a competitor reading the
+# adoption plan is a cost with no matching benefit.
+docs/SELF_SERVE_PLAN_2026-08.md
+docs/private-adoption-plan.md
+docs/private-review-request.md
+docs/private-task-list.md
+docs/REVIEW_UNIT_TEST_POSITIONING.md
+REVIEW_REQUEST_PROMPT.md
+docs/STRATEGY_PRIVATE_*.md
+
+# Scratch runs written to the repo root by hand. The reports worth keeping are
+# committed under reports/ with their fingerprints; these are the throwaway
+# copies from live sessions, and they are the first thing a visitor sees.
+/_det_*.md
+/_det_*.html
+/ts_*.md
+/ts_*.html
+/ts_*.pdf
+/report.md
+/report.html
+/technostore_*.md
+/technostore_*.html
+/hansewatt_report.*
+/healthrecord_full_report.*
+/hr_as_report.*
