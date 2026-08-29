@@ -332,6 +332,21 @@
     margin:13px 0 0; border-top:1px dashed var(--line); padding-top:10px}
   .abr .aksu .acanon b{color:var(--ink); font-weight:600}
 
+  /* The machine form sits under the human line, so it must read as data rather
+     than as a second sentence: mono, full ink, its own breathing room. */
+  .abr .aksu .acanon-machine{font-family:var(--mono); font-size:12px;
+    color:var(--ink); margin:9px 0 0; line-height:1.75; word-break:break-all}
+
+  /* This report contains exactly one link, and it is the one a reader follows to
+     check the number against the text that defined it. Left unstyled it inherits
+     the browser default #0000EE, which against the dark surface is effectively
+     invisible - the specification address was printed and then hidden, which is
+     the same defect as omitting it. Uses --accent, so it re-resolves in both
+     colour schemes rather than being legible in one of them. */
+  .abr a{color:var(--accent); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-thickness:1px}
+  .abr a:hover{text-decoration-thickness:2px}
+
   /* clean hero */
   .abr .hero.allclear{grid-template-columns:auto 1fr; align-items:center}
   .abr .checkmark{width:64px; height:64px; border-radius:50%;
