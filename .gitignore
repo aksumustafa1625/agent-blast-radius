@@ -109,3 +109,15 @@ docs/STRATEGY_PRIVATE_*.md
 /hansewatt_report.*
 /healthrecord_full_report.*
 /hr_as_report.*
+
+# The predecessor of aksuindex.com, kept locally as a record. It advertises a
+# concierge measurement, "Early slots are limited" and a Formspree lead form -
+# an offer that was retired when the analyzer went MIT, and that both live sites
+# now explicitly deny. vercel.json served it as this repo's outputDirectory.
+/site/
+/vercel.json
+
+# Report renderings used in a portfolio. Referenced by no tracked file, and one
+# of them is a terminal screenshot whose pixels carry an org ID, org name,
+# instance and IsSandbox=false - unreachable by grep, gitleaks or git log -S.
+/portfolio-shots/

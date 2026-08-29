@@ -358,7 +358,7 @@ its short form as of 2026-08-19, stated plainly rather than buried:
 
 ## Related projects
 
-- **[Prüfstand](https://github.com/aksumustafa1625/hansewatt-pruefstand)** — the behavioral
+- **Prüfstand** *(private)* — the behavioral
   half: a red-team corpus + deterministic verifier for what an agent *does*. Blast Radius is
   the authority half: what its code *could reach*. Together they bound an agent from both sides.
 - **[hospital-org-mcp](https://github.com/aksumustafa1625/hospital-org-mcp)** — the org this
