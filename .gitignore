@@ -121,3 +121,7 @@ docs/STRATEGY_PRIVATE_*.md
 # of them is a terminal screenshot whose pixels carry an org ID, org name,
 # instance and IsSandbox=false - unreachable by grep, gitleaks or git log -S.
 /portfolio-shots/
+
+# The author's own "tear this apart" review prompt. Its siblings are already
+# ignored; this one slipped the net because no pattern matched its name.
+docs/REVIEW_PROMPT.md
