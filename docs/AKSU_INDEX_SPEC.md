@@ -164,6 +164,21 @@ Three things this settles, because leaving them unstated was itself a defect:
   requires it. So the text may be forked, and a fork cannot silently present
   itself as this document — which is the outcome that matters here, not a ban on
   derivatives.
+- **A number published without its derivation is not this number — and that is a
+  rule of the definition, NOT a term of this licence.** FIRST makes the equivalent a
+  condition of use for CVSS: anyone publishing a score must publish the scoring
+  vector with it, so copy and paste cannot separate a result from how it was
+  reached. The same requirement applies here — all four quantities, the
+  specification version and the report fingerprint travel together, which is what
+  the canonical result string exists to make into one object:
+
+      Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
+      AKSU:1.0/P:6/C:1/B:0/U:1/fp:84ae32568aac
+
+  Stated as a rule of the definition rather than a licence condition on purpose:
+  CC BY 4.0 forbids applying further restrictions, so a licence term here would be
+  void. Quoting a partial number breaches nothing. It simply is not the Aksu Index,
+  the way a temperature without its scale is not a temperature.
 - **The licence grants the text, not the name.** "Aksu Index" is the name under
   which Aksu Software publishes this specification; no trade mark registration is
   claimed. Attribution is a licence term; the name is not licensed by it.

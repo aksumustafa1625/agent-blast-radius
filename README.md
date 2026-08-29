@@ -203,6 +203,41 @@ edges rather than silently dropped.
 Full rule table (PS501–PS514, PS520–522) and module map in
 [`blast_radius/`](blast_radius/) and [`CLAUDE.md`](CLAUDE.md).
 
+## What it needs from your org
+
+A security tool that opens with "grant me System Administrator" has already lost
+the argument. Here is everything the analyzer reads, so you can decide rather than
+trust.
+
+**It only ever reads.** No record is written, no agent is invoked, no Flex Credit
+is spent, and nothing is transmitted anywhere — the analysis runs on your machine
+against your own authenticated session, and there is no server to transmit to.
+
+| what it reads | why |
+|---|---|
+| `ApexClass`, `ApexTrigger` | the source behind the agent's actions, and their apiVersion |
+| `GenAiFunctionDefinition` | which Apex or Flow each action actually invokes |
+| `EntityDefinition`, `FieldDefinition` | field metadata and the org's own `ComplianceGroup` labels |
+| `ObjectPermissions`, `FieldPermissions` | what the running user is allowed to see |
+| `PermissionSet`, `PermissionSetAssignment` | how that permission is composed, groups and muting included |
+| `User` | resolving the agent's own running user from `BotDefinition.BotUserId` |
+
+Plus a metadata retrieve of the agent bundle, and — only with `--include-counts`
+— a `COUNT()` per reached object, which returns a number and never a record.
+
+**The permissions those imply:** `API Enabled`, `View Setup and Configuration`
+(the permission objects above are setup entities), and read on the objects the
+agent's own actions touch. **This list is derived from the queries the analyzer
+makes, not measured by running it as a restricted user** — if you run it under a
+narrower identity and something fails, that is a finding and the report will say
+so rather than going quiet.
+
+**One trap, and it is measured.** `FieldDefinition` is itself FLS-gated (E4). An
+analysis identity too narrow to read it will silently see fewer compliance labels
+— so a `0 regulated` result would mean "I could not look", not "nothing is
+labelled". The report prints its own classification coverage for exactly this
+reason: a blind spot is reported as a blind spot, never as a clean result.
+
 ## Run it
 
 ```bash

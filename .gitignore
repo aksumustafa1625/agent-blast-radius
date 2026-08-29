@@ -38,3 +38,10 @@ $RECYCLE.BIN/
 
 # Local-only patterns live in .git/info/exclude, which is not published. A
 # .gitignore that lists private filenames advertises what it is hiding.
+
+# The HanseWatt agent's action classes. Deleted on 2026-08-29 because they call a
+# service layer that exists in no copy of this repository - see force-app/README.md.
+# They are listed here because regenerating that org's report RETRIEVES metadata
+# and writes these back to disk, so `git add -A` re-committed them once already.
+force-app/main/default/classes/HW*Action.cls
+force-app/main/default/classes/HW*Action.cls-meta.xml
