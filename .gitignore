@@ -1,127 +1,40 @@
 # This file is used for Git repositories to specify intentionally untracked files that Git should ignore. 
 # If you are not using git, you can delete this file. For more information see: https://git-scm.com/docs/gitignore
 # For useful gitignore templates see: https://github.com/github/gitignore
-
 # Salesforce cache
 .sf/
 .sfdx/
 .localdevserver/
 deploy-options.json
-
 # LWC VSCode autocomplete
 **/lwc/jsconfig.json
-
 # LWC Jest coverage reports
 coverage/
-
 # Logs
 logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
 # Dependency directories
 node_modules/
-
 # ApexPMD cache
 .pmdCache
-
 # Eslint cache
 .eslintcache
-
 # MacOS system files
 .DS_Store
-
 # Windows system files
 Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
-
 # Local environment variables
 .env
-
 # Python Salesforce Functions
 **/__pycache__/
 **/.venv/
 **/venv/
 
-# --- Not for the repo: career / commercial / internal audit (2026-08-19) ---
-private-interview-notes.html
-WEBSITE_COPY_agent-blast-radius.md
-docs/STRATEGY_PRIVATE_*.md
-docs/FDE_INTERVIEW_VOCABULARY.html
-docs/FDE_INTERVIEW_VOCABULARY.pdf
-docs/LAUNCH_REVIEW_PROMPT_*.md
-docs/LAUNCH_ROUND5_DECISION_*.md
-docs/OUTREACH_*.md
-docs/POST1_LINKEDIN_READY.txt
-docs/POST2_LINKEDIN_READY.txt
-docs/POST2_FIRST_COMMENT.txt
-docs/POST3_LINKEDIN_READY.txt
-docs/POST4_LINKEDIN_READY.txt
-docs/POSTS_TECHNICAL_REPUTATION_*.md
-docs/TRADEMARK_*.md
-docs/PORTFOLIO_HANDOFF*.md
-docs/TODO_PORTFOLIO_FIXES_*.md
-docs/FIX_CAMPAIGN_*.md
-docs/private-application-plan-*.docx
-docs/private-working-file.*
-docs/AGENT_PLAYBOOK_EXPANDED.*
-docs/Agentforce-Agent-Build-Playbook-*.pdf
-docs/private-study-notes.*
-docs/private-study-material.*
-docs/private-study-questions.docx
-body.txt
-
-# Career plan - personal, not for the repo (2026-08-19)
-private-career-plan.md
-
-# ---------------------------------------------------------------------------
-# Kept locally, never published.
-#
-# Strategy, planning and review-request documents. They describe what this
-# project is FOR - the commercial posture that was abandoned, the adoption plan,
-# the author's own job search - and none of that is documentation of the tool.
-# A reader of the analyzer needs none of it, and a competitor reading the
-# adoption plan is a cost with no matching benefit.
-docs/SELF_SERVE_PLAN_2026-08.md
-docs/private-adoption-plan.md
-docs/private-review-request.md
-docs/private-task-list.md
-docs/REVIEW_UNIT_TEST_POSITIONING.md
-REVIEW_REQUEST_PROMPT.md
-docs/STRATEGY_PRIVATE_*.md
-
-# Scratch runs written to the repo root by hand. The reports worth keeping are
-# committed under reports/ with their fingerprints; these are the throwaway
-# copies from live sessions, and they are the first thing a visitor sees.
-/_det_*.md
-/_det_*.html
-/ts_*.md
-/ts_*.html
-/ts_*.pdf
-/report.md
-/report.html
-/technostore_*.md
-/technostore_*.html
-/hansewatt_report.*
-/healthrecord_full_report.*
-/hr_as_report.*
-
-# The predecessor of aksuindex.com, kept locally as a record. It advertises a
-# concierge measurement, "Early slots are limited" and a Formspree lead form -
-# an offer that was retired when the analyzer went MIT, and that both live sites
-# now explicitly deny. vercel.json served it as this repo's outputDirectory.
-/site/
-/vercel.json
-
-# Report renderings used in a portfolio. Referenced by no tracked file, and one
-# of them is a terminal screenshot whose pixels carry an org ID, org name,
-# instance and IsSandbox=false - unreachable by grep, gitleaks or git log -S.
-/portfolio-shots/
-
-# The author's own "tear this apart" review prompt. Its siblings are already
-# ignored; this one slipped the net because no pattern matched its name.
-docs/REVIEW_PROMPT.md
+# Local-only patterns live in .git/info/exclude, which is not published. A
+# .gitignore that lists private filenames advertises what it is hiding.

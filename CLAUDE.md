@@ -246,8 +246,11 @@ docs/REPRO_v58_v67.md     the shareable experiment — the answer to "show me"
 docs/AKSU_INDEX_SPEC.md              the public metric, v1.0, frozen at first
                                      public reference (§8 of the spec)
 docs/AKSU_INDEX_TECHNICAL_BRIEFING.{html,pdf}
-                                     ~1950-line briefing, TR then EN, written to
-                                     be ARGUED with: 22 hard questions answered
+                                     briefing written to be ARGUED with: 22 hard
+                                     questions answered. English only since
+                                     2026-08-29 - it carried a Turkish half of
+                                     equal length, and a public English-language
+                                     repository has no place for it
 site/aksuindex/           aksuindex.com — index/legal/privacy, one self-contained
                           file each, zero external dependencies
 reports/                  committed real runs (TechnoStore_AksuIndex.md/html/pdf)
