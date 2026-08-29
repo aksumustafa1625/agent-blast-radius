@@ -67,7 +67,7 @@ sometimes describe planned behaviour.
 
 ### Alternative B — implement from community consensus / other scanners
 
-Rejected: sfge itself is apiVersion-blind (7/19 contradictions against the
+Rejected: sfge itself is apiVersion-blind (8/21 contradictions against the
 org). Consensus encodes the exact shortcuts E2/E2b/E6 disproved.
 
 ## References

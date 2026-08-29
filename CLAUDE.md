@@ -288,13 +288,13 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 1. **Version-aware precedence — and the org, not us, says so.** The sfge differential
    is now **systematic**, not two hand-run cases: `benchmark/sfge_diff.py` generates
-   the SAME statements the oracle ran (`oracle.case_body`) for all **19 org-adjudicated
+   the SAME statements the oracle ran (`oracle.case_body`) for all **21 org-adjudicated
    cases**, so every disagreement has a referee. **Each case is scored on the axis its
    own runtime shape adjudicates** — never on an unrefereed column:
-   **sfge contradicts the org on 7/19; Agent Blast Radius on 0/19** — and **2/19 even
+   **sfge contradicts the org on 8/21; Agent Blast Radius on 0/21** — and **2/21 even
    when scored on sfge's own binary scale** (any finding = an assertion). Run it both
    ways; publishing only the flattering score is selective reporting.
-   The 7 are **not one thing** — say which:
+   The 8 are **not one thing** — say which:
    - **apiVersion blindness, BOTH axes** (v67 read ×2, v67 write, **v67 record**): sfge
      wants an explicit check and gives no credit for secure-by-default. The platform
      bounds this code (E2b + E2 + oracle). Unambiguous, and the case the whole market
@@ -500,8 +500,8 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   **21 experiment / 3 platform-doc / 4 reasoned**. Honest limits: the mutations are
   the author's, and 4 labels still only prove consistency, not correctness.
 - **sfge differential** (`benchmark/sfge_diff.py`, needs no org): Salesforce's own
-  Graph Engine vs this tool over the 19 org-adjudicated cases — **7/19 vs 0/19**
-  (2/19 on sfge's binary scale). **State its status in the same breath: sfge is
+  Graph Engine vs this tool over the 21 org-adjudicated cases — **8/21 vs 0/21**
+  (2/21 on sfge's binary scale). **State its status in the same breath: sfge is
   `(Developer Preview)` in Code Analyzer v5.** A differential against a Developer
   Preview engine is a weaker claim than against a GA one, and a reviewer will say so
   first if we don't. (Verified 2026-08-04: v5.15.0, July 2026, still ships sfge and

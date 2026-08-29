@@ -15,8 +15,8 @@ Mustafa Aksu
 ## Context
 
 `benchmark/sfge_diff.py` runs Salesforce's own Graph Engine and this tool
-over the same 19 org-adjudicated cases and scores both against the org
-(currently: sfge contradicted on 7/19, this tool on 0/19 — and 2/19 even on
+over the same 21 org-adjudicated cases and scores both against the org
+(currently: sfge contradicted on 8/21, this tool on 0/21 — and 2/21 even on
 sfge's own binary scale). It is the strongest competitive evidence in the
 project, it takes 42 seconds, and the obvious move is to gate CI on it.
 Speed is not the issue.

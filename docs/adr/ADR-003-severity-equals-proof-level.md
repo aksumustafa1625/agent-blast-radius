@@ -43,7 +43,7 @@ would be:
 ### Positive
 
 - Every ERROR survives adversarial review by construction — the proof is in
-  the finding text. This is what let the sfge differential score "0/19
+  the finding text. This is what let the sfge differential score "0/21
   contradicted by the org".
 - WARN stays meaningful: it marks exactly the boundary between what static
   analysis proved and what it couldn't, so a reviewer knows where to spend
@@ -72,7 +72,7 @@ proven.
 ### Alternative B — everything uncertain is ERROR ("conservative")
 
 Rejected: that is sfge's stance, and the differential measured its cost
-(no credit for secure-by-default, 7/19 against the org). A tool that cries
+(no credit for secure-by-default, 8/21 against the org). A tool that cries
 ERROR on proven-safe code trains users to ignore it.
 
 ## References

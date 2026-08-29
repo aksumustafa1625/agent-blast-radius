@@ -288,15 +288,22 @@ def main(argv=None):
                     print(f"  [{c['id']}] api v{c['api']:g} - sfge {kind}; ABR said {ab_t}")
                     print(f"     {c['why'][:140]}")
         print()
-        print("Read this fairly - the 6 are not one thing:")
-        print("  * apiVersion blindness (v67 read x2, v67 write): sfge looks for an")
+        # This epilogue opened with a hardcoded "the 6" while the line twenty above
+        # printed a computed 8, and it omitted the platform-event publish case
+        # entirely. A constant standing beside the number it claims to explain is the
+        # exact failure this project warns about elsewhere, so it is derived now.
+        print(f"Read this fairly - the {sfge_wrong} are not one thing:")
+        print("  * apiVersion blindness, BOTH axes (v67 read x2, v67 record, v67 write):")
+        print("    sfge looks for an")
         print("    explicit check and gives no credit for secure-by-default. E2b and the")
         print("    oracle both measured the platform bounding this code. Unambiguous.")
         print("  * SOSL: sfge's ApexFlsViolation never walks a SOSL RETURNING, so it")
         print("    misses an escape the org hands over. A coverage gap, not a judgement.")
+        print("  * platform-event publish: sfge does not model EventBus.publish as a")
+        print("    write, so it misses a Create bypass the org performs (E11).")
         print("  * the two sanitizer rows: sfge does not credit stripInaccessible here.")
         print("    This tool does not call them clean either - it says WARN, because it")
-        print("    cannot prove WHICH list reaches the sink. Weakest of the six; report")
+        print("    cannot prove WHICH list reaches the sink. Weakest of the set; report")
         print("    it as a difference in severity discipline, not as sfge being broken.")
         print()
         print("And sfge is not a competitor doing this badly - it is a general-purpose,")

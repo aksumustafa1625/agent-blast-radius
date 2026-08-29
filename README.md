@@ -77,16 +77,16 @@ org executed*. Every disagreement has a referee:
 
 ```
 Each case scored on the axis its own runtime shape adjudicates:
-   sfge contradicts the org on                 7/19
-   Agent Blast Radius contradicts the org on   0/19    (WARN = "did not assert")
-   ...and on sfge's own binary scale           2/19    (any finding = an assertion)
+   sfge contradicts the org on                 8/21
+   Agent Blast Radius contradicts the org on   0/21    (WARN = "did not assert")
+   ...and on sfge's own binary scale           2/21    (any finding = an assertion)
 ```
 
 Scored **both ways** on purpose: a sceptic can fairly say a three-level scale against a
 binary engine is not the same scale, and publishing only the flattering number would be
 selective reporting. The result holds either way.
 
-**The 7 are not one thing**, and the run says which: **apiVersion blindness** on both axes
+**The 8 are not one thing**, and the run says which: **apiVersion blindness** on both axes
 (v67 read ×2, v67 write, v67 record — sfge gives no credit for secure-by-default, and the
 platform bounds that code); **SOSL** (`ApexFlsViolation` never walks a `RETURNING`, so sfge
 *misses* an escape the org hands over); and two **sanitizer** rows where this tool doesn't
@@ -206,8 +206,11 @@ Full rule table (PS501–PS514, PS520–522) and module map in
 ## Run it
 
 ```bash
-# 307 tests. Without `npm install`, 34 of them skip cleanly - the AST and
-# Agent-Script suites need Node - and the run still reports OK.
+# 307 tests. In a fresh clone, before `npm install`, 32 of them skip cleanly -
+# the AST and Agent-Script suites need Node - and the run still reports OK.
+# (Measured in a fresh clone. Keep the clone path short: on Windows a checkout
+# nested past ~240 characters makes 5 more skip, because os.path.exists fails
+# on the long path rather than because anything is wrong.)
 python -m unittest discover -s blast_radius -p "test_*.py"
 
 # accuracy, not just green tests

@@ -147,7 +147,7 @@ turned into is the useful part.
 2. ~~**Systematic sfge differential.**~~ **Done** (`sfge_diff.py`). The design point is
    the refereeing: it runs on exactly the org-adjudicated cases and generates the SAME
    statements the org executed, so a disagreement has an answer instead of being two
-   engines shouting. **sfge 7/19 wrong, this tool 0/19** (2/19 on sfge's own binary
+   engines shouting. **sfge 8/21 wrong, this tool 0/21** (2/21 on sfge's own binary
    scale - reported because publishing only the flattering scale is selective
    reporting).
 3. **Breadth** - Flow, Agent Script, polymorphic fields, managed-package actions. (PSG
