@@ -16,6 +16,7 @@ import math
 from typing import List
 
 from report import (ActionSummary, aksu_index, aksu_index_line,
+                    canonical_result_string, SPEC_URL,
                     escalation_gap, fingerprint, record_reach,
                     finding_sort_key, _CAUSE_LABEL)
 
@@ -444,7 +445,8 @@ _CHECK_SVG = ('<svg viewBox="0 0 24 24" fill="none" stroke="var(--user)" '
               '<path d="M4 12.5l5 5L20 6"/></svg>')
 
 
-def _aksu_band(ix, outer_n: int, inner_n: int, gap_n: int, n_objects: int) -> str:
+def _aksu_band(ix, outer_n: int, inner_n: int, gap_n: int, n_objects: int,
+               fp: str = "") -> str:
     """The Aksu Index, rendered as the report's headline (spec §1, §3).
 
     Everything here is a RENDERING of numbers computed elsewhere; nothing is
@@ -558,6 +560,14 @@ def _aksu_band(ix, outer_n: int, inner_n: int, gap_n: int, n_objects: int) -> st
     out.append(f'<p class="acanon"><b>{_esc(aksu_index_line(ix))}</b><br>'
                f'One agent &times; one running user, at one moment, under one tool version '
                f'&mdash; not an org score.</p>')
+    if fp:
+        # Beside the human line, never instead of it. The version and the report's
+        # own fingerprint travel with the number, so a copied result stays checkable
+        # against the text that defined it - the failure Lighthouse v6 demonstrated
+        # and FIRST prevents by requiring score and vector to be published together.
+        out.append(f'<p class="acanon-machine"><code>'
+                   f'{_esc(canonical_result_string(ix, fp))}</code><br>'
+                   f'<a href="{SPEC_URL}">{_esc(SPEC_URL)}</a></p>')
     out.append('</section>')
     return "\n".join(out)
 
@@ -888,7 +898,7 @@ def render_html(agent: str, running_user: str, channel, actions: List[ActionSumm
     # a caption under a report NAMED after it, while the eye landed on the 64px
     # .gapnum further down. The band inverts that: the Index first, dominant and
     # whole; .gapnum and the circles stay below and explain it.
-    parts.append(_aksu_band(ix, outer_n, inner_n, len(gap), len(objects)))
+    parts.append(_aksu_band(ix, outer_n, inner_n, len(gap), len(objects), fp))
 
     # plain-language summary a non-engineer (a DPO, a manager) can read and act on
     parts.append(_stakeholder_summary(agent, gap, gdpr, all_findings, reach,

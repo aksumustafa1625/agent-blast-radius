@@ -14,7 +14,9 @@
       0  unproven boundaries      real boundaries we could not prove crossed
       2  unresolved               reach we could not determine at all
 
-  Aksu Index: 0 proven (0 GDPR) · 0 unproven boundaries · 2 unresolved
+  Aksu Index: 0 proven (0 regulated) · 0 unproven boundaries · 2 unresolved
+  AKSU:1.0/P:0/C:0/B:0/U:2/fp:da5d75d3171b
+  https://aksuindex.com/spec/v1.0
   (all four numbers ARE the metric - none of them may be quoted alone)
 
 ------------------------------------------------------------------------------
@@ -35,11 +37,11 @@
 ```
 AGENT BLAST RADIUS REPORT - HW Energy Agent
 Running user: (hypothetical grant model - permission set: HW_ServiceAgent)   (channel: agent)
-Config fingerprint: ca8d728bfeb2      Generated: deterministic
+Config fingerprint: da5d75d3171b      Generated: measured 2026-08-29
 Aksu Index spec v1.0: aksuindex.com
 ================================================================
 
-ESCALATION GAP ......... 0 fields  /  0 GDPR-labelled
+ESCALATION GAP ......... 0 fields  /  0 regulated
 
 REACH SUMMARY
   Actions analysed ....... 9
@@ -50,7 +52,7 @@ REACH SUMMARY
 
 CLASSIFICATION COVERAGE
   Reachable fields ....... 1
-  Classified (GDPR/PII) .. 0
+  Classified (regulated) . 0
   Visible, unclassified .. 1
   Not visible to analyzer  0
   Coverage ............... 100%
@@ -63,7 +65,7 @@ CLASSIFICATION COVERAGE
 | Object | Read mode | Records in org | User sees | Gap (upper bound) | Cause |
 | --- | --- | ---: | ---: | ---: | --- |
 | `Case` | user | 33 | _= agent (sharing enforced)_ | 0 | — |
-| `Tariff_Change_Request__c` | user | ? | _= agent (sharing enforced)_ | 0 | — |
+| `Tariff_Change_Request__c` | user | 1 | _= agent (sharing enforced)_ | 0 | — |
 
 > _`Records in org` is a live `COUNT()` of the whole object run as the analysis identity. **It is an upper bound, not the agent's result**: query predicates and `LIMIT` are not resolved statically. It is an escalation ceiling only for **system-mode** reads — a **user-mode** read enforces sharing, so the agent is bounded by the running user and the gap is 0 by construction. **CRUD** = the user has no object permission at all (deterministic); **sharing** = the user can read the object but record-level sharing may hide rows, which is data-dependent and shown as `n/a` — never estimated._
 
@@ -95,6 +97,6 @@ _Whole-org signals that don't concern HW Energy Agent directly, but anyone secur
 
 ---
 Produced by static analysis. No agent was invoked. 0 Flex Credits.
-Bound to fingerprint `ca8d728bfeb2`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `65e31fb90c7c`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
+Bound to fingerprint `da5d75d3171b`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `52c669ea07a9`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
 
 _The fingerprint seals the **static analysis** — the agent's config, the analysed Apex/Flow, the permission snapshot, and the analyzer itself. It does **not** cover the live `COUNT()` figures above: those are a measurement of the org at the moment of the run. Two runs sharing a fingerprint can legitimately show different counts._

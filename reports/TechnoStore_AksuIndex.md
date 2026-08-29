@@ -5,12 +5,14 @@
 
       6  PROVEN
          fields the agent's code can reach beyond this running user.
-         1 of them carries the org's own compliance labels (GDPR/PII).
+         1 of them carries the org's own compliance labels.
 
       0  unproven boundaries      real boundaries we could not prove crossed
       1  unresolved               reach we could not determine at all
 
-  Aksu Index: 6 proven (1 GDPR) · 0 unproven boundaries · 1 unresolved
+  Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
+  AKSU:1.0/P:6/C:1/B:0/U:1/fp:84ae32568aac
+  https://aksuindex.com/spec/v1.0
   (all four numbers ARE the metric - none of them may be quoted alone)
 
 ------------------------------------------------------------------------------
@@ -31,11 +33,11 @@
 ```
 AGENT BLAST RADIUS REPORT - TechnoStore Revenue Assistant
 Running user: (hypothetical grant model - permission set: TechnoStore_Revenue_Assistant2098228049_Permissions)   (channel: agent)
-Config fingerprint: 9d3ba9d2e6c4      Generated: deterministic
+Config fingerprint: 84ae32568aac      Generated: measured 2026-08-29
 Aksu Index spec v1.0: aksuindex.com
 ================================================================
 
-ESCALATION GAP ......... 6 fields  /  1 GDPR-labelled   <==
+ESCALATION GAP ......... 6 fields  /  1 regulated   <==
 
 REACH SUMMARY
   Actions analysed ....... 2
@@ -46,7 +48,7 @@ REACH SUMMARY
 
 CLASSIFICATION COVERAGE
   Reachable fields ....... 6
-  Classified (GDPR/PII) .. 2
+  Classified (regulated) . 2
   Visible, unclassified .. 4
   Not visible to analyzer  0
   Coverage ............... 100%
@@ -62,12 +64,12 @@ CLASSIFICATION COVERAGE
 
 > _`Records in org` is a live `COUNT()` of the whole object run as the analysis identity. **It is an upper bound, not the agent's result**: query predicates and `LIMIT` are not resolved statically. It is an escalation ceiling only for **system-mode** reads — a **user-mode** read enforces sharing, so the agent is bounded by the running user and the gap is 0 by construction. **CRUD** = the user has no object permission at all (deterministic); **sharing** = the user can read the object but record-level sharing may hide rows, which is data-dependent and shown as `n/a` — never estimated._
 
-> **6 fields can be reached beyond the running user - 1 of them GDPR-labelled.**
+> **6 fields can be reached beyond the running user - 1 of them regulated.**
 
 ## ERROR - 8 finding(s)
 
 - **[PS506] SendPaymentRemindersAction -> Invoice.Stripe_Payment_Status__c**
-  - GDPR/PII field Invoice.Stripe_Payment_Status__c is read in system mode and reaches the model, but the running user has no FLS on it.
+  - Regulated field Invoice.Stripe_Payment_Status__c is read in system mode and reaches the model, but the running user has no FLS on it.
   - _Why:_ ComplianceGroup GDPR. A field the running user cannot see can reach the LLM and the end user's screen. Authority Path CONFIRMED: the field's value flows to the action's @InvocableVariable output, so it reaches the model.
   - _Fix:_ Remove the field from the query/output, or enforce FLS (WITH USER_MODE / Security.stripInaccessible).
 - **[PS502] SendPaymentRemindersAction -> BillToContact.Email**
@@ -103,7 +105,7 @@ CLASSIFICATION COVERAGE
 
 - **[PS504] GetRevenueSummaryAction -> Invoice**
   - Reach for this operation could not be fully determined - this analyzer does not model the shape (aggregate/function select - fields not enumerated).
-  - _Why:_ A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build 65e31fb90c7c does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.
+  - _Why:_ A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build 52c669ea07a9 does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.
   - _Fix:_ Ours to close - there is nothing to change in your code. Review this operation by hand, or re-run on an analyzer build that models the shape.
 - **[PS509] SendPaymentRemindersAction -> Invoice**
   - DML (update) on Invoice fires trigger 'InvoiceTrigger' at API v60 (< v67) — a legacy cascade boundary, but no escalating write was proven.
@@ -144,6 +146,6 @@ _Whole-org signals that don't concern TechnoStore Revenue Assistant directly, bu
 
 ---
 Produced by static analysis. No agent was invoked. 0 Flex Credits.
-Bound to fingerprint `9d3ba9d2e6c4`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `65e31fb90c7c`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
+Bound to fingerprint `84ae32568aac`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `52c669ea07a9`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
 
 _The fingerprint seals the **static analysis** — the agent's config, the analysed Apex/Flow, the permission snapshot, and the analyzer itself. It does **not** cover the live `COUNT()` figures above: those are a measurement of the org at the moment of the run. Two runs sharing a fingerprint can legitimately show different counts._

@@ -187,15 +187,52 @@ def resolution_coverage_line(rc: dict, ascii_only: bool = False) -> str:
             f"{rc['unresolved_actions']} carry reach this analysis could not determine")
 
 
+SPEC_VERSION = "1.0"
+
+
 def aksu_index_line(ix: dict, ascii_only: bool = False) -> str:
     """Canonical form (spec §1). Always all four numbers — quoting `proven`
     alone while unresolved > 0 is defined by the spec as a violation, so no
     caller gets a shorter form to misquote. ascii_only is for the Windows
     console (cp1252); the md/html files are utf-8 and keep the canonical dot."""
     sep = " / " if ascii_only else " · "
-    return (f"Aksu Index: {len(ix['proven'])} proven ({len(ix['gdpr'])} regulated)"
+    # NO version prefix here. §1's canonical short form is frozen and reads
+    # "Aksu Index: 6 proven (2 GDPR) · 3 unproven boundaries · 1 unresolved";
+    # putting a version into it would be the silent redefinition §8 forbids.
+    # The version travels in canonical_result_string(), which §8 permits as
+    # additional reporting because it changes no bucket for any input.
+    return (f"Aksu Index: {len(ix['proven'])} proven "
+            f"({len(ix['gdpr'])} regulated)"
             f"{sep}{len(ix['boundary'])} unproven boundaries"
             f"{sep}{ix['unresolved']} unresolved")
+
+
+SPEC_URL = f"https://aksuindex.com/spec/v{SPEC_VERSION}"
+
+
+def canonical_result_string(ix: dict, fp: str) -> str:
+    """The machine form, printed beside the human line - never instead of it.
+
+    Two separate failures make this necessary and each has a documented victim.
+    Lighthouse v6 changed how a score was computed while keeping its name and its
+    0-100 range, and roughly half the web's scores moved five points or more in a
+    day with nothing changed on any site: the version was not IN the number.
+    FIRST answers the same problem by making it a condition of use that anyone
+    publishing a CVSS score publishes the vector with it, so the derivation cannot
+    be separated from the result by copy and paste.
+
+    So this string carries the specification version and the REPORT fingerprint -
+    not the analyzer digest, which is a different value and already sealed inside
+    the report fingerprint. Two runs of the same analyzer over different agents
+    share an analyzer digest and must not share this string.
+
+    It is NOT called a vector, and the distinction is not pedantry: a CVSS vector
+    carries the inputs a score was derived FROM, and can be recomputed into the
+    score. This carries the measurement's OUTPUT. Calling it a vector invites a
+    comparison that would be wrong the first time anyone tried to recompute it.
+    """
+    return (f"AKSU:{SPEC_VERSION}/P:{len(ix['proven'])}/C:{len(ix['gdpr'])}"
+            f"/B:{len(ix['boundary'])}/U:{ix['unresolved']}/fp:{fp}")
 
 
 # The headline banner is left-aligned inside a rule of this width and draws NO
@@ -206,7 +243,7 @@ _BANNER_W = 78
 
 
 def _index_headline(agent: str, ix: dict, gap_n: int, objects_n: int,
-                    outer_n: int, inner_n: int) -> List[str]:
+                    outer_n: int, inner_n: int, fp: str = "") -> List[str]:
     """The report's first screen: the Aksu Index as the RESULT of the report,
     not as one row of the reach summary.
 
@@ -255,6 +292,9 @@ def _index_headline(agent: str, ix: dict, gap_n: int, objects_n: int,
              + "reach we could not determine at all")
     L.append("")
     L.append(f"  {aksu_index_line(ix)}")
+    if fp:
+        L.append(f"  {canonical_result_string(ix, fp)}")
+        L.append(f"  {SPEC_URL}")
     L.append("  (all four numbers ARE the metric - none of them may be quoted alone)")
 
     def row(label: str, value) -> str:
@@ -463,7 +503,7 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
     # The Index IS the report's result, so it opens the document in its own
     # block. Everything below explains it; nothing above competes with it.
     L.append("```")
-    L.extend(_index_headline(agent, ix, len(gap), len(objects), outer_n, inner_n))
+    L.extend(_index_headline(agent, ix, len(gap), len(objects), outer_n, inner_n, fp))
     L.append("```")
     L.append("")
     L.append("```")
