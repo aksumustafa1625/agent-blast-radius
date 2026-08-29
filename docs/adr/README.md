@@ -7,7 +7,7 @@ with light extensions (**Alternatives Considered** + **References**).
 > **Provenance note.** These ADRs were written retrospectively once the
 > documentation layer was added, distilling decisions that were made — and
 > already recorded in prose — across Milestone 0 to the present
-> (`CLAUDE.md`, `README.md`, `PROJECT_STATE_AND_REVIEW_BRIEF.md`,
+> (`CLAUDE.md`, `README.md`,
 > `MILESTONE_0_EVIDENCE.md`). Each ADR names its source. Stating this openly
 > is cheaper than the alternative: this project has already paid twice for
 > documentation that did not match reality (a stale docstring produced an
@@ -55,5 +55,5 @@ for") covers incident-level lessons.
 
 - [Architecture views](../architecture/) — context / container / sequence / data model / CI
 - [CLAUDE.md](../../CLAUDE.md) — the working map, the precedence law, the paid-for mistakes
-- [PROJECT_STATE_AND_REVIEW_BRIEF.md](../../PROJECT_STATE_AND_REVIEW_BRIEF.md) — the exhaustive reference
+- [CLAUDE.md](../../CLAUDE.md) — the working context and the exhaustive reference
 - [MILESTONE_0_EVIDENCE.md](../../MILESTONE_0_EVIDENCE.md) — the in-org experiments E1–E6 in full; E8–E16, which the ADRs also cite, are recorded in `CLAUDE.md` §2 with their probe classes under `force-app/`

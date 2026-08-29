@@ -5,16 +5,15 @@ it is the map, the semantics you must not get wrong, the discipline that makes t
 tool worth anything, and the mistakes already paid for. Read the discipline section
 before changing a rule.
 
-> **Portfolio / strategy context is not in this repo.** The commercial posture, the
-> publication sequence and the portfolio audit live in `docs/STRATEGY_PRIVATE_2026-08.md`,
-> which is gitignored. This file is the technical working context only.
+> **This file is the technical working context only.** Anything about commercial
+> posture or publication sequence is deliberately not in this repository.
 
 ---
 
 ## 0. WHERE WE ARE — engineering status
 
-The strategic/commercial part of this section moved to the gitignored
-`docs/STRATEGY_PRIVATE_2026-08.md` on 2026-08-19. What follows is the engineering work.
+The strategic and commercial part of this section was moved out of the repository
+on 2026-08-19. What follows is the engineering work.
 
 ### 0.1 Engineering work still open
 
@@ -378,7 +377,7 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   Say **"regulated"**, not "GDPR": the tool reads whatever `ComplianceGroup` labels the
   org's own admins applied, so CCPA/HIPAA/internal policy use the identical mechanism.
   Calling it a GDPR tool describes a regime-agnostic feature as one customer's use of it.
-- **Go-to-market shape:** see `docs/STRATEGY_PRIVATE_2026-08.md` §C (gitignored).
+- **Go-to-market shape:** deliberately not recorded in this repository.
 
 ---
 
@@ -736,6 +735,9 @@ the fingerprint binding the analyzer's own source hash + parser version.
   rejections). A change that alters what a finding may claim, rejects an
   alternative, or sets a boundary gets an ADR; an incident-level lesson goes
   into §7 here instead.
-- The brief `PROJECT_STATE_AND_REVIEW_BRIEF.md` (~2100 lines) is the exhaustive
+- The brief `PROJECT_STATE_AND_REVIEW_BRIEF.md` is kept OUT of the repository
+  (see `.git/info/exclude`) because it is written to reviewers, not to readers
+  of the analyzer, and carries a scoring rubric for market positioning. It is
+  the exhaustive
   reference; `REVIEW_REQUEST_PROMPT.md` is the paste-ready external-review prompt.
 - Commit messages: what changed **and what it proves/why it was wrong before**.

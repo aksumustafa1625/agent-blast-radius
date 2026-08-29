@@ -297,7 +297,7 @@ lack is how a static analyzer produces a false *clean*).
 
 Also closed from that review: SOSL was a silent blind spot (and dynamic SOQL was quietly
 producing no honest-unknown at all); `stripInaccessible` was unmodelled, so correct code was
-flagged. Full detail in [`PROJECT_STATE_AND_REVIEW_BRIEF.md`](PROJECT_STATE_AND_REVIEW_BRIEF.md),
+flagged. Full detail in [`CLAUDE.md`](CLAUDE.md),
 Appendix AD.
 
 For a security tool, finding your own claims wrong is the point.
