@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent Blast Radius &amp; Aksu Index — Technical Briefing</title>
+<style>
+  @page { size: A4; margin: 17mm 15mm; }
+  :root{
+    --ink:#111418; --mut:#4a5260; --dim:#7b8494; --line:#dfe3e9;
+    --panel:#f6f8fa; --panel2:#eef2f6; --accent:#1c5cab;
+    --pre67:#c2410c; --v67:#1d4ed8; --bad:#b91c1c; --ok:#15803d; --warn:#a16207;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);background:#fff;
+       font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+       font-size:10.4pt;line-height:1.54}
+  .page{max-width:186mm;margin:0 auto;padding:0 2mm}
+  code,.mono{font-family:Consolas,"Cascadia Mono",ui-monospace,monospace;font-size:9.2pt}
+  h1{font-size:22pt;line-height:1.15;margin:0 0 6pt;font-weight:800;letter-spacing:-.4pt}
+  h2{font-size:14pt;margin:20pt 0 7pt;padding-bottom:4pt;border-bottom:2px solid var(--ink);font-weight:800}
+  h3{font-size:11.5pt;margin:14pt 0 5pt;font-weight:750}
+  h4{font-size:10.4pt;margin:10pt 0 4pt;font-weight:750;color:var(--mut)}
+  p{margin:0 0 7pt}
+  ul,ol{margin:0 0 8pt 17pt;padding:0} li{margin-bottom:3.5pt}
+  a{color:var(--accent);text-decoration:none}
+  .lead{font-size:11.2pt;color:var(--mut);margin-bottom:12pt}
+  .cover{border-bottom:3px solid var(--ink);padding-bottom:13pt;margin-bottom:15pt}
+  .meta{font-size:8.8pt;color:var(--dim);margin-top:8pt}
+  .tag{display:inline-block;background:var(--ink);color:#fff;font-size:7.8pt;letter-spacing:.16em;
+       padding:3pt 8pt;border-radius:3pt;text-transform:uppercase;font-weight:700}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:5pt;padding:9pt 11pt;margin:8pt 0}
+  .box p:last-child{margin-bottom:0}
+  .why{background:#fffbeb;border:1px solid #fde68a;border-left:3.5pt solid var(--warn)}
+  .why h4{color:#92400e;margin-top:0}
+  .key{background:var(--panel2);border-left:3.5pt solid var(--accent)}
+  .warnbox{background:#fef2f2;border:1px solid #fecaca;border-left:3.5pt solid var(--bad)}
+  .okbox{background:#f0fdf4;border:1px solid #bbf7d0;border-left:3.5pt solid var(--ok)}
+  table{width:100%;border-collapse:collapse;margin:7pt 0 10pt;font-size:9.1pt}
+  th,td{border:1px solid var(--line);padding:4.5pt 6pt;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font-weight:700}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  td.c,th.c{text-align:center}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:4pt;
+      padding:7pt 9pt;overflow-x:auto;margin:6pt 0;font-size:8.8pt;line-height:1.4}
+  .qa{border-left:3pt solid var(--line);padding-left:10pt;margin:10pt 0}
+  .qa .q{font-weight:750;margin-bottom:3pt}
+  .qa .a{color:var(--mut)}
+  .qgroup{background:var(--ink);color:#fff;font-size:9pt;font-weight:700;padding:4pt 9pt;
+          border-radius:3pt;display:inline-block;margin:14pt 0 6pt;letter-spacing:.06em}
+  .flow{font-family:Consolas,monospace;font-size:8.5pt;line-height:1.48;background:var(--panel);
+        border:1px solid var(--line);padding:8pt 10pt;border-radius:4pt;white-space:pre;overflow-x:auto}
+  .pb{page-break-before:always}
+  .avoid{page-break-inside:avoid}
+  .divider{border:0;border-top:3px double var(--ink);margin:24pt 0 16pt}
+  .toc{font-size:9.4pt;columns:2;column-gap:18pt}
+  .toc div{margin-bottom:2.5pt;break-inside:avoid}
+  .sm{font-size:8.8pt;color:var(--dim)}
+  .num{display:inline-block;background:var(--accent);color:#fff;width:15pt;height:15pt;
+       border-radius:50%;text-align:center;font-size:8.5pt;font-weight:700;line-height:15pt;margin-right:4pt}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="cover pb">
+  <span class="tag">Technical Briefing</span>
+  <h1 style="margin-top:10pt">Agent Blast Radius<br>and the Aksu Index</h1>
+  <p class="lead">A complete account, from first principles to advanced, of the tool that
+     measures what an Agentforce agent can actually reach — without ever invoking the agent:
+     the need it came from, how it was built layer by layer, why each module exists, how each
+     claim is proven, and answers to the hard questions you will be asked.</p>
+  <p class="meta">Aksu Software · 31 July 2026 · Every figure here is a real org measurement,
+     a test run, or a named source. Where something was not measured, this document says so.</p>
+</div>
+
+<h2>1. In one sentence</h2>
+<div class="box key">
+  <p><b>It statically measures whether the code behind an Agentforce agent can reach
+     <i>more</i> than the user running that agent is permitted to see — and if so, which
+     fields, with what proof.</b></p>
+</div>
+<p>Three words: <b>static</b> (the agent is never invoked), <b>user-scoped</b> (not "is this
+   code safe" but "what can this agent reach <i>as this user</i>"), <b>evidence-based</b>
+   (every finding states how well it is proven).</p>
+
+<h2>2. The need it came from</h2>
+<p>Everyone says: <i>"Our agent only accesses the topics we defined."</i> That sentence rests
+   on <b>configuration</b> — the topic and action list in Agent Builder.</p>
+<div class="box key">
+  <p><b>Configuration is a declaration of intent. Code is reality.</b><br>
+     The gap has a name: the <b>permission gap</b>. The mechanism has an older one: the
+     <b>confused deputy</b> — known since the 1980s, the delegate becoming more powerful than
+     the principal it acts for.</p>
+</div>
+<p>Not a new problem. <b>What is new</b> is that the gap now has AI agents wandering through
+   it. And it is not theory: SailPoint 2025 (Dimensional Research, 353 enterprise security
+   professionals) reports <b>80%</b> of organizations saw unintended agent actions; the Cloud
+   Security Alliance (April 2026) found <b>more than half</b> experienced outright agent scope
+   violations.</p>
+<h3>Why was nobody measuring it?</h3>
+<p>Because it requires knowing three things <b>at once</b>, and they live in three worlds:</p>
+<table>
+  <tr><th style="width:27%">The knowledge</th><th style="width:32%">Where it lives</th><th>Who looks</th></tr>
+  <tr><td>Which actions the agent invokes</td><td>Agentforce metadata</td><td>Admin / AI team</td></tr>
+  <tr><td>What those actions' code reaches</td><td>Apex / Flow source</td><td>Developers</td></tr>
+  <tr><td>What the user may see</td><td>Profile + permission sets</td><td>Security / IAM</td></tr>
+</table>
+<p>Nobody joins the three, because they belong to different teams. <b>That join is why this
+   tool exists.</b></p>
+
+<h2 class="pb">3. Fundamentals (from zero)</h2>
+
+<h3>3.1 Anatomy of an Agentforce agent</h3>
+<div class="flow">Agent  ──▶  Topic  ──▶  Action  ──▶  Apex class / Flow / Prompt template</div>
+<table>
+  <tr><th style="width:20%">Layer</th><th>What it is</th><th>Who defines it</th></tr>
+  <tr><td><b>Agent</b></td><td>The entity that talks to the customer; carries topics</td><td>AI team</td></tr>
+  <tr><td><b>Topic</b></td><td>A subject grouping: "invoice questions"</td><td>AI team</td></tr>
+  <tr><td><b>Action</b></td><td>A concrete task: "fetch the invoice"</td><td>Developer + AI team</td></tr>
+  <tr><td><b>Target</b></td><td><b>Real code:</b> an Apex class, a Flow, a prompt template</td><td>Developer</td></tr>
+</table>
+<p>The critical point: <b>the first three layers are visible in the configuration screen; the
+   fourth is not.</b> Review usually stops at the third.</p>
+
+<h3>3.2 Apex and SOQL</h3>
+<pre>public with sharing class InvoiceService {
+    public Invoice__c fetch(Id invoiceId) {
+        return [SELECT Id, Amount__c, Customer_IBAN__c
+                FROM Invoice__c WHERE Id = :invoiceId];
+    }
+}</pre>
+<p>This one file carries <b>three</b> things the tool reads: the <code>sharing</code>
+   declaration, the objects and fields the query reaches, and the <b>apiVersion</b> in the
+   paired <code>.cls-meta.xml</code>.</p>
+
+<h3>3.3 Two separate security axes — <span style="color:var(--bad)">the tool's most critical distinction</span></h3>
+<table>
+  <tr><th style="width:22%">Axis</th><th style="width:30%">What it controls</th><th>Example question</th><th>In code</th></tr>
+  <tr><td><b>Record visibility</b><br><span class="sm">sharing</span></td>
+      <td>Which <i>rows</i> you can see</td><td>"Can I see Ali's customers?"</td>
+      <td><code>with/without sharing</code></td></tr>
+  <tr><td><b>Object &amp; field security</b><br><span class="sm">CRUD + FLS</span></td>
+      <td>Which <i>objects and fields</i> you can access</td><td>"Can I read the IBAN field?"</td>
+      <td>apiVersion / mode clause</td></tr>
+</table>
+<div class="box warnbox avoid">
+  <h4 style="color:var(--bad);margin-top:0">The classic trap — and it was walked into once</h4>
+  <p>Consider a class at v58 marked <code>with sharing</code>. It:</p>
+  <ul style="margin-bottom:5pt">
+    <li>✅ <b>honours</b> record sharing rules (thanks to the keyword)</li>
+    <li>❌ but <b>bypasses FLS entirely</b> (because v58 → system mode)</li>
+  </ul>
+  <p>So it can read a field the user has <b>no permission on at all</b>. To claim "bounded by
+     the running user", <b>both</b> axes must be bounded. This mistake was made once during
+     development and <b>a live org run caught it</b> — the unit tests had not.</p>
+</div>
+
+<h3>3.4 OWD: the default for record visibility</h3>
+<table>
+  <tr><th style="width:22%">OWD</th><th>Meaning</th><th>For the permission gap</th></tr>
+  <tr><td><code>Public Read/Write</code></td><td>Everyone sees and edits</td><td>The record axis is already open — <b>bypassing sharing changes nothing</b></td></tr>
+  <tr><td><code>Public Read Only</code></td><td>Everyone sees; owner edits</td><td>Same for reads</td></tr>
+  <tr><td><code>Private</code></td><td>Owner and hierarchy only</td><td><b>Critical</b> — bypassing sharing is a real expansion</td></tr>
+</table>
+<p>That is why <b>PS501</b> fires only on <i>system mode + Private OWD</i>. Flagging
+   <code>without sharing</code> on a Public object would be noise — and <b>noise buries the
+   real finding</b>.</p>
+
+<h3>3.5 User permissions: Profile, Permission Set, Permission Set Group</h3>
+<table>
+  <tr><th style="width:26%">Structure</th><th>What it is</th><th>What the tool does</th></tr>
+  <tr><td><b>Profile</b></td><td><b>Exactly one</b> per user; base permissions</td><td>Reads it</td></tr>
+  <tr><td><b>Permission Set</b></td><td>Additive package; many can be assigned</td><td>Reads all and <b>unions</b> them</td></tr>
+  <tr><td><b>Permission Set Group</b></td><td>A package of permission sets</td><td>Reads the platform's <b>computed aggregate</b></td></tr>
+  <tr><td><b>Muting</b></td><td><b>Takes back</b> a permission inside a group</td><td>Applied automatically via the aggregate</td></tr>
+</table>
+<div class="box why avoid">
+  <h4>Why read the aggregate instead of computing from components?</h4>
+  <p>Because <b>muting</b> makes the two differ. Measured in E9: a component still says "can
+     read" while the group's computed aggregate has <b>no row at all</b> — muting applied. Had
+     we summed the components we would believe the user is <b>more privileged</b> than they
+     are, and <b>miss a genuine gap</b>.</p>
+  <p>This is an "error in the wrong direction": believing the user over-privileged makes the
+     gap look <b>smaller</b> — an <b>optimistic</b> error, the most dangerous kind.</p>
+</div>
+
+<h3>3.6 API version — the most critical, least known concept</h3>
+<pre>InvoiceService.cls            ← the code itself
+InvoiceService.cls-meta.xml   ← &lt;apiVersion&gt;58.0&lt;/apiVersion&gt;   ⚠ THIS decides behaviour</pre>
+<div class="box warnbox">
+  <p><b>The rule: v67 and above → user mode by default. v66 and below → system mode by default.</b></p>
+  <p><b>Byte-identical source</b> runs bounded in one case and unbounded in the other, because
+     of a number in a metadata file.</p>
+</div>
+<p>Measured in a real org (<b>E2</b>):</p>
+<table class="avoid">
+  <tr><th>The same <code>without sharing</code> source file</th><th class="n">Records returned</th></tr>
+  <tr><td>Deployed as API v58</td><td class="n" style="color:var(--pre67);font-weight:700">5</td></tr>
+  <tr><td>Deployed as API v67</td><td class="n" style="color:var(--v67);font-weight:700">0</td></tr>
+</table>
+<p class="sm">Same user, same data, same query. Also measured in <b>E2b</b>: at v67 a read of
+   an FLS-hidden field does not return quietly empty — it <b>throws</b> ("No such column").
+   The platform blocks; it does not silently strip.</p>
+
+<h3>3.7 What "system mode" and "user mode" mean</h3>
+<table>
+  <tr><th style="width:22%">Mode</th><th>Behaviour</th><th>When it applies</th></tr>
+  <tr><td><b>System mode</b></td><td>Code runs with <b>no</b> regard for user permissions</td><td>v66-and-below default, or <code>WITH SYSTEM_MODE</code></td></tr>
+  <tr><td><b>User mode</b></td><td>Code is bounded by the running user's permissions</td><td>v67+ default, or <code>WITH USER_MODE</code></td></tr>
+</table>
+<p>System mode is not a bug — it is a deliberate Salesforce feature (background jobs,
+   integrations need it). <b>The problem is system-mode code being wired behind an AI agent.</b></p>
+
+<h3>3.8 What "running user" means for an agent</h3>
+<p>An agent is not a person, but every Salesforce operation runs in a user context — usually a
+   service/integration user. <b>That is exactly what the tool measures:</b> "what does this
+   agent reach as this identity?"</p>
+<div class="box">
+  <p>The tool <b>separates two identity models and never blurs them in the report</b>:</p>
+  <ul style="margin-bottom:0">
+    <li><code>--running-user</code> → <b>a real person</b>: profile + all permission sets + groups</li>
+    <li><code>--permission-set</code> → <b>a hypothetical model</b>: someone holding only that one
+        set. No profile, no other sets. The report labels it "hypothetical grant model" — it
+        is <b>not a person</b> and is never presented as one.</li>
+  </ul>
+</div>
+
+<h2 class="pb">4. Anatomy of the problem: the chain</h2>
+
+<h3>4.1 A real example in six steps</h3>
+<div class="flow">Step 1  Agent            Revenue Assistant
+Step 2    └─▶ Topic      "Invoice questions"        ← visible in configuration ✅
+Step 3        └─▶ Action GetInvoiceDetail           ← visible in configuration ✅
+        ══════════════════════════════════════════════════════════════════
+                  THE CONFIGURATION REVIEW STOPS HERE
+        ══════════════════════════════════════════════════════════════════
+Step 4            └─▶ Apex  InvoiceService   (v58)
+Step 5                └─▶ Apex  BillingHelper (v58, without sharing)
+Step 6                    └─▶ SELECT ... Customer_IBAN__c   ← user has NO permission</div>
+
+<h3>4.2 Why each step is invisible to the previous reviewer</h3>
+<table>
+  <tr><th class="c" style="width:8%">Step</th><th style="width:34%">Who looks</th><th>Why they miss the next one</th></tr>
+  <tr><td class="c"><b>1–3</b></td><td>AI team / admin in Agent Builder</td>
+      <td>The screen shows the action's <b>name</b>, not the code behind it</td></tr>
+  <tr><td class="c"><b>4</b></td><td>Developer in code review</td>
+      <td><code>InvoiceService</code> has existed for years; <b>never associated with an agent</b></td></tr>
+  <tr><td class="c"><b>5</b></td><td>Nobody</td>
+      <td>A helper class called from dozens of places, one of which is the agent</td></tr>
+  <tr><td class="c"><b>6</b></td><td>Nobody</td>
+      <td>The query line looks ordinary — <b>the danger is in the mode, not the field</b></td></tr>
+</table>
+
+<h3>4.3 The chain widens in three different ways</h3>
+<table>
+  <tr><th style="width:26%">Path</th><th>Mechanism</th><th>Rule</th></tr>
+  <tr><td><b>Record axis</b></td><td><code>without sharing</code> + Private OWD → other people's records</td><td>PS501</td></tr>
+  <tr><td><b>Field axis</b></td><td>System mode → a field the user has no FLS on</td><td>PS502 / PS506</td></tr>
+  <tr><td><b>Write axis</b></td><td>System-mode DML → an object the user cannot write</td><td>PS503</td></tr>
+</table>
+
+<h3>4.4 A second example: the trigger cascade (subtler)</h3>
+<div class="flow">Action  →  Apex (v67, user mode ✅)  →  insert Order__c
+                                                    │
+                                                    ▼
+                                           OrderTrigger (v52) ⚠
+                                                    │
+                                                    ▼
+                                    WRITES to Audit_Log__c (user cannot write it)</div>
+<div class="box why avoid">
+  <h4>Why is this subtle, and why does E6 matter?</h4>
+  <p>The calling code is <b>v67 and in user mode</b> — it looks clean. But the trigger it
+     fires runs at <b>its own apiVersion</b> (experiment <b>E6</b>). If the trigger is v52,
+     its DML is in system mode and can write where the user cannot.</p>
+  <p>So <b>moving the agent's action to v67 is not enough</b>; the versions of the triggers it
+     fires count too. The tool reports this as PS509, and gives <b>ERROR only when the
+     trigger's own body proves the DML</b> — a legacy trigger alone is WARN.</p>
+</div>
+
+<h3>4.5 What the tool does at each step</h3>
+<table>
+  <tr><th class="c" style="width:8%">Step</th><th style="width:34%">Module</th><th>Operation</th></tr>
+  <tr><td class="c">1–3</td><td><code>agent_metadata_loader.py</code>, <code>agent_analyzer.py</code></td>
+      <td>Reads the agent bundle, resolves topic/action, finds the targets</td></tr>
+  <tr><td class="c">4–5</td><td><code>apex_introspect.py</code> (+ AST)</td>
+      <td>Parses the source, follows class references one level</td></tr>
+  <tr><td class="c">6</td><td><code>apex_introspect._resolve()</code></td>
+      <td><b>Resolves the mode</b> of each query — the precedence law</td></tr>
+  <tr><td class="c">✚</td><td><code>authority_analyzer.py</code></td>
+      <td>Reach × user permissions × org labels → findings</td></tr>
+</table>
+
+<h2 class="pb">5. The precedence law — the heart of the tool</h2>
+<p>The whole tool reduces to one question: <b>"in which mode will this single SOQL query
+   run?"</b> Implemented as <code>_resolve()</code> in <code>apex_introspect.py</code>.</p>
+
+<h3>5.1 The three tiers</h3>
+<table class="avoid">
+  <tr><th class="c" style="width:8%">Rank</th><th style="width:26%">Source</th><th style="width:26%">Example</th><th>Effect</th></tr>
+  <tr><td class="c"><b>1</b></td><td>Explicit operation clause</td>
+      <td><code>WITH USER_MODE</code><br><code>AccessLevel.USER_MODE</code></td>
+      <td><b>Beats everything.</b> Declaration and version both irrelevant</td></tr>
+  <tr><td class="c"><b>2</b></td><td>apiVersion default</td><td>v67 vs v58</td>
+      <td>≥67 → <b>both axes</b> in user mode</td></tr>
+  <tr><td class="c"><b>3</b></td><td>Class sharing declaration</td><td><code>without sharing</code></td>
+      <td><b>Record axis only</b>, and only under system mode</td></tr>
+</table>
+
+<h3>5.2 The special case: <code>WITH SECURITY_ENFORCED</code></h3>
+<table>
+  <tr><th style="width:30%">Axis</th><th>Result</th></tr>
+  <tr><td>Field security (FLS)</td><td><b>Enforced</b> → <code>True</code></td></tr>
+  <tr><td>Record visibility</td><td><b>Untouched</b> → falls through to the sharing declaration</td></tr>
+</table>
+<p>So <code>without sharing</code> + <code>WITH SECURITY_ENFORCED</code> = fields safe,
+   <b>record axis still open</b>. Judged on one axis alone it would read "clean".</p>
+
+<h3>5.3 The write axis is a separate function</h3>
+<p>DML has its own resolver, <code>_resolve_dml_fls()</code>. The reason: <b>the write axis
+   cannot be graded with the read axis's evidence.</b></p>
+<div class="box why">
+  <h4>This distinction prevented a real error</h4>
+  <p>A benchmark case was labelled <code>experiment:E2</code> — but E2 only ever <b>read</b>
+     (5 rows vs 0). It never wrote, so it could not speak for DML's default.
+     <b>Borrowed evidence reads as measured and isn't.</b> The label was corrected.</p>
+</div>
+
+<h3>5.4 Three-valued logic: True / False / <span style="color:var(--warn)">None</span></h3>
+<table>
+  <tr><th class="c" style="width:16%">Value</th><th style="width:28%">Meaning</th><th>In the report</th></tr>
+  <tr><td class="c"><b>True</b></td><td>The axis is enforced</td><td>No expansion on this axis</td></tr>
+  <tr><td class="c"><b>False</b></td><td>The axis is not enforced</td><td>Proven expansion → <b>ERROR</b></td></tr>
+  <tr><td class="c"><b style="color:var(--warn)">None</b></td><td><b>Undetermined</b></td><td>Honest unknown → <b>PS504 / WARN</b></td></tr>
+</table>
+
+<h3>5.5 Resolution table — real combinations</h3>
+<table class="avoid">
+  <tr><th style="width:17%">apiVersion</th><th style="width:20%">Declaration</th><th style="width:22%">Clause</th>
+      <th class="c">Record</th><th class="c">FLS</th><th>Comment</th></tr>
+  <tr><td>v58</td><td><code>without sharing</code></td><td>—</td>
+      <td class="c" style="color:var(--bad)">False</td><td class="c" style="color:var(--bad)">False</td>
+      <td>Widest case — both axes open</td></tr>
+  <tr><td>v58</td><td><code>with sharing</code></td><td>—</td>
+      <td class="c" style="color:var(--ok)">True</td><td class="c" style="color:var(--bad)">False</td>
+      <td><b>The trap:</b> says "with sharing", FLS still open</td></tr>
+  <tr><td>v58</td><td><i>no declaration</i></td><td>—</td>
+      <td class="c" style="color:var(--warn)">None</td><td class="c" style="color:var(--bad)">False</td>
+      <td>Record axis undetermined → honest unknown</td></tr>
+  <tr><td>v67</td><td><code>without sharing</code></td><td>—</td>
+      <td class="c" style="color:var(--ok)">True</td><td class="c" style="color:var(--ok)">True</td>
+      <td>Version beats declaration — <b>measured in E2b</b></td></tr>
+  <tr><td>v58</td><td><code>without sharing</code></td><td><code>WITH USER_MODE</code></td>
+      <td class="c" style="color:var(--ok)">True</td><td class="c" style="color:var(--ok)">True</td>
+      <td>The clause beats everything — <b>E3</b></td></tr>
+  <tr><td>v58</td><td><code>without sharing</code></td><td><code>SECURITY_ENFORCED</code></td>
+      <td class="c" style="color:var(--bad)">False</td><td class="c" style="color:var(--ok)">True</td>
+      <td>Fields safe only; records open</td></tr>
+</table>
+
+<h3>5.6 Why we never "fix" this law from documentation</h3>
+<div class="box why avoid">
+  <p>The law was <b>not read from documentation; it was measured in an org</b> (E1–E3). Over
+     the project's life, a claim that "this law is wrong" arrived <b>three times</b>, each
+     citing genuine Salesforce documentation. <b>All three times the live org contradicted the
+     document.</b></p>
+  <table style="margin-top:6pt">
+    <tr><th style="width:40%">The claim (sourced)</th><th>The measurement</th></tr>
+    <tr><td>v67 <code>without sharing</code> must bypass records</td><td><b>E2b</b> refuted it — it does not</td></tr>
+    <tr><td>v67 triggers always run in system mode (Summer '26 release notes)</td>
+        <td><b>E13</b> refuted it on Summer '26 — BLOCKED, 0 rows</td></tr>
+    <tr><td><code>stripInaccessible(UPDATABLE)</code> strips nothing on a read path
+        <span class="sm">(this one was OUR belief)</span></td>
+        <td><b>The runtime oracle</b> refuted it — it strips / throws</td></tr>
+  </table>
+  <p style="margin-top:6pt"><b>The rule:</b> answer a documentation-based claim about
+     <i>behaviour</i> <b>with an experiment, never with an edit</b>. Documentation describes
+     intent; the org describes behaviour — and the customer runs the latter. <b>The third row
+     matters most: there, we were the ones who were wrong</b>, and a rule that raised ERROR
+     was corrected.</p>
+</div>
+
+<h2 class="pb">6. Built layer by layer</h2>
+
+<h3><span class="num">0</span>Measure first, code second</h3>
+<p>Before a line of analysis was written, 13 experiments ran in real orgs. The reason: <b>an
+   analyzer is a model of behaviour; if the model is wrong, everything built on it is wrong.</b></p>
+<table class="avoid">
+  <tr><th style="width:11%">Experiment</th><th>What it proved</th></tr>
+  <tr><td><b>E1</b></td><td>The escalation is real: system mode 5 records, user mode 0 — at both the CRUD and sharing layers</td></tr>
+  <tr><td><b>E2</b></td><td>Same source: v58 = 5, v67 = 0. Also: "no declaration" ≠ <code>without sharing</code></td></tr>
+  <tr><td><b>E2b</b></td><td>At v67 FLS <b>throws</b> rather than silently stripping</td></tr>
+  <tr><td><b>E3</b></td><td><code>WITH USER_MODE</code> beats the declaration</td></tr>
+  <tr><td><b>E4</b></td><td>Compliance labels are free to read — but must be queried per object and are <b>FLS-gated</b></td></tr>
+  <tr><td><b>E5</b></td><td>Flow <code>runInMode</code> is declarative → analysable without Apex parsing</td></tr>
+  <tr><td><b>E6</b></td><td>A trigger's DML runs at the <b>trigger's own</b> apiVersion</td></tr>
+  <tr><td><b>E8</b></td><td>Permission set groups resolve through the platform-computed aggregate</td></tr>
+  <tr><td><b>E9</b></td><td><b>Muting</b> is applied in the aggregate — component says "can read", aggregate has no row</td></tr>
+  <tr><td><b>E10</b></td><td>Controlled: <code>without sharing</code>=5, no declaration=0, <code>with sharing</code>=0</td></tr>
+  <tr><td><b>E11</b></td><td>Platform event publish: v58 <b>lands</b>, v67 <b>blocked</b></td></tr>
+  <tr><td><b>E13</b></td><td>A v67 trigger <b>is</b> bounded by the running user — refuting the documentation claim</td></tr>
+</table>
+
+<h3><span class="num">1</span>Read Apex, resolve the mode — <code>apex_introspect.py</code> (788 lines)</h3>
+<ul>
+  <li>Reads the <code>sharing</code> declaration from the class header</li>
+  <li>Reads <code>apiVersion</code> from <code>.cls-meta.xml</code></li>
+  <li>Finds every <code>[SELECT ...]</code>, subqueries and mode clauses</li>
+  <li>Parses SOSL <code>RETURNING</code> clauses</li>
+  <li>Applies the precedence law via <code>_resolve()</code></li>
+  <li><b>Never guesses</b> what it cannot resolve → <code>None</code> → PS504</li>
+</ul>
+
+<h3><span class="num">2</span>Read the agent's configuration</h3>
+<div class="box why">
+  <h4>Why its own layer?</h4>
+  <p>The same Apex class is dangerous in one agent and harmless in another. The question is
+     not "is this code bad" but <b>"does this agent reach this code"</b>. Without reachability
+     a finding is meaningless — and noise buries the real finding.</p>
+</div>
+
+<h3><span class="num">3</span>Resolve the user's real permissions</h3>
+<p><code>permission_resolver.py</code> is a <b>pure function</b>: a snapshot goes in,
+   effective permissions come out. No org connection — which is why it is
+   <b>testable without an org</b>, and most tests work that way.</p>
+
+<h3><span class="num">4</span>Read the org's own labels</h3>
+<div class="box key">
+  <p><b>The critical philosophy:</b> <b>we do not decide</b> which field is "sensitive". We
+     read the <code>ComplianceGroup</code> labels the org's administrators applied. That is
+     why the tool is not GDPR-specific — CCPA, HIPAA or an internal policy use the identical
+     mechanism.</p>
+</div>
+
+<h3><span class="num">5</span>Join and produce findings — <code>authority_analyzer.py</code> (540 lines)</h3>
+<h3><span class="num">6</span>Report — <code>report.py</code> + <code>report_html.py</code></h3>
+
+<h3><span class="num">7</span>The real parser (AST)</h3>
+<div class="box why avoid">
+  <h4>Why both regex and AST? Isn't that a weakness?</h4>
+  <p>No. <b>AST is the default</b>; regex is the fallback so the tool still runs without Node.
+     Both feed the <b>same precedence core</b>; they differ only in <i>extracting</i> reach.</p>
+  <p>Compared over 104 real classes: <b>0 overclaims, 0 misses, 0 noise</b>. The residual is
+     22/104 <b>DEGRADED</b> — regex honestly says <code>None</code> where the AST resolves.
+     <b>It says less; it never says something wrong.</b></p>
+</div>
+
+<h3><span class="num">8</span>Agent Script and the data→prompt chain</h3>
+<p>Uses Salesforce's <b>own</b> Agent Script parser. PS520/521/522 trace data → variable →
+   prompt hop by hop. Searching the <i>compiled</i> agent artifact for that chain returned
+   <b>zero</b> occurrences — it exists only in Agent Script source.</p>
+
+<h3><span class="num">9</span>The proof surface &nbsp;·&nbsp; <span class="num">10</span>The Aksu Index</h3>
+<p>See sections 10 and 9.</p>
+
+<h2 class="pb">7. Module by module</h2>
+<table>
+  <tr><th style="width:29%">Module</th><th class="n" style="width:9%">Lines</th><th>Responsibility, and <i>why separate</i></th></tr>
+  <tr><td><code>cli.py</code></td><td class="n">401</td><td>Entry point; sequences the flow. Separate so analysis does not depend on a command line</td></tr>
+  <tr><td><code>apex_introspect.py</code></td><td class="n">788</td><td><b>The precedence law</b> + regex extractor. The most critical file</td></tr>
+  <tr><td><code>apex_ast.py</code> + <code>ast_extract.js</code></td><td class="n">79+763</td><td>Real parse-tree bridge. A Node subprocess, because Python has no Apex parser</td></tr>
+  <tr><td><code>authority_analyzer.py</code></td><td class="n">540</td><td><b>The join and the rule engine</b></td></tr>
+  <tr><td><code>permission_resolver.py</code></td><td class="n">117</td><td>Pure function. Kept pure so it is <b>testable without an org</b></td></tr>
+  <tr><td><code>snapshot_loader.py</code></td><td class="n">158</td><td>User → profile + sets + PSG aggregate</td></tr>
+  <tr><td><code>org_loaders.py</code></td><td class="n">437</td><td>Live <code>sf</code> queries</td></tr>
+  <tr><td><code>agent_metadata_loader.py</code></td><td class="n">154</td><td>Agent bundle metadata</td></tr>
+  <tr><td><code>agent_analyzer.py</code></td><td class="n">292</td><td>Agent graph, delegation (PS515), opaque actions (PS507)</td></tr>
+  <tr><td><code>flow_introspect.py</code></td><td class="n">135</td><td>Flow XML → <code>runInMode</code> (no Apex parsing needed, per E5)</td></tr>
+  <tr><td><code>genai_prompt_introspect.py</code></td><td class="n">180</td><td>Prompt templates — <b>all versions</b>, inactive included (PS513)</td></tr>
+  <tr><td><code>agentscript_loader.py</code></td><td class="n">115</td><td>Bridge to Salesforce's own parser</td></tr>
+  <tr><td><code>prompt_flow_analyzer.py</code></td><td class="n">149</td><td>PS520/521/522</td></tr>
+  <tr><td><code>report.py</code></td><td class="n">490</td><td>Deterministic markdown, fingerprint, <code>aksu_index()</code></td></tr>
+  <tr><td><code>report_html.py</code></td><td class="n">819</td><td>Themed HTML, circles, stakeholder summary</td></tr>
+  <tr><td><code>org_health.py</code> / <code>org_census.py</code></td><td class="n">269/276</td><td>"Beyond this agent" — whole-org signals</td></tr>
+  <tr><td><code>verify_deterministic.py</code></td><td class="n">60</td><td>Runs the CLI twice, compares sha256</td></tr>
+  <tr><td><code>make_pdf.py</code></td><td class="n">127</td><td>HTML → PDF. <b>Not part of the analysis</b>; it cannot change a verdict</td></tr>
+</table>
+<div class="box">
+  <p><b>Dependencies:</b> Python 3.12, <b>standard library only</b> (no third-party Python
+     packages) · Node.js <b>optional</b> (AST + Agent Script; degrades to regex without it) ·
+     Salesforce CLI (<code>sf</code>) for live reads · Edge for PDF rendering only.</p>
+</div>
+
+<h2>8. Rule catalogue (PS501–PS522)</h2>
+<p>Every severity is a claim about <b>proof</b>, not impact:
+   <span style="color:var(--bad)"><b>ERROR = proven</b></span>,
+   <span style="color:var(--warn)"><b>WARN = a real boundary we could not prove</b></span>.</p>
+<table>
+  <tr><th style="width:11%">Rule</th><th style="width:14%">Severity</th><th>Fires when</th></tr>
+  <tr><td>PS501</td><td>ERROR/WARN</td><td>Potential record-scope expansion (system mode + Private OWD)</td></tr>
+  <tr><td><b>PS502</b></td><td>ERROR/WARN</td><td>Field read in system mode; the user has no FLS</td></tr>
+  <tr><td>PS503</td><td>ERROR/WARN</td><td>System-mode DML on an object the user cannot write</td></tr>
+  <tr><td><b>PS504</b></td><td>WARN</td><td><b>Honest unknown</b> — dynamic SOQL, unresolved reach</td></tr>
+  <tr><td>PS505</td><td>WARN</td><td>Labelled field reaches the model although the user IS allowed it</td></tr>
+  <tr><td><b>PS506</b></td><td>ERROR/WARN</td><td><b>The headline:</b> labelled field, invisible to the user, reaching the model</td></tr>
+  <tr><td>PS507</td><td>WARN</td><td>Opaque / standard action</td></tr>
+  <tr><td>PS508</td><td>WARN</td><td>Delegation deeper than one level</td></tr>
+  <tr><td>PS509</td><td>ERROR/WARN</td><td>Trigger cascade (ERROR only when the trigger's own DML proves it)</td></tr>
+  <tr><td>PS510</td><td>ERROR/WARN</td><td>Flow running in system mode</td></tr>
+  <tr><td>PS511</td><td>INFO</td><td>Pre-v67 class inventory</td></tr>
+  <tr><td>PS512</td><td>ERROR/WARN</td><td><code>stripInaccessible</code> result discarded / wrong AccessType</td></tr>
+  <tr><td>PS513</td><td>ERROR/WARN</td><td>Latent reach in an <b>inactive</b> prompt-template version</td></tr>
+  <tr><td>PS514</td><td>WARN</td><td>Async / event / callout hand-off</td></tr>
+  <tr><td>PS515</td><td>INFO/WARN</td><td>Agent-to-agent delegation (WARN when unresolved)</td></tr>
+  <tr><td>PS516</td><td>WARN</td><td><b>Formula field</b> — its inputs cannot be resolved</td></tr>
+  <tr><td><b>PS520/521/522</b></td><td>INFO/WARN/<b>ERROR</b></td><td>The data→prompt chain, traced hop by hop</td></tr>
+</table>
+<div class="box why avoid">
+  <h4>Why doesn't PS516 say "leak"?</h4>
+  <p>A formula's <i>inputs</i> cannot be resolved; the user's FLS on the formula may not bound
+     what its value <b>carries</b> — the one channel even v67 does not close. But the
+     <b>platform behaviour was never measured</b> (experiment E12 could not be deployed). So
+     PS516 is not a leak claim but a statement of <b>our own resolution limit</b> — true
+     whatever the platform does. <b>We do not upgrade it without a measurement</b>, because we
+     made exactly that mistake once (§5.6).</p>
+</div>
+
+<h2 class="pb">9. The Aksu Index: four buckets</h2>
+<div class="flow">Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved</div>
+<table>
+  <tr><th class="c" style="width:9%">Bucket</th><th style="width:22%">Name</th><th>Meaning</th></tr>
+  <tr><td class="c"><b>P</b></td><td>Proven</td><td>Escalation proven (ERROR). <b>The headline number</b></td></tr>
+  <tr><td class="c"><b>C</b></td><td>Classified</td><td>A <b>subset of P</b> — the org's own labels. Never added; already inside</td></tr>
+  <tr><td class="c"><b>B</b></td><td>Unproven boundaries</td><td>A real boundary we could not prove (WARN). <b>Never</b> merged into P</td></tr>
+  <tr><td class="c"><b>U</b></td><td>Unresolved</td><td>Reach that could not be determined (PS504). Printed, never dropped</td></tr>
+</table>
+<div class="box warnbox">
+  <p><b>The specification rule:</b> quoting P alone while U &gt; 0 is a <b>violation</b>, and
+     it is enforced in code: <b>no API returns fewer than all four numbers</b>.</p>
+  <p>And a zero refuses to flatter itself. The real line from the clean org:</p>
+  <p class="mono" style="margin-top:5pt">Aksu Index: 0 proven (0 regulated) · 0 unproven boundaries · 2 unresolved<br>
+  <span class="sm">(0 proven with unresolved reach is NOT clean — unknown never becomes clean)</span></p>
+</div>
+
+<h2 class="pb">10. The proof surface: how we know</h2>
+
+<p class="lead">This is the most important section. The real question about a security tool is
+   not <i>"what do you find"</i> but <b><i>"how do you know what you found is right?"</i></b></p>
+
+<h3>10.1 Why "224 tests pass" is NOT an accuracy claim</h3>
+<div class="box warnbox avoid">
+  <p>A test suite proves <b>the code does what its author expected</b>. It does not prove the
+     author's expectation was <b>right</b>. If the same mind wrote both, a green test measures
+     <b>consistency</b>, not <b>correctness</b>.</p>
+  <p>So the proof surface has <b>six layers</b>, each measuring what the previous one cannot.</p>
+</div>
+
+<h3>10.2 Layer 1 — Unit tests (224 tests, 12 files)</h3>
+<p>What they measure: the code's internal contracts. What they do <b>not</b> measure: whether
+   the precedence law is actually correct.</p>
+
+<h3>10.3 Layer 2 — The Agent Authority Benchmark (28 cases)</h3>
+<p>A hand-labelled corpus. Each case declares the <b>exact</b> set of rules it must produce:
+   anything more is a false positive, anything missing is a false negative.</p>
+<div class="box key avoid">
+  <h4 style="margin-top:0">The trap this file avoids — <i>mirror or oracle?</i></h4>
+  <p>Generating expected outcomes <b>from the precedence law</b> would test the analyzer
+     against a re-implementation of itself — a <b>mirror</b>, not an oracle. So <b>every label
+     is hand-written</b>, with a <code>truth</code> field naming <b>where the ground truth
+     comes from</b>.</p>
+</div>
+<p><b>Live benchmark output (31 July 2026):</b></p>
+<table class="avoid">
+  <tr><th>Rule</th><th class="n">TP</th><th class="n">FP</th><th class="n">FN</th><th class="n">Precision</th><th class="n">Recall</th></tr>
+  <tr><td>PS501</td><td class="n">8</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS502</td><td class="n">1</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS503</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS504</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS506</td><td class="n">7</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS512</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td>PS514</td><td class="n">5</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td class="n">100%</td></tr>
+  <tr><td colspan="6"><b>28 cases · 28 passed · 0 failed</b></td></tr>
+</table>
+<p class="sm"><b>Note:</b> PS511 (inventory) and PS507/PS508 (opaque/chain markers) are
+   <b>deliberately not graded</b> — they are inventory and unknown-markers, not escalation
+   claims. Counting them would <b>artificially inflate</b> the score.</p>
+
+<h3>10.4 <span style="color:var(--bad)">Label strength</span> — the benchmark's real quality metric</h3>
+<p>100% precision/recall is <b>nearly worthless on its own</b>. The real question is where the
+   labels come from, and the corpus states it per case:</p>
+<table class="avoid">
+  <tr><th style="width:26%">truth label</th><th>Meaning</th><th class="c" style="width:12%">Strength</th></tr>
+  <tr><td><code>experiment:E<i>n</i></code></td><td><b>Measured</b> in a real org (Milestone 0)</td><td class="c" style="color:var(--ok)"><b>Strong</b></td></tr>
+  <tr><td><code>experiment:runtime</code></td><td>Measured by the <b>runtime oracle</b> — the org decided; re-runnable on demand</td><td class="c" style="color:var(--ok)"><b>Strongest</b></td></tr>
+  <tr><td><code>sfge</code></td><td>An independent engine agrees</td><td class="c">Medium</td></tr>
+  <tr><td><code>platform-doc</code></td><td>Documented semantics — <b>not measured here</b></td><td class="c" style="color:var(--warn)">Weak</td></tr>
+  <tr><td><code>reasoned</code></td><td>The author's reasoning — <b>shares a mind with the implementation</b></td><td class="c" style="color:var(--bad)"><b>Weakest</b></td></tr>
+</table>
+<p><b>Today's distribution (live output):</b></p>
+<table class="avoid">
+  <tr><th>Label</th><th class="n">Count</th><th>Comment</th></tr>
+  <tr><td><b>experiment</b></td><td class="n" style="color:var(--ok);font-weight:700">21</td><td>Measured in a real org — strong</td></tr>
+  <tr><td>platform-doc</td><td class="n">3</td><td>Documented, not measured here</td></tr>
+  <tr><td>reasoned</td><td class="n" style="color:var(--warn);font-weight:700">4</td><td>Proves consistency, not correctness</td></tr>
+</table>
+<div class="box okbox">
+  <p><b>Use this when presenting:</b> "Of the 28 cases, <b>21 were measured in a real org</b>.
+     That the remaining 4 prove only consistency is something <b>we say ourselves</b> — the
+     number is printed on every run."</p>
+</div>
+
+<h3>10.5 Layer 3 — Mutation testing: does the corpus have teeth?</h3>
+<p>A benchmark passing on day one proves nothing on its own: it may simply agree with the
+   implementation it was written beside. So the analyzer is <b>broken on purpose</b>, one
+   semantic at a time, and we check whether the benchmark <b>notices</b>.</p>
+<table class="avoid">
+  <tr><th class="c" style="width:9%">#</th><th style="width:46%">Semantic broken</th><th class="c">Result</th></tr>
+  <tr><td class="c">1</td><td>Precedence: always system mode</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">2</td><td>Precedence: always user mode</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">3</td><td>Precedence: ignore apiVersion (treat all as v58)</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">4</td><td>False-positive guard: flag Id/Name/audit fields too</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">5</td><td>Sanitizer: ignore <code>stripInaccessible</code></td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">6</td><td>Async: ignore EventBus/Queueable/callouts</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">7</td><td>Reach: ignore SOSL entirely</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td class="c">8</td><td>Writes: treat all DML as user mode</td><td class="c" style="color:var(--ok)">caught</td></tr>
+  <tr><td colspan="3"><b>Mutation score: 8/8</b></td></tr>
+</table>
+<p>An <b>ESCAPED</b> mutation is not an error but a <b>finding</b>: it names a blind spot in
+   the corpus. Today none escape.</p>
+
+<h3>10.6 Layer 4 — <span style="color:var(--accent)">The runtime oracle</span>: the org is the referee</h3>
+<div class="box key avoid">
+  <p><b>The idea:</b> the analyzer <b>predicts</b>; the org <b>judges</b>.</p>
+  <p>For every corpus case carrying a <code>runtime</code> shape, the oracle:</p>
+  <ol style="margin-bottom:5pt">
+    <li>deploys the case to the org <b>as real Apex</b></li>
+    <li>creates its own <b>throwaway user and permission set</b> — object read granted,
+        and <b>deliberately no field permission</b> on <code>Customer_IBAN__c</code></li>
+    <li>runs the code <b>as that user</b></li>
+    <li>asks the one question that settles it: <b>"does that field actually come back?"</b></li>
+  </ol>
+  <p>The generated test <b>asserts the analyzer's own prediction</b>. So <b>a failing test is
+     not a broken test — it is the org saying the analyzer is wrong.</b></p>
+</div>
+<p><b>There is a negative control too:</b> a field the user <i>is</i> entitled to
+   (<code>Secret_Data__c</code>) is seeded with a real value, so a successful read cannot be
+   confused with "a null that would pass either way". <b>Escalation = the data came back
+   <u>AND</u> the user was not entitled to it</b> — both facts, never one.</p>
+<div class="box warnbox avoid">
+  <h4 style="color:var(--bad);margin-top:0">The oracle caught a real error — and it was ours</h4>
+  <p>PS512/PS506 claimed that <code>stripInaccessible(AccessType.UPDATABLE)</code> on a read
+     path "strips nothing, so the escalation stays proven", and raised <b>ERROR</b> on it. The
+     label was <code>platform-doc</code> — a <b>belief</b>, not a measurement.</p>
+  <p>The oracle refuted it in-org on <b>both branches</b>: without object Edit the call
+     <b>throws</b>; with it, the field <b>is stripped</b>. The rule was corrected.</p>
+  <p><b>Two lessons:</b> (1) <b>a false positive costs credibility exactly as a false clean
+     does</b>; (2) <b>one measurement is not a rule</b> — probe every branch of the axis before
+     generalising.</p>
+</div>
+
+<h3>10.7 Layer 5 — Determinism and the fingerprint</h3>
+<p>Same org, same user, same tool version → <b>byte-identical report</b>. Proven live: two
+   runs, same sha256. The fingerprint seals not just the inputs but <b>the tool itself</b>:</p>
+<table class="avoid">
+  <tr><th style="width:26%">Field</th><th>What it binds</th></tr>
+  <tr><td><code>analyzer</code></td><td>A <b>sha256 of the rule and extractor source</b></td></tr>
+  <tr><td><code>parser</code></td><td>The parser version</td></tr>
+  <tr><td><code>coverage</code></td><td>What the analysis identity <b>could see</b></td></tr>
+  <tr><td><code>backend</code></td><td>AST or regex</td></tr>
+  <tr><td><code>apiVersion</code></td><td><b>Per action</b> — v58 and v67 resolve the same code oppositely</td></tr>
+</table>
+<div class="box why">
+  <h4>Why is there NO separate <code>schema_version</code> constant?</h4>
+  <p>A task specification asked for one and it was <b>deliberately not added</b>: the rule
+     schema <i>is</i> <code>authority_analyzer.py</code>, whose hash the fingerprint already
+     takes. A separate constant would be redundant <b>and hand-maintained</b> — someone
+     changes a rule, forgets to bump it, and the constant <b>lies</b>. A hash cannot be
+     forgotten; a constant can.</p>
+</div>
+
+<h3>10.8 Layer 6 — The sfge differential (an independent engine)</h3>
+<p>A systematic comparison against Salesforce's own <b>Graph Engine</b> over the <b>19
+   org-adjudicated cases</b>. The rules compared:</p>
+<table class="avoid">
+  <tr><th style="width:44%">sfge rule</th><th>Our counterpart</th><th>Axis</th></tr>
+  <tr><td><code>ApexFlsViolation</code></td><td>PS502 / PS503 / PS506</td><td>Field &amp; CRUD</td></tr>
+  <tr><td><code>DatabaseOperationsMustUseWithSharing</code></td><td>PS501</td><td>Record</td></tr>
+</table>
+<p><b>Two fairness measures were taken:</b></p>
+<ul>
+  <li>Cases are wrapped as <code>@InvocableMethod</code>, because sfge analyses <b>from entry
+      points only</b>. A plain method would produce <b>zero violations</b> and read as "sfge
+      agrees" — a <b>vacuous win</b>. It is also how an agent really calls Apex, so the shape
+      is honest, not a convenience.</li>
+  <li>Each case is scored <b>only on the axis its own shape adjudicates</b>. Scoring an
+      unrefereed column is the classic way a differential flatters whoever wrote it.</li>
+</ul>
+<table class="avoid">
+  <tr><th>Tool</th><th class="n">Contradicts the org</th></tr>
+  <tr><td>Salesforce Graph Engine</td><td class="n" style="color:var(--bad);font-weight:700">7 / 19</td></tr>
+  <tr><td>Agent Blast Radius</td><td class="n" style="color:var(--ok);font-weight:700">0 / 19</td></tr>
+</table>
+<p><b>The 7 are not one thing — say which:</b></p>
+<table class="avoid">
+  <tr><th style="width:30%">Kind</th><th class="c" style="width:10%">Count</th><th>Explanation</th></tr>
+  <tr><td><b>apiVersion blindness</b></td><td class="c">4</td>
+      <td>v67 read ×2, v67 write, v67 record. sfge wants an explicit check and <b>gives no credit for secure-by-default</b></td></tr>
+  <tr><td><b>SOSL</b></td><td class="c">1</td>
+      <td><code>ApexFlsViolation</code> never walks <code>RETURNING</code> → it <b>misses</b> an escape the org hands over (a false <i>negative</i>)</td></tr>
+  <tr><td>Sanitizer rows</td><td class="c">2</td>
+      <td><b>The weakest two.</b> We do not call them clean either — we say <b>WARN</b>. A severity-discipline difference, not sfge being broken</td></tr>
+</table>
+<div class="box warnbox">
+  <p><b>NEVER present this as "sfge is bad."</b> It is a general-purpose, deliberately
+     conservative scanner answering <i>"is an FLS check present?"</i>, with no notion of a
+     <b>running user</b> and no notion of a <b>compliance label</b>.</p>
+  <p><b>The supportable claim is the narrow one:</b> for <i>this</i> question — what can this
+     agent reach as <i>this</i> user — a version-aware, user-scoped analysis is measurably more
+     precise. Also, on <b>sfge's own binary scale</b> (any finding = an assertion) the score is
+     <b>2/19</b>; stating both is honesty — publishing only the flattering one is selective
+     reporting.</p>
+</div>
+
+<h3>10.9 What no oracle can settle — a limit of the method</h3>
+<p>Some cases assert what the <b>analyzer must report</b>, not what the platform does. An org
+   <b>cannot</b> have an opinion about them:</p>
+<table class="avoid">
+  <tr><th style="width:36%">Case</th><th>Why the org cannot judge</th></tr>
+  <tr><td><code>unknown-dynamic-soql</code><br><code>unknown-sosl-without-returning</code></td>
+      <td>PS504 says <b>"we do not know"</b>. An org cannot measure <b>the absence of our knowledge</b></td></tr>
+  <tr><td><code>async-queueable</code>, <code>async-callout</code></td>
+      <td>PS514 says <b>"we flag a hand-off we do not follow"</b>. Same shape of claim</td></tr>
+  <tr><td><code>field-untagged-escalates-ps502</code></td>
+      <td>Its platform half is already measured; the half that distinguishes it is <b>our own labelling design</b></td></tr>
+</table>
+<p><b>Counting these as gaps would overstate what is missing, exactly as counting them as
+   measured would overstate what is proven.</b> The corpus records, in writing, which is which
+   and why.</p>
+
+<h3>10.10 Layer 7 — Real orgs</h3>
+<table class="avoid">
+  <tr><th style="width:22%">Org</th><th>Role</th></tr>
+  <tr><td>HospitalOrg</td><td>Experiment lab (E1–E13) + a live agent</td></tr>
+  <tr><td>HanseWatt</td><td>Agent at v67 → <b>0 proven</b>, though the org is 83% legacy</td></tr>
+  <tr><td>TechnoStore</td><td>113 classes, <b>100% pre-v67</b> → the legacy demo, <b>6 proven</b></td></tr>
+  <tr><td>Urla</td><td>A control org with no agent</td></tr>
+</table>
+<p><b>House rule:</b> after every rule change, <b>both demo orgs are run</b>. Unit tests once
+   missed an early <code>return</code> that made a block unreachable — the live run caught it
+   instantly.</p>
+
+<h2 class="pb">11. The hard questions you will be asked</h2>
+<p class="lead">Grouped, each answer backed by a measurement. Do not memorise the answers —
+   understand the <b>reasoning</b>; if the question arrives in another shape, the reasoning
+   carries you.</p>
+
+<div class="qgroup">A · POSITIONING AND COMPETITORS</div>
+
+<div class="qa avoid">
+  <p class="q">Q1: Doesn't Salesforce's own Health Check / Optimizer do this?</p>
+  <p class="a">No. Those examine <b>org-wide configuration</b> health — password policies,
+     session settings, unused permissions. None asks <i>"what does this agent's code chain
+     reach for this user?"</i> Theirs is <b>org-scoped</b>; ours is <b>agent- and
+     user-scoped</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q2: Graph Engine already exists. What is different?</p>
+  <p class="a">sfge asks <i>"is there an FLS check in the code?"</i> We ask <i>"can this user
+     see this field, and does the code reach it?"</i> sfge has no concept of a <b>running
+     user</b>, none of a <b>compliance label</b>, and <b>does not consider apiVersion</b> — so
+     it warns about code the platform has already made safe at v67. Across 19 adjudicated
+     cases the difference measured <b>7 to 0</b>. But sfge is not a bad tool; it answers a
+     different question, and being conservative there is <b>a correct design choice</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q3: A consultant could do this by hand. Why a tool?</p>
+  <p class="a">By hand — <b>once</b>. Then it is needed again on every deploy. Three
+     differences: <b>(1)</b> reproducible (same input, byte-identical report), <b>(2)</b> runs
+     in CI (<code>--fail-on ERROR</code>), <b>(3)</b> it <b>does not forget</b> — a human may
+     skip step 5 of the chain; the tool does not. And a consultant bills by the hour; this
+     measurement takes minutes.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q4: Is this a security certificate?</p>
+  <p class="a"><b>No, and we say so first.</b> It is an <b>agent-scoped security review
+     accelerator</b> producing <b>evidence</b> for a DPIA or security review. Calling it a
+     certificate would mean guaranteeing things <b>we never measured</b> — and §12 lists
+     exactly those.</p>
+</div>
+
+<div class="qgroup">B · METHOD AND TECHNIQUE</div>
+
+<div class="qa avoid">
+  <p class="q">Q5: Why not run the agent and observe it?</p>
+  <p class="a">Three reasons. <b>(1) Coverage:</b> running shows only what happened in
+     <i>that</i> conversation; we measure everything that <i>could</i> happen — a sample of
+     conversations is never complete. <b>(2) Cost:</b> every invocation burns Flex Credits.
+     <b>(3) Risk:</b> running an agent against a live org can produce side effects. Static
+     analysis solves all three and is <b>reproducible</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q6: You use regex? Can that be serious analysis?</p>
+  <p class="a"><b>The default is not regex — it is a real ANTLR parse tree</b>; regex is the
+     fallback used only when Node is unavailable. Compared over 104 real classes: <b>0
+     overclaims, 0 misses, 0 noise</b>. The residual is 22/104 DEGRADED — regex <b>honestly
+     says "I don't know"</b> where the AST resolves. And crucially both feed the <b>same
+     precedence core</b>, so the <b>verdict</b> is issued in one place.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q7: How do you resolve dynamic SOQL?</p>
+  <p class="a"><b>We don't — and we say so.</b> <code>Database.query(...)</code> takes a string
+     built at runtime; it cannot be known statically. PS504 fires: "unresolved".
+     <b>Guessing would manufacture a silent false clean</b> — the one thing this product does
+     not accept.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q8: How many levels of the chain do you follow?</p>
+  <p class="a">Class references are followed <b>one level</b> (including Queueable/Batch/@future
+     — measured, not assumed). Anything deeper is flagged as a delegation chain via
+     <b>PS508</b>. This is a limit and <b>it is in the report</b>: declaring what we do not
+     know beats concealing it.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q9: Can you see inside managed packages?</p>
+  <p class="a">No — the source is not readable. This is a <b>disclosed limit</b> and it appears
+     in the report. Knowledge/Data Cloud retrieval is likewise opaque today. If a field comes
+     from inside a managed package, the tool marks it <b>unresolved</b>, <b>not clean</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q10: Why Python? Why not an Apex or AppExchange package?</p>
+  <p class="a">Because the analysis must run <b>outside</b> the org: code running inside would
+     sit <b>within</b> the very boundaries it measures — a ruler measuring itself. It also
+     needs to run in CI on every deploy. Python 3.12 with <b>standard library only</b> was
+     chosen so installation friction is near zero.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q11: If we move to v67, the problem goes away — right?</p>
+  <p class="a">Largely yes, and we <b>measured</b> it. Two caveats. <b>(1)</b> One org we
+     measured is <b>83% legacy</b> and still measured <b>zero</b>, because the nine actions its
+     agent invokes are v67. So modernise <b>the part the agent touches</b>, not the whole org —
+     a far cheaper roadmap for the customer. <b>(2)</b> v67 does not close formula-field inputs
+     (PS516), and <b>triggers run at their own versions</b> (E6).</p>
+</div>
+
+<div class="qgroup">C · TRUST AND EVIDENCE</div>
+
+<div class="qa avoid">
+  <p class="q">Q12: Can this tool break something in my production org?</p>
+  <p class="a"><b>No.</b> The <b>complete</b> list of what it runs against your org:
+     <code>sf data query</code> (SOQL SELECT) and <code>sf project retrieve start</code>
+     (metadata download). No insert/update/delete, no deploy, no Apex execution, no agent
+     invocation. A SOQL SELECT <b>fires no triggers, locks no records, changes no data</b>.</p>
+  <p class="a"><b>And better still:</b> connect with a <b>read-only integration user</b> — then
+     the guarantee is not "the tool does not write" but <b>"the tool cannot write"</b>.
+     <i>The honest footprint:</i> SOQL consumes API allowance and
+     <code>--include-counts</code> can be slow on very large objects. We do not hide that.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q13: You claim "100% accuracy" — why should I believe it?</p>
+  <p class="a"><b>Don't believe it, interrogate it — we did.</b> That figure holds <b>on our
+     own 28-case corpus</b> and is <b>nearly worthless on its own</b>. The real question is
+     where the labels come from: <b>21 were measured in a real org</b>, 3 rest on
+     documentation, and <b>4 prove only consistency</b> — and that distribution is <b>printed
+     on every run</b>. The corpus was also shown to have teeth by <b>mutation testing</b>
+     (8/8), and the predictions were tested <b>with the org as referee</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q14: How exactly does the runtime oracle work?</p>
+  <p class="a">It deploys the case to the org <b>as real Apex</b>, creates a <b>throwaway user
+     and permission set</b> (object read granted, <b>deliberately no permission</b> on the
+     target field), runs the code <b>as that user</b>, and asks one question: <i>"did the field
+     come back?"</i> The generated test <b>asserts the analyzer's own prediction</b> — so
+     <b>a red test is the org saying the analyzer is wrong</b>. There is also a <b>negative
+     control</b>: a field the user genuinely may read is seeded with a value, so a pass cannot
+     be a null that would have passed either way.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q15: Have you ever been wrong?</p>
+  <p class="a"><b>Yes — and this is the most valuable answer.</b> Our belief about
+     <code>stripInaccessible(UPDATABLE)</code> was wrong and produced a rule that raised
+     <b>ERROR</b>. The runtime oracle refuted <b>both branches</b> in-org and the rule was
+     corrected. Twice more, well-founded questions arrived citing real Salesforce
+     documentation, and <b>both times we ran an experiment rather than an edit</b>. <b>A false
+     positive costs credibility exactly as a false clean does</b> — we learned that by paying
+     for it.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q16: If I run the report twice, do I get the same thing?</p>
+  <p class="a"><b>Yes, byte for byte</b> — proven live (two runs, same sha256). The report
+     carries a <b>fingerprint</b>: a sha256 of the rule/extractor source, the parser version,
+     what the analysis identity could see, the backend, and <b>each class's own apiVersion</b>.
+     A verdict is reproducible only <b>against the tool that produced it</b> — and the report
+     <b>says so</b> rather than implying it. The live <code>COUNT()</code> lines are
+     <b>outside</b> the fingerprint, and the report says that too.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q17: Where does our data go?</p>
+  <p class="a"><b>Nowhere.</b> The analysis runs on the local machine. No external service
+     calls, no telemetry. What is read is <b>metadata and permission configuration</b> — not
+     customer records and not conversation content.</p>
+</div>
+
+<div class="qgroup">D · NUMBERS AND REPORTING</div>
+
+<div class="qa avoid">
+  <p class="q">Q18: How many records can it reach? Why no exact number?</p>
+  <p class="a">Because record visibility <b>depends on sharing</b> and cannot be known
+     statically. An org <code>COUNT()</code> is an <b>upper bound</b> — predicates and
+     <code>LIMIT</code> are not resolved. The report says <i>"could reach up to N records"</i>,
+     never <i>"reaches N"</i>. <b>A fabricated number is worse than no number.</b></p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q19: Why split ERROR and WARN? Isn't everything a risk?</p>
+  <p class="a">For us severity is a claim about <b>proof</b>, not impact. ERROR = proven.
+     WARN = a real boundary we could not prove. Without that split, a report equates the proven
+     with the suspected — and <b>the first false positive costs the whole report its
+     credibility</b>. Ranking by impact is the customer's job; ranking by proof is ours.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q20: The Index came out 0. Is my org clean?</p>
+  <p class="a"><b>No — and the report says so in its own voice.</b> If "unresolved" &gt; 0 the
+     line below reads: <i>"0 proven with unresolved reach is NOT clean — unknown never becomes
+     clean."</i> That is the specification's rule and it is <b>enforced in code</b>: no API
+     returns fewer than four numbers. And because restriction rules are not modelled, the gap
+     is a <b>lower bound</b>.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q21: Why say "regulated" instead of GDPR?</p>
+  <p class="a">Because <b>we do not decide</b> which field is regulated — we read the
+     <code>ComplianceGroup</code> labels <b>the org's own administrators</b> applied. One org
+     may tag for GDPR, another for CCPA or HIPAA; <b>the mechanism is identical</b>. Calling it
+     "a GDPR tool" would describe a regime-agnostic feature as if it were one customer's use of
+     it.</p>
+</div>
+
+<div class="qa avoid">
+  <p class="q">Q22: Can I suppress a finding? (CI noise)</p>
+  <p class="a"><b>Not today — and it is a known gap</b>, raised by external review too. <b>A CI
+     gate nobody can silence gets switched off</b>, so this is a real product risk. If it is
+     built, the honest shape is known: an inline directive <b>with a mandatory reason</b>, and
+     <b>unreasoned suppressions listed in the report</b>.</p>
+</div>
+
+<h2 class="pb">12. Honest limits</h2>
+<p>State these <b>before you are asked</b> — the cheapest credibility available.</p>
+<table>
+  <tr><th style="width:32%">Limit</th><th>Status and direction</th></tr>
+  <tr><td><b>Formula field inputs</b></td>
+      <td>Reported via PS516; platform behaviour <b>not measured</b>, not upgraded to a leak claim</td></tr>
+  <tr><td><b>Polymorphic lookups</b></td>
+      <td>A lookup with several targets is skipped — we cannot know which object a row points at, so it stays <b>unlabelled</b>. A coverage hole, and we say so</td></tr>
+  <tr><td><b>Restriction / scoping rules</b></td>
+      <td>Not modelled. <b>The direction is critical:</b> they <i>reduce</i> what the user sees, so omitting them makes us think the user is <b>more privileged</b> → the gap is a <b>LOWER BOUND</b>, not an upper one</td></tr>
+  <tr><td><b>Managed package internals</b></td><td>Opaque — marked unresolved</td></tr>
+  <tr><td><b>Record counts</b></td><td>Upper bound — predicates and LIMIT not resolved</td></tr>
+  <tr><td><b>Async subscribers</b></td>
+      <td>Publish is analysed; <b>Flow / process / external subscribers are not followed</b> (PS514 says exactly this)</td></tr>
+  <tr><td><b>Suppression / baseline</b></td><td>None — a known gap (Q22)</td></tr>
+  <tr><td><b>Chain depth</b></td><td>Class references one level; deeper is flagged via PS508</td></tr>
+</table>
+
+<div class="box key">
+  <p><b>The closing line:</b> "This tool does not give you a perfect answer. It gives you a
+     <b>measured</b> one — and it tells you, <b>in the same report</b>, what it could not
+     measure. A silent 'clean' result is far more dangerous than an honest 'I don't know'."</p>
+</div>
+
+<p class="sm" style="margin-top:22pt;border-top:1px solid var(--line);padding-top:8pt">
+  Aksu Software · Agent Blast Radius &amp; the Aksu Index · 31 July 2026. Every figure here is
+  traceable to a measurement, a test run, or a named source. Where something was not measured,
+  this document says so.</p>
+
+</div>
+</body>
+</html>
