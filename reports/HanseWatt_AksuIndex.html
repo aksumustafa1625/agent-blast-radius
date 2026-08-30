@@ -363,7 +363,7 @@
 </style>
 
 <div class="abr">
-<div class="bar"><span><b>AGENT</b> HW Energy Agent</span><span><b>RUNNING USER</b> (hypothetical grant model - permission set: HW_ServiceAgent)</span><span><b>CHANNEL</b> agent</span><span><b>FINGERPRINT</b> da5d75d3171b</span><span><b>GENERATED</b> measured 2026-08-29</span></div>
+<div class="bar"><span><b>AGENT</b> HW Energy Agent</span><span><b>RUNNING USER</b> (hypothetical grant model - permission set: HW_ServiceAgent)</span><span><b>CHANNEL</b> agent</span><span><b>FINGERPRINT</b> d80158fbbaa8</span><span><b>GENERATED</b> measured 2026-08-29</span></div>
 <p class="eyebrow">Agent Blast Radius Report</p>
 <h1>HW Energy Agent</h1>
 <p class="sub">Static, zero-credit analysis of the agent's real data-access surface at the execution-semantics layer.</p>
@@ -392,7 +392,7 @@
 <p class="anote">Across <b>4</b> objects the agent&rsquo;s code touches. This report does not compute the set of objects the running user can see, so no object-level comparison is claimed here.</p>
 </div>
 <p class="acanon"><b>Aksu Index: 0 proven (0 regulated) · 0 unproven boundaries · 2 unresolved</b><br>One agent &times; one running user, at one moment, under one tool version &mdash; not an org score.</p>
-<p class="acanon-machine"><code>AKSU:1.0/P:0/C:0/B:0/U:2/fp:da5d75d3171b</code><br><a href="https://aksuindex.com/spec/v1.0">https://aksuindex.com/spec/v1.0</a></p>
+<p class="acanon-machine"><code>AKSU:1.0/P:0/C:0/B:0/U:2/fp:d80158fbbaa8</code><br><a href="https://aksuindex.com/spec/v1.0">https://aksuindex.com/spec/v1.0</a></p>
 </section>
 <div class="plain warn">
 <div class="vhead"><span class="badge">NEEDS A LOOK</span><h3>Nothing was proven to escape here — but part of this agent&#x27;s reach could not be determined at all.</h3></div>
@@ -462,7 +462,7 @@
 </div>
 <div class="pbar" style="max-width:520px"><i class="safe" style="width:17%"></i><i class="legacy" style="width:83%"></i></div>
 <p class="censnote"><b>Why this matters:</b> a class or trigger below API v67 defaults to <b>system mode</b>, so its queries and writes bypass the running user’s sharing and field-level security unless the code opts in — this agent uses only a couple of them, but the same latent escalation sits in every other pre-v67 file; <b>1</b> permission set grant <b>Modify All Data</b>, which overrides all sharing and FLS for whoever holds it — an agent running as such a user has no access boundary at all; every custom object defaults to <b>Private</b> sharing — a healthy baseline.</p></div>
-<div class="foot">Produced by static analysis. No agent was invoked. 0 Flex Credits. Bound to fingerprint da5d75d3171b, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer 52c669ea07a9, parser 5.1.0; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change. The Aksu Index is defined by a public specification, v1.0: aksuindex.com</div>
+<div class="foot">Produced by static analysis. No agent was invoked. 0 Flex Credits. Bound to fingerprint d80158fbbaa8, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer f0f9842e7305, parser 5.1.0; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change. The Aksu Index is defined by a public specification, v1.0: aksuindex.com</div>
 </div>
 </body>
 </html>

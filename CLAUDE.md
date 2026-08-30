@@ -444,6 +444,23 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   still running?** Fixed both ways: repo-local `user.email`, and the scratch path is now
   ignored and gone from history. *(The global git identity is still the personal address —
   the maintainer's call, and it affects every other repo.)*
+- **🔴 The analyzer digest was not reproducible, and nothing caught it for days.** The
+  digest published in `FACTS.md`, on the specification page and inside both published
+  reports — `52c669ea07a9` — was the hash of a **working tree** in which two analysis
+  sources (`apex_introspect.py`, `ast_extract.js`) sat **CRLF** while the index and every
+  clone held them **LF**. `analyzer_version()` hashes bytes, so the number that identifies
+  the tool existed on exactly one machine. **The true value is `f0f9842e7305`**, which is
+  what a fresh clone computes and what a reader saw in their report's footer — that is how
+  it was found, not by any test here. 26 files had drifted; `git ls-files --eol` showed
+  `i/lf w/crlf` against an attribute of `eol=lf` that had been correct since 2026-08-19 and
+  simply never enforced on the tree.
+  **Neither Index moved** — 6/1/0/1 and 0/0/0/2 are unchanged, because the *measurement*
+  was never wrong. What was wrong is the one claim the footer makes: *"a verdict is only
+  reproducible against the tool that produced it."* Nobody could reproduce it.
+  The guard is now a test, not a habit: `test_digest_reproducible.py` fails if any file in
+  `_ANALYSIS_SOURCES` carries a CR, and it was verified to fail by inserting a single CRLF.
+  **`.gitattributes` declaring `eol=lf` is not the same as the tree obeying it** — and on
+  Windows, any tool that writes a text file can break it silently.
 - **A comment can invalidate every published number.** One explanatory comment added to
   `authority_analyzer.py` moved the analyzer digest `52c669ea07a9 → adaa322a9a2d`, which
   would have invalidated both published report fingerprints on launch eve, against a

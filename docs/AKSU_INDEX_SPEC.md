@@ -173,7 +173,7 @@ Three things this settles, because leaving them unstated was itself a defect:
   the canonical result string exists to make into one object:
 
       Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
-      AKSU:1.0/P:6/C:1/B:0/U:1/fp:84ae32568aac
+      AKSU:1.0/P:6/C:1/B:0/U:1/fp:6b0359284da3
 
   Stated as a rule of the definition rather than a licence condition on purpose:
   CC BY 4.0 forbids applying further restrictions, so a licence term here would be

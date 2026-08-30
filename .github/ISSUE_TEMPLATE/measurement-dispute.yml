@@ -25,7 +25,7 @@ body:
     attributes:
       label: The canonical result string from your report
       description: >-
-        The last lines of the report, e.g. AKSU:1.0/P:6/C:1/B:0/U:1/fp:84ae32568aac.
+        The last lines of the report, e.g. AKSU:1.0/P:6/C:1/B:0/U:1/fp:6b0359284da3.
         A verdict is only reproducible against the tool that produced it, and this
         line is what identifies that tool.
       placeholder: AKSU:1.0/P:.../C:.../B:.../U:.../fp:...

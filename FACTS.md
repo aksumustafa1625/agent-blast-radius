@@ -18,8 +18,19 @@ So: one file, every number measured rather than remembered, and the command that
 reproduces it printed beside it. A figure with no command in this table has no
 business in a sentence.
 
-**Measured 2026-08-29.** Re-run the commands before quoting; if a number here
-disagrees with a document, this file is right and the document is stale.
+**Measured 2026-08-29; the analyzer digest and both report fingerprints re-measured
+2026-08-30.** Re-run the commands before quoting; if a number here disagrees with a
+document, this file is right and the document is stale.
+
+**The digest changed on 2026-08-30 and no code did.** `52c669ea07a9` was published here,
+on the specification page and inside both reports, and it was the digest of a working tree
+where two analysis sources sat CRLF while the repository and every clone held them LF.
+`analyzer_version()` hashes bytes, so the number that identified the tool existed on one
+machine only. A reader running the tool from a fresh clone got `f0f9842e7305` in the footer
+and reported the mismatch. The measurement never moved - both Index results are unchanged -
+but every fingerprint sealed with the old digest was unreproducible, which is the one thing
+this file exists to prevent. `test_digest_reproducible.py` now fails if any analysis source
+carries a CR.
 
 ---
 
@@ -33,7 +44,7 @@ disagrees with a document, this file is right and the document is stale.
 | Mutation score | **8 / 8** | `python blast_radius/benchmark/mutate.py` |
 | Architecture decision records | **13** | `ls docs/adr/ADR-*.md` |
 | In-org experiments | **E1 – E16** | `CLAUDE.md` §2 |
-| Analyzer digest | **`52c669ea07a9`** | `python -c "import sys;sys.path.insert(0,'blast_radius');from report import analyzer_version;print(analyzer_version()[:12])"` |
+| Analyzer digest | **`f0f9842e7305`** | `python -c "import sys;sys.path.insert(0,'blast_radius');from report import analyzer_version;print(analyzer_version()[:12])"` |
 
 The skip count is measured in a fresh clone at a **short path**. On Windows a
 checkout nested past roughly 240 characters makes five more tests skip, because
