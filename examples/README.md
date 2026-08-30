@@ -22,3 +22,32 @@ Both were produced under analyzer digest `f0f9842e7305`, which a fresh clone rep
 check it with `python -c "import sys;sys.path.insert(0,'blast_radius');from report import
 analyzer_version;print(analyzer_version())"`. If it disagrees with the footers here, one of
 us has a modified tool, and the report tells you which.
+
+## Which command produced them, and why yours will look different
+
+Both were run against a **permission set**, not against a person:
+
+```
+python blast_radius/cli.py --agent TechnoStore_Revenue_Assistant_v1 \
+       --permission-set TechnoStore_Revenue_Assistant2098228049_Permissions --org TechnoStore
+python blast_radius/cli.py --agent HW_ServiceAgent_v1 \
+       --permission-set HW_ServiceAgent --org HanseWatt
+```
+
+`python measure.py` does **not** default to that. It asks the org for the agent's own
+`BotDefinition.BotUserId` and models the identity Salesforce actually runs the agent as —
+a fact about the agent rather than a hypothesis about a person. So your report's identity
+line will read like a username, while these two read
+`(hypothetical grant model - permission set: ...)`. Neither is a better number; they answer
+slightly different questions, and the report says which one it answered.
+
+The fingerprints differ for the same reason. It seals *what the analysis identity could
+see*, so changing the identity changes the seal — that is the mechanism working, not
+drifting.
+
+One thing fell out of running both against the same agent, and it is worth recording
+because it was not the point of the exercise. TechnoStore measured under the permission-set
+model (`fp:6b0359284da3`) and under the agent's real running user (`fp:5d5631253985`)
+returns the **same four numbers**: `P:6 C:1 B:0 U:1`. Two independent models of who the
+agent is, one Index. **This is one agent in one org** — it is a data point about this
+report, not a general claim that the two models agree.
