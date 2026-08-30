@@ -556,8 +556,14 @@ def render_markdown(agent: str, running_user: str, channel: Optional[str],
                      f"{reach['gap_total']}.** _(measured system-mode objects only)_{qual}")
             L.append("")
         elif reach["bounded"] and not reach["unknown"]:
-            L.append("> **Every read the agent performs enforces sharing, so the agent is "
-                     "bounded by the running user — there is no record escalation.**")
+            # "resolved" is load-bearing. A report can reach this branch while its own
+            # U bucket is non-zero - HanseWatt ships 0 proven / 2 unresolved - and
+            # "every read" would then claim something about operations the analysis
+            # could not read at all, two sentences from the line that says an unknown
+            # never becomes a clean.
+            L.append("> **Every _resolved_ read the agent performs enforces sharing, so "
+                     "the agent is bounded by the running user on those reads — there is "
+                     "no proven record escalation.**")
             L.append("")
         L.append("| Object | Read mode | Records in org | User sees | Gap (upper bound) | Cause |")
         L.append("| --- | --- | ---: | ---: | ---: | --- |")

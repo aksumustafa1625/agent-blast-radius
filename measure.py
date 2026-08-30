@@ -34,21 +34,37 @@ sys.path.insert(0, PKG)
 
 BAR = "=" * 74
 
+# Anomalies worth showing a reader who is debugging, kept rather than swallowed.
+_DIAG: list[str] = []
+
 
 def _sf_json(cmd: str) -> dict | None:
-    """Run an sf command and return its JSON, or None.
+    """Run an sf command and return its JSON only if the CLI reports success.
 
-    The return code is deliberately ignored: on Windows `sf` is a .cmd shim that
-    exits 1 even on success - measured on this machine - so trusting it reports a
-    working CLI as broken. Whether JSON came back is the fact that matters.
+    The process return code is deliberately not treated as authoritative: on Windows
+    `sf` is a .cmd shim that exits 1 even on success - measured on this machine - so
+    trusting it reports a working CLI as broken.
+
+    Not authoritative is not the same as ignored, and the difference matters: an error
+    from `sf` is *also* valid JSON, so "something parsed" would accept failures as
+    results. The success signal is the CLI's own `status` field, and an anomalous
+    return code is kept for diagnostics rather than discarded.
     """
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                          encoding="utf-8", errors="replace")
     try:
         d = json.loads(res.stdout)
     except (json.JSONDecodeError, TypeError):
+        if res.returncode and (res.stderr or "").strip():
+            _DIAG.append(f"{cmd.split(' --')[0]}: rc={res.returncode} {res.stderr.strip()[:160]}")
         return None
-    return d if d.get("status") == 0 else None
+    if not isinstance(d, dict) or "status" not in d:
+        return None                      # not the shape sf documents; treat as no answer
+    if d.get("status") != 0:
+        _DIAG.append(f"{cmd.split(' --')[0]}: status={d.get('status')} "
+                     f"{str(d.get('message', ''))[:160]}")
+        return None
+    return d
 
 
 def _query(soql: str, org: str) -> list[dict]:
@@ -61,6 +77,14 @@ def _fail(msg: str, *fix: str) -> int:
     if fix:
         print()
         for line in fix:
+            print(f"      {line}")
+    # Collected anomalies are printed here or they are not collected at all - a
+    # decision that is recorded and never read is the no-op PS512 flags in other
+    # people's code.
+    if _DIAG:
+        print()
+        print("  What the CLI actually said:")
+        for line in _DIAG:
             print(f"      {line}")
     print()
     return 2
@@ -91,7 +115,7 @@ def main() -> int:
     org = ((d or {}).get("result") or {}).get("alias") or user
     print(f"  Org: {org}")
 
-    bots = _query("SELECT DeveloperName, MasterLabel, BotUserId FROM BotDefinition "
+    bots = _query("SELECT DeveloperName, MasterLabel, Type, BotUserId FROM BotDefinition "
                   "ORDER BY DeveloperName", org)
     if not bots:
         print("  This org has no Agentforce agents, so there is nothing to measure.")
@@ -112,15 +136,42 @@ def main() -> int:
 
     bot = bots[0]
     agent = bot["DeveloperName"]
+    kind = bot.get("Type") or ""
+
+    # Agentforce has two running-user models and only one of them has a single
+    # running user. An EMPLOYEE agent (InternalCopilot) runs in the context of
+    # whoever is logged in, so "the agent's own running user" is not a fact about
+    # it - it is a category error, and measuring against a BotUserId that happens
+    # to be populated would aim a confident number at the wrong identity.
+    #
+    # Measured 2026-08-29 on both demo orgs: Type=ExternalCopilot, BotUserId set.
+    # What an InternalCopilot carries in BotUserId is NOT measured here, which is
+    # exactly why this branches on the type rather than on whether the field is
+    # populated.
+    employee_agent = kind == "InternalCopilot"
 
     running_user = None
-    if bot.get("BotUserId"):
+    if bot.get("BotUserId") and not employee_agent:
         rows = _query(f"SELECT Username FROM User WHERE Id = '{bot['BotUserId']}'", org)
         if rows:
             running_user = rows[0]["Username"]
 
     print()
     print(f"  Agent:        {agent}")
+    if kind:
+        print(f"  Agent type:   {kind}")
+
+    if employee_agent:
+        print()
+        print("  This is an employee agent. It runs in the context of each logged-in")
+        print("  user, so there is no single running user to measure it against -")
+        print("  every employee is a different one. Pick a representative identity:")
+        print()
+        print(f"      python blast_radius/cli.py --agent {agent} \\")
+        print(f"             --running-user <username> --org {org}")
+        print()
+        return 2
+
     if running_user:
         print(f"  Running user: {running_user}   (the agent's own, from BotUserId)")
         who = ["--running-user", running_user]

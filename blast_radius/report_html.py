@@ -405,8 +405,9 @@ def _record_section(reach) -> str:
     elif reach["bounded"] and not reach["unknown"]:
         p.append(
             '<div class="clean" style="border-left:4px solid var(--proof)">'
-            'Every read the agent performs <b>enforces sharing</b>, so the agent is bounded by '
-            'the running user &mdash; there is <b>no record escalation</b>.</div>')
+            'Every <i>resolved</i> read the agent performs <b>enforces sharing</b>, so the '
+            'agent is bounded by the running user on those reads &mdash; there is '
+            '<b>no proven record escalation</b>.</div>')
     p.append('<div class="recwrap"><table class="rec"><thead><tr>'
              '<th>Object</th><th style="text-align:left">Read mode</th>'
              '<th>Records in org</th><th>User sees</th>'
@@ -661,9 +662,10 @@ def _stakeholder_summary(agent, gap, gdpr, all_findings, reach,
             f'not the whole table.</p>')
     elif reach and reach.get("bounded") and not reach.get("unknown"):
         p.append(
-            '<p>On <b>records</b>: every read the agent performs enforces sharing and the '
-            'user&rsquo;s permissions, so the agent cannot see records this user could not see '
-            'anyway. There is no record-level gap to fix.</p>')
+            '<p>On <b>records</b>: every <i>resolved</i> read the agent performs enforces '
+            'sharing and the user&rsquo;s permissions, so on those reads the agent cannot see '
+            'records this user could not see anyway. There is no <i>proven</i> record-level '
+            'gap to fix.</p>')
 
     # 4) honest-coverage caveat, in plain words
     if coverage and coverage.get("not_visible"):

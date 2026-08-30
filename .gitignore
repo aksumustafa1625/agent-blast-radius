@@ -45,3 +45,8 @@ $RECYCLE.BIN/
 # and writes these back to disk, so `git add -A` re-committed them once already.
 force-app/main/default/classes/HW*Action.cls
 force-app/main/default/classes/HW*Action.cls-meta.xml
+
+# Default --out scratch. Never an artifact: reports/ holds the published ones,
+# and a stray run here once put a live org identifier into a tracked file.
+blast_radius/report.md
+blast_radius/report.html

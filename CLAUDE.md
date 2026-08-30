@@ -266,7 +266,7 @@ gets a blind spot the regex path doesn't have, or vice versa.
 
 | rule | severity | fires when |
 |---|---|---|
-| PS501 | ERROR/WARN | Potential record-scope expansion (system mode + Private OWD). "Potential" is deliberate: predicates aren't analysed. |
+| PS501 | ERROR/WARN | Potential record-scope expansion (system mode + Private OWD). "Potential" is deliberate: predicates aren't analysed. **ERROR claims the MODE, not the magnitude** — it fires when the record axis resolves to unenforced (`False`, not `None`) on a Private object for a user who cannot see all rows. How *many* records that reaches is what predicates and `LIMIT` leave open, which is why the count is separately labelled an upper bound. An undetermined axis caps at WARN. *(Asked by a reviewer 2026-08-29: severity=proof said ERROR means proven, and the rule says predicates aren't analysed — so what is proven? The scope escalation is; its size is not.)* |
 | PS502 | ERROR/WARN | Field read in system mode; user has no FLS. |
 | PS503 | ERROR/WARN | System-mode DML on an object the user can't write. |
 | PS504 | WARN | **Honest unknown** — dynamic SOQL, SOSL without RETURNING, aggregate/function selects, polymorphic TYPEOF, unresolved reach, and (since 2026-08-19) a Flow whose run context is undetermined (no `runInMode` tag on an author-selectable type). Fires even when the object is unknown. **Since 2026-08-23 it names the cause and its OWNER** (§3): `code` = no static analysis can resolve it, the customer acts; `analyzer` = we do not model the shape, we act. Same rule id, same count. |
@@ -731,7 +731,7 @@ the fingerprint binding the analyzer's own source hash + parser version.
 - Run tests: `python -m unittest discover -s blast_radius -p "test_*.py"`
 - Run benchmark: `python blast_radius/benchmark/run.py` and `mutate.py`
 - Comments explain **why / the constraint**, never what the next line does.
-- Decision records live in `docs/adr/` (12 ADRs, incl. the deliberate
+- Decision records live in `docs/adr/` (13 ADRs, incl. the deliberate
   rejections). A change that alters what a finding may claim, rejects an
   alternative, or sets a boundary gets an ADR; an incident-level lesson goes
   into §7 here instead.

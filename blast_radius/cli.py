@@ -406,8 +406,8 @@ def main():
                   f"{rr['upper_bound_total']} records, user sees {rr['user_total']} "
                   f"(upper-bound gap {rr['gap_total']}; predicates/LIMIT not resolved)")
         elif rr and rr["bounded"] and not rr["unknown"]:
-            print("RECORD REACH: every read enforces sharing - the agent is bounded "
-                  "by the running user (no record escalation)")
+            print("RECORD REACH: every RESOLVED read enforces sharing - bounded by the "
+                  "running user on those reads (no proven record escalation)")
     findings = [f for s in summaries for f in s.findings]
     order = {"ERROR": 0, "WARN": 1, "INFO": 2}
     for sev in ("ERROR", "WARN", "INFO"):
