@@ -1,0 +1,81 @@
+name: Bug report
+description: It crashed, produced a wrong number, or would not run
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you think a **verdict** is wrong and you have a measurement from an org
+        showing it, use **Measurement dispute** instead — that is a different kind
+        of report and it is the more valuable one.
+
+        This one is for: it crashed, it would not start, a number is obviously
+        wrong, or the output contradicts itself.
+
+  - type: input
+    id: fingerprint
+    attributes:
+      label: The canonical result string, if you got a report at all
+      description: >-
+        The line beginning AKSU:1.0/ at the foot of the report. It identifies the
+        analyzer build, and a verdict is only reproducible against the tool that
+        made it. Leave blank if it never got that far.
+      placeholder: AKSU:1.0/P:.../C:.../B:.../U:.../fp:...
+    validations:
+      required: false
+
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      description: The exact command, including flags.
+      render: shell
+      placeholder: python measure.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What happened
+      description: >-
+        The output or traceback, verbatim. If the tool printed a "What the CLI
+        actually said" block, include it — that block exists because a discarded
+        error message once cost this project three weeks.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: >-
+        OS, Python version, whether Node is installed, and the Salesforce CLI
+        version. On Windows, whether the clone path is under ~240 characters —
+        a longer path makes five tests skip for reasons unrelated to the tool.
+      placeholder: "Windows 11 · Python 3.12.4 · Node 22 · sf 2.9.8 · short path"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before filing
+      options:
+        - label: >-
+            I ran it from a clone at a short path, and `python --version` reports
+            3.12 or later (`python3` on macOS and Linux).
+          required: false
+        - label: >-
+            The org is authenticated — `sf org list` shows it — and I have not
+            redacted anything from the output that would change what it says.
+          required: false

@@ -1,0 +1,19 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The specification
+    url: https://aksuindex.com/spec/v1.0
+    about: >-
+      What the four numbers mean, what the Index deliberately does not claim, and
+      the rule that a result travels with its complete form and its provenance.
+  - name: The benchmark corpus
+    url: https://github.com/aksumustafa1625/agent-authority-benchmark
+    about: >-
+      28 cases, 21 adjudicated by a live org, CC BY 4.0. Run your own analyzer
+      against it and publish the score — that is what it is for, and no permission
+      is needed.
+  - name: What this tool cannot see
+    url: https://github.com/aksumustafa1625/agent-blast-radius/blob/main/docs/LIMITATIONS.md
+    about: >-
+      Undetected escalation paths first, then known limits. Each entry says who
+      found it and what measurement closes it. Check here before reporting a gap —
+      it may already be listed, with a date.

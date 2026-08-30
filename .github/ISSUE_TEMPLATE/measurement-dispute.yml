@@ -1,0 +1,97 @@
+name: Measurement dispute
+description: You believe a verdict is wrong, and you have evidence from an org
+title: "[dispute] "
+labels: ["measurement-dispute"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the most valuable issue you can open here.**
+
+        The project's own rule is that documentation describes intent and the org
+        describes behaviour — and three separate reviewers have corrected the
+        precedence law from real Salesforce sources, all three wrong, because the
+        org said otherwise. Every one of them was right to raise it.
+
+        So: bring what the org did. Not what the guide says, not what a blog says,
+        not what seems obvious. If a controlled measurement disagrees with this
+        tool, the tool is what changes.
+
+        If you are reporting a crash or a wrong number caused by a bug rather than
+        by a semantic disagreement, use **Bug report** instead.
+
+  - type: input
+    id: fingerprint
+    attributes:
+      label: The canonical result string from your report
+      description: >-
+        The last lines of the report, e.g. AKSU:1.0/P:6/C:1/B:0/U:1/fp:84ae32568aac.
+        A verdict is only reproducible against the tool that produced it, and this
+        line is what identifies that tool.
+      placeholder: AKSU:1.0/P:.../C:.../B:.../U:.../fp:...
+    validations:
+      required: true
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: What the tool said
+      description: The finding, verbatim — rule id, object, field, severity.
+      placeholder: "[PS506] ERROR  MyAction -> Invoice.Secret__c ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: org-said
+    attributes:
+      label: What the org said
+      description: >-
+        The measurement. Anonymous Apex, a test class, a debug log — whatever you
+        ran, and what came back. Verbatim exception messages are worth more than a
+        summary of them: this project once believed a correct conclusion for three
+        weeks on evidence that did not support it, because the message was thrown
+        away.
+      placeholder: |
+        // what I ran
+        System.runAs(u) { ... }
+
+        // what came back
+        System.QueryException: No such column 'Secret__c' on entity 'Invoice'
+    validations:
+      required: true
+
+  - type: textarea
+    id: controls
+    attributes:
+      label: What else would produce the same observation?
+      description: >-
+        The question this project asks of every green experiment. If your test
+        shows zero rows, is that the mode — or sharing, or an empty field, or a
+        transaction that rolled back before your code ran? A control that rules
+        one of those out makes the report far stronger. "I did not control for
+        this" is a fine answer; guessing is not.
+      placeholder: >-
+        Ruled out: the same user reads the field at v58 in the same execution, so
+        it is not a missing permission. Not ruled out: ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: The smallest source that reproduces it
+      description: >-
+        Class or trigger body, its apiVersion from the -meta.xml, its sharing
+        declaration, and the shape of the running user's grants. Redact names
+        freely — the semantics are what matter, not your data.
+      render: apex
+    validations:
+      required: false
+
+  - type: input
+    id: platform
+    attributes:
+      label: Salesforce release
+      placeholder: "Summer '26"
+    validations:
+      required: true
