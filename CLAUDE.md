@@ -433,6 +433,26 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   `analyzer_version()[:12]` — the same digest the fingerprint uses, for the same
   reason §9.5 rejected `schema_version`: a constant someone must remember to bump
   is the mechanism that lies.
+- **A history purge does not change the config that caused it.** Three `filter-repo` runs
+  rewrote every past commit's author to a noreply address. `git config user.email` was
+  never touched, so **every new commit put the personal address straight back** — two of
+  them, in the two days before the repo was due to go public. The purge was a snapshot;
+  the leak was a *process*. Same class, different mechanism: the purge cleaned history,
+  and then a routine `python measure.py` run overwrote a **tracked** default-output file
+  (`blast_radius/report.md`) with a live agent-user username carrying an org ID — and it
+  was committed. **Ask of any cleanup: what produced the thing I just removed, and is it
+  still running?** Fixed both ways: repo-local `user.email`, and the scratch path is now
+  ignored and gone from history. *(The global git identity is still the personal address —
+  the maintainer's call, and it affects every other repo.)*
+- **A comment can invalidate every published number.** One explanatory comment added to
+  `authority_analyzer.py` moved the analyzer digest `52c669ea07a9 → adaa322a9a2d`, which
+  would have invalidated both published report fingerprints on launch eve, against a
+  specification page that quotes them. This is `analyzer_version()` working exactly as
+  documented — it hashes bytes and deliberately over-invalidates — and it is still a trap,
+  because **the file that must not be touched casually is the one that most invites a
+  clarifying comment.** The explanation went into the rule reference instead. Before
+  editing anything in `_ANALYSIS_SOURCES`, ask whether it is worth regenerating every
+  artifact that cites the digest.
 - **Reports are written AFTER render.** A render crash leaves a **stale report on
   disk** that looks like a successful run. Always check the console summary line,
   not the file. (This hid two bugs at once: a `KeyError` on a renamed key, and an

@@ -25,6 +25,56 @@ did not produce it — including against this tool.
 No agent is ever invoked; no Flex Credits are consumed; it runs on every commit and can fail
 the build when the number gets worse.
 
+## The measurement, in one table
+
+Same Apex source. Same user. Same records. The only difference is a number in a
+`-meta.xml` file that nobody reads:
+
+| apiVersion | records returned | fields returned |
+|---|---|---|
+| **58** | **5** | the value |
+| **67** | **0** | blocked — `No such column` |
+
+Measured in a live org (E2, E2b). That number decides whether the code behind your agent is
+bounded by the user it runs as, and most orgs have classes on both sides of it.
+
+## Run it
+
+```bash
+git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius
+cd agent-blast-radius
+python measure.py          # macOS/Linux: python3 measure.py
+```
+
+**No arguments.** It asks the org for your agents and, for each one, the identity Salesforce
+actually runs it as — `BotDefinition.BotUserId`, which is a fact rather than a guess. For an
+*employee* agent there is no single running user, and the tool says so instead of picking
+one.
+
+**No `pip install`. Python standard library only.**
+Python 3.12 · Salesforce CLI (`sf`) · an authenticated org · Node optional — without it the
+AST backend falls back to regex and the report says which one it used.
+
+Clone to Index: **62 seconds**, measured 2026-08-30 on a Windows machine against an
+already-authenticated org. If your laptop blocks the browser login flow, run `sf org list`
+and pass an alias you already have with `--org`.
+
+**No Agentforce org?** Run the [28-case corpus](https://github.com/aksumustafa1625/agent-authority-benchmark)
+instead — no org required. It validates the method; it does not measure your organisation.
+
+Every other command — the test suite, the benchmark, the census, the determinism proof —
+is under [Every command](#every-command), after the evidence.
+
+## What this is, and is not
+
+| | |
+|---|---|
+| **Is** | Static authority analysis for one Agentforce agent and one running user |
+| **Is not** | A runtime prompt-injection scanner |
+| **Is not** | Adversarial payload testing |
+| **Is not** | An org-wide permission review |
+| **Is not** | A certificate |
+
 And on an agent authored in Salesforce's open-source **Agent Script**, it does not stop at
 *reachability* — it follows the value all the way into the prompt:
 
@@ -86,11 +136,25 @@ Scored **both ways** on purpose: a sceptic can fairly say a three-level scale ag
 binary engine is not the same scale, and publishing only the flattering number would be
 selective reporting. The result holds either way.
 
-**The 8 are not one thing**, and the run says which: **apiVersion blindness** on both axes
-(v67 read ×2, v67 write, v67 record — sfge gives no credit for secure-by-default, and the
-platform bounds that code); **SOSL** (`ApexFlsViolation` never walks a `RETURNING`, so sfge
-*misses* an escape the org hands over); and two **sanitizer** rows where this tool doesn't
-claim "clean" either — it says WARN.
+**The 8 are not one thing**, and the run says which — quoted from
+[`FACTS.md`](FACTS.md), not retyped: **4 apiVersion blindness** on both axes (v67 read ×2,
+v67 record, v67 write — sfge gives no credit for secure-by-default, and the platform bounds
+that code); **1 SOSL** (`ApexFlsViolation` never walks a `RETURNING`, so sfge *misses* an
+escape the org hands over); **1 platform-event publish** (E11's shape: a user with no
+`ObjectPermissions` row at all — v58 publish lands, v67 is blocked); and **2 sanitizer**
+rows.
+
+**Read the 8 as 6 + 2.** Six are cases where sfge differed from the org-adjudicated label.
+The two sanitizer rows are a difference of *severity discipline* between two tools — this
+one does not call them clean either, it says WARN — and counting them as wins would be the
+same inflation as a remediation list with twelve jobs that are really six.
+
+**Why it is not in CI.** Not for speed — it is **42 seconds**, measured. The gate's
+contract is to prove *this analyzer* correct; the differential proves a *comparative* claim
+that does not change per commit, and gating it would put a third-party Java engine in the
+critical path and turn the build red when **sfge** changes. It is a dated measurement —
+2026-08-29, Code Analyzer 5.15.0, corpus v1.1 — and it is re-run when either side ships.
+([ADR-006](docs/adr/ADR-006-sfge-differential-not-in-ci.md))
 
 **This is not "sfge is bad."** It is a general-purpose, deliberately conservative scanner
 answering a different question — *"is an FLS check present?"* — with no notion of a running
@@ -147,6 +211,11 @@ cases: 28   passed: 28        PS501…PS514 → 100% precision, 100% recall
 mutation score: 8/8 caught
 label strength: 21 experiment · 3 platform-doc · 4 reasoned
 ```
+
+**28 of 28 is not the claim; the label strength is.** Passing means the analyzer agrees
+with 28 hand-written labels — and for the 4 `reasoned` ones, that proves I am consistent
+with myself, nothing more. What carries weight is the **21 measured in a real org** and the
+runtime oracle behind them.
 
 Read honestly — and the runner prints this **under** the score:
 
@@ -238,7 +307,7 @@ analysis identity too narrow to read it will silently see fewer compliance label
 labelled". The report prints its own classification coverage for exactly this
 reason: a blind spot is reported as a blind spot, never as a clean result.
 
-## Run it
+## Every command
 
 ```bash
 # 307 tests. In a fresh clone, before `npm install`, 32 of them skip cleanly -
@@ -262,7 +331,10 @@ python blast_radius/cli.py --agent-script path/to/My_Agent.agent --permission-se
 # whole-org API-version census (how much of the org still defaults to system mode)
 python blast_radius/org_census.py --org <alias>
 
-# prove determinism: two runs, byte-identical output
+# prove determinism: two runs, byte-identical output.
+# The honest form of that claim: two runs WITH THE SAME --snapshot-date input are
+# byte-identical. A run using --include-counts is outside byte-determinism by
+# construction, because the org's own row counts can change between runs.
 python blast_radius/verify_deterministic.py -- --agent <X> --permission-set <Y> --org <alias>
 ```
 
@@ -357,26 +429,20 @@ the **runtime oracle** (21 of 28 cases, the org judges) and the refereed sfge di
 permission-set groups and **muting** (E8/E9, measured), cross-object classification, and
 four real orgs scanned.
 
-**Open, in priority order** — the maintained list is [`CLAUDE.md` §9](CLAUDE.md); this is
-its short form as of 2026-08-19, stated plainly rather than buried:
+**Open** — the full list, with who found each gap and what measurement closes it, is
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). It leads with the one category that matters
+most: **undetected escalation paths** — routes by which a real agent exceeds its user and
+this tool currently says nothing. There is one, it was found by a measurement of something
+else, and it is named there rather than folded in with "we do not parse managed packages".
 
-1. **Flow run context by flow type** — a record-/schedule-triggered flow or a Process
-   Builder process now resolves to system context without sharing (the flow TYPE is read
-   first, as Salesforce's own flowtest does; a tag-less autolaunched flow is an honest
-   unknown, never clean). That resolution is **`platform-doc`, not yet measured in-org** —
-   the measurement is the next experiment.
-2. **Four v67 documentation claims that touch the precedence law and are unmeasured** —
-   cross-version inheritance contamination, FLS inside a v67 trigger body, and a v67
-   trigger with an explicit `WITH SYSTEM_MODE` (which E15 showed bypasses sharing and which
-   PS509 cannot see today).
-3. **Inter-procedural taint** — a whole record handed to an unmodelled callee, and an
-   invocable returning `List<String>` with no output wrapper to trace into, stay
-   `undetermined` (measured: 44% of real agent-action verdicts, down from 66%).
-4. **Async reach** — Queueable/Batch/`@future` and the platform-event publish are followed;
-   Flow, process and off-platform subscribers are not, and PS514 names exactly which.
-5. Formula-field inputs (PS516 stays a statement about *our* resolution until E12 can be
-   deployed), polymorphic lookups (deliberately unclassified), restriction rules (not
-   modelled, so the gap is a **lower** bound), and a suppression/baseline mechanism.
+The short form: Flow run context is resolved from documentation and **not yet measured
+in-org**; four v67 documentation claims touching the precedence law are unmeasured, one of
+which is probably *unmodelled*; inter-procedural taint leaves 44% of real agent-action
+verdicts undetermined (down from 66%); Flow, process and off-platform subscribers are not
+followed and PS514 names exactly which; formula inputs stay a statement about *our*
+resolution until E12 can be deployed; and the field gap is a **lower** bound because
+restriction rules are not modelled.
+
 
 ## Documentation
 

@@ -60,7 +60,7 @@ CLASSIFICATION COVERAGE
 
 ### Record reach (live COUNT — upper bound)
 
-> **Every read the agent performs enforces sharing, so the agent is bounded by the running user — there is no record escalation.**
+> **Every _resolved_ read the agent performs enforces sharing, so the agent is bounded by the running user on those reads — there is no proven record escalation.**
 
 | Object | Read mode | Records in org | User sees | Gap (upper bound) | Cause |
 | --- | --- | ---: | ---: | ---: | --- |
