@@ -41,10 +41,25 @@ bounded by the user it runs as, and most orgs have classes on both sides of it.
 ## Run it
 
 ```bash
-git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius
-cd agent-blast-radius
-python measure.py          # macOS/Linux: python3 measure.py
+# macOS / Linux
+sf org login web --set-default
+git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius ~/agent-blast-radius
+cd ~/agent-blast-radius
+python3 measure.py
 ```
+
+```powershell
+# Windows PowerShell
+sf org login web --set-default
+git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius $HOME\agent-blast-radius
+cd $HOME\agent-blast-radius
+python measure.py
+```
+
+The clone target is spelled out on purpose. A shell opened from the Start menu can land
+in a directory you cannot write to, and `git clone` with no target writes to wherever you
+happen to be. And there is no `&&` here: **Windows PowerShell 5.1 does not have it** and
+answers with a parser error, not a hint.
 
 **No arguments.** It asks the org for your agents and, for each one, the identity Salesforce
 actually runs it as — `BotDefinition.BotUserId`, which is a fact rather than a guess. For an
