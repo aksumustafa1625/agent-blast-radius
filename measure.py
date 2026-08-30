@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -70,6 +71,43 @@ def _sf_json(cmd: str) -> dict | None:
 def _query(soql: str, org: str) -> list[dict]:
     d = _sf_json(f'sf data query --query "{soql}" --target-org {org} --json')
     return ((d or {}).get("result") or {}).get("records") or []
+
+
+def _resolve_bundle(bot_name: str, org: str) -> tuple[str | None, list[str]]:
+    """Map a BotDefinition DeveloperName to the planner bundle the org actually has.
+
+    These names are NOT interchangeable, and assuming they are is what made a
+    first run against a stranger's org end in a traceback. Measured on a real
+    org: BotDefinition `VS_Eichrecht` against bundles `VS_Eichrecht_v1`, `_v2`
+    and `_v3` - while `VS_Phase0_Probe_Classic` carries no suffix at all. So all
+    three shapes exist side by side and only the org can say which is which.
+
+    Returns (chosen, all_candidates). Highest version wins, because a bundle is
+    versioned upward and the newest is what the agent runs. Nothing is guessed
+    when there is no candidate: the caller lists what the org does have.
+    """
+    d = _sf_json("sf org list metadata --metadata-type GenAiPlannerBundle "
+                 f"--target-org {org} --json")
+    names = [r.get("fullName") for r in ((d or {}).get("result") or [])
+             if r.get("fullName")]
+    if not names:
+        return None, []                      # cannot list: let the retrieve try the raw name
+
+    if bot_name in names:
+        return bot_name, names
+
+    versioned = []
+    for n in names:
+        m = re.fullmatch(rf"{re.escape(bot_name)}_v(\d+)", n)
+        if m:
+            versioned.append((int(m.group(1)), n))
+    if versioned:
+        return max(versioned)[1], names
+
+    suffixed = [n for n in names if n.startswith(bot_name + "_")]
+    if len(suffixed) == 1:
+        return suffixed[0], names
+    return None, names
 
 
 def _fail(msg: str, *fix: str) -> int:
@@ -135,8 +173,27 @@ def main() -> int:
         print(f"  blast_radius/cli.py.")
 
     bot = bots[0]
-    agent = bot["DeveloperName"]
+    bot_name = bot["DeveloperName"]
     kind = bot.get("Type") or ""
+
+    # The agent's name and its planner bundle's name are different things, and
+    # the CLI needs the second. Ask the org rather than assume they match.
+    agent, candidates = _resolve_bundle(bot_name, org)
+    if agent is None and candidates:
+        print()
+        print(f"  The org has no planner bundle matching '{bot_name}'.")
+        print("  What it does have:")
+        print()
+        for c in candidates:
+            print(f"      {c}")
+        print()
+        print("  Pick one and pass it explicitly:")
+        print()
+        print(f"      python blast_radius/cli.py --agent <name> --org {org} \\")
+        print("             --running-user <username>")
+        print()
+        return 2
+    agent = agent or bot_name
 
     # Agentforce has two running-user models and only one of them has a single
     # running user. An EMPLOYEE agent (InternalCopilot) runs in the context of
@@ -157,7 +214,9 @@ def main() -> int:
             running_user = rows[0]["Username"]
 
     print()
-    print(f"  Agent:        {agent}")
+    print(f"  Agent:        {bot_name}")
+    if agent != bot_name:
+        print(f"  Planner bundle: {agent}   (the org's name for it)")
     if kind:
         print(f"  Agent type:   {kind}")
 

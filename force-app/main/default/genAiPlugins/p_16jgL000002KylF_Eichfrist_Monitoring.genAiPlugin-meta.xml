@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <canEscalate>false</canEscalate>
+    <description>This topic is selected when users inquire about tracking or managing the calibration deadlines for charging points. It is specifically used to provide deadline notifications and updates for compliance purposes.</description>
+    <developerName>p_16jgL000002KylF_Eichfrist_Monitoring</developerName>
+    <genAiFunctions>
+        <functionName>AdminCopilot__ShowOrgPreferences</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>AdminCopilot__SetupGeneralKnowledgeGrounding</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>AdminCopilot__CapabilitySummarization</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>EmployeeCopilot__AnswerQuestionsWithKnowledge</functionName>
+    </genAiFunctions>
+    <genAiPluginInstructions>
+        <description>If the user requests information about calibration deadlines, use AdminCopilot__ShowOrgPreferences to retrieve the current state of relevant organizational preferences.</description>
+        <developerName>instruction_0</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_0</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>If the user has specific questions about administrative tasks related to calibration deadlines, use AdminCopilot__SetupGeneralKnowledgeGrounding to gather relevant information from the knowledge base.</description>
+        <developerName>instruction_1</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_1</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>If the user asks for help in understanding the AI agent&apos;s capabilities, use AdminCopilot__CapabilitySummarization.</description>
+        <developerName>instruction_2</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_2</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <language>en_US</language>
+    <localDeveloperName>p_16jgL000002KylF_Eichfrist_Monitoring</localDeveloperName>
+    <masterLabel>Eichfrist Monitoring</masterLabel>
+    <pluginType>Topic</pluginType>
+    <scope>Your job is to only assist with monitoring and notifying users about the calibration deadlines for charging points. You are not able to perform any other unrelated administrative or operational tasks.</scope>
+</GenAiPlugin>

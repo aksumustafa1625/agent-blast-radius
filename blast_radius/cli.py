@@ -24,7 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import org_loaders  # noqa: E402
 from agent_analyzer import (analyze_agent, expand_agent_graph,  # noqa: E402
                             parse_agent_config)
-from agent_metadata_loader import load_agent_config  # noqa: E402
+from agent_metadata_loader import (AgentBundleNotFound,  # noqa: E402
+                                   load_agent_config)
 from apex_introspect import parse_apex  # noqa: E402
 from flow_introspect import parse_flow  # noqa: E402
 from permission_resolver import EffectivePermissions  # noqa: E402
@@ -252,8 +253,18 @@ def main():
             _retrieve(args.agent, args.org)
         print("resolving agent config ...")
         resolver = org_loaders.function_resolver(args.org)
-        cfg = load_agent_config(root, args.agent, running_user=ru_label,
-                                channel=args.channel, resolver=resolver)
+        try:
+            cfg = load_agent_config(root, args.agent, running_user=ru_label,
+                                    channel=args.channel, resolver=resolver)
+        except AgentBundleNotFound as e:
+            # The message names what was expected, what is present, and how to
+            # ask the org for the right name. A traceback here would say "this
+            # tool is broken" when the truth is "that is not the name the org
+            # uses" - and this is the first thing a stranger hits.
+            print()
+            print(str(e))
+            print()
+            sys.exit(2)
     agent = parse_agent_config(cfg)
 
     # Flatten any agent-to-agent delegation FIRST, so everything after this point

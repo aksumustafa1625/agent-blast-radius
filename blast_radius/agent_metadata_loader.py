@@ -43,6 +43,16 @@ from typing import Optional
 NS = "{http://soap.sforce.com/2006/04/metadata}"
 
 
+class AgentBundleNotFound(FileNotFoundError):
+    """The named planner bundle is not on disk after the retrieve.
+
+    Its own class so the CLI can print the message instead of a traceback. A
+    stranger's first run against their own org is where this fires, and a stack
+    trace at that moment says "this tool is broken" when the truth is "that name
+    is not the one the org uses".
+    """
+
+
 def _norm_kind(ttype: str) -> Optional[str]:
     """Invocation target type -> a source-analysable kind, or None if opaque.
     apex / flow are read from source; a prompt template is read declaratively;
@@ -130,6 +140,25 @@ def load_agent_config(source_root: str, bundle_name: str,
                       resolver: Optional[dict] = None) -> dict:
     bpath = os.path.join(source_root, "genAiPlannerBundles", bundle_name,
                          bundle_name + ".genAiPlannerBundle")
+    if not os.path.exists(bpath):
+        # The retrieve is the step that usually failed, and the usual reason is
+        # that the name came from BotDefinition.DeveloperName while the bundle
+        # carries a version suffix - an org can hold VS_Eichrecht_v1, _v2 and _v3
+        # for a BotDefinition called VS_Eichrecht. A stack trace here tells a
+        # first-time reader nothing; the directory listing tells them everything.
+        here = os.path.join(source_root, "genAiPlannerBundles")
+        found = sorted(os.listdir(here)) if os.path.isdir(here) else []
+        raise AgentBundleNotFound(
+            f"No planner bundle named '{bundle_name}' was retrieved.\n"
+            f"  expected: {bpath}\n"
+            + (f"  present:  {', '.join(found)}\n" if found else
+               "  present:  nothing was retrieved into that directory\n")
+            + "\n"
+            "  An agent's bundle often carries a version suffix its BotDefinition\n"
+            "  name lacks - VS_Eichrecht may be VS_Eichrecht_v3 on disk. Ask the org\n"
+            "  which names exist and pass one of them:\n\n"
+            "      sf org list metadata --metadata-type GenAiPlannerBundle --target-org <alias>\n"
+            "      python blast_radius/cli.py --agent <that name> ...")
     root = ET.parse(bpath).getroot()
     agent = root.findtext(f"{NS}masterLabel") or bundle_name
 

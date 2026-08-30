@@ -55,8 +55,10 @@ one.
 Python 3.12 · Salesforce CLI (`sf`) · an authenticated org · Node optional — without it the
 AST backend falls back to regex and the report says which one it used.
 
-Clone to Index: **62 seconds**, measured 2026-08-30 on a Windows machine against an
-already-authenticated org. If your laptop blocks the browser login flow, run `sf org list`
+Clone to Index: **41–62 seconds**, measured 2026-08-30 across two orgs on a Windows
+machine, against an already-authenticated session. The spread is the org's, not the
+tool's — an agent with nine actions has more metadata to read than one with a single
+action. If your laptop blocks the browser login flow, run `sf org list`
 and pass an alias you already have with `--org`.
 
 **No Agentforce org?** Run the [28-case corpus](https://github.com/aksumustafa1625/agent-authority-benchmark)
