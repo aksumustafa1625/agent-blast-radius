@@ -74,18 +74,71 @@ def _retrieve_action_sources(agent, source_root: str, target_org):
         _sf_retrieve(want, target_org)
 
 
+def _retrieve_referenced_classes(agent, source_root: str, target_org):
+    """Pull the classes the action classes CALL - the selector layer.
+
+    `_follow_one_level` exists precisely because, in the fflib shape most large
+    orgs use, the action holds no SOQL at all: it calls `LadepunktSelector.byName(...)`
+    and the query lives there. But that follow reads from disk, and only the action
+    targets were ever retrieved - so on any org whose source is not already checked
+    out, the selector is absent, the follow skips it, and the action reports no reach.
+
+    Measured on a real org: `PruefeEichfristen` at v65 delegates every query to
+    `LadepunktSelector`, and the tool reported 0 objects, 0 fields, and 100%
+    resolution coverage. A silent false clean, in the one command everyone runs.
+
+    Which names are real classes is a question for the ORG, not for a denylist here.
+    `String.join(`, `Date.today(` and an inner class parse exactly like a selector
+    call, and a hand-maintained list of built-ins is the kind of constant that rots.
+    Asking ApexClass costs one query and cannot go stale. Managed classes are
+    excluded because their source does not retrieve - they stay unresolvable, which
+    is a fact about them rather than a gap here.
+    """
+    import apex_introspect as _ai
+    classes_dir = os.path.join(source_root, "classes")
+    names = set()
+    for a in agent.actions:
+        if a.target_type != "apex":
+            continue
+        path = os.path.join(classes_dir, a.target + ".cls")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            names |= _ai._referenced_classes(_ai._strip_comments(f.read()))
+        names.discard(a.target)
+
+    missing = sorted(n for n in names
+                     if not os.path.exists(os.path.join(classes_dir, n + ".cls")))
+    if not missing:
+        return
+    real = org_loaders.local_apex_classes(missing, target_org)
+    want = [f"ApexClass:{n}" for n in sorted(real)]
+    if want:
+        print(f"retrieving delegated classes: {', '.join(sorted(real))}")
+        _sf_retrieve(want, target_org)
+
+
 def _reached_objects(agent, source_root: str, backend: str = "auto",
                      read_only: bool = False):
     """Objects the agent's actions touch. `read_only=True` returns only objects
     the code READS - the ones where "reaches N records" is a meaningful record
     count. A create/insert target is a write, not a read of N records, so it is
-    excluded from record-reach to keep that headline honest."""
+    excluded from record-reach to keep that headline honest.
+
+    PS508's crosslink marker is skipped. It borrows the `sobject` slot to carry
+    the name of a CLASS that delegates further - a marker, not a reach - so
+    counting it puts a class name in "Objects reachable" and sends the org a
+    classification query for an object that does not exist. Latent until the
+    selector follow started finding real chains; the first report that exercised
+    it announced the agent reaches an object called EichrechtService."""
     objects = set()
     for action in agent.actions:
         if action.target_type == "apex":
             path = os.path.join(source_root, "classes", action.target + ".cls")
             if os.path.exists(path):
                 for o in parse_apex(path, source_root, backend=backend).operations:
+                    if o.operation == "crosslink":
+                        continue
                     if o.sobject and (not read_only or o.operation == "read"):
                         objects.add(o.sobject)
         elif action.target_type == "flow":
@@ -303,6 +356,8 @@ def main():
     # The action targets are known now; pull just their source if it isn't local.
     if not args.no_retrieve:
         _retrieve_action_sources(agent, root, args.org)
+        # And then what those classes call, or the selector layer stays invisible.
+        _retrieve_referenced_classes(agent, root, args.org)
 
     import apex_ast
     if args.apex_backend in ("auto", "ast"):

@@ -452,3 +452,27 @@ def snapshot_from_permset(permset: str, objects: Iterable[str],
             "read": bool(r["PermissionsRead"]), "edit": bool(r["PermissionsEdit"]),
         } for r in fps],
     }
+
+
+def local_apex_classes(names, target_org=None) -> set:
+    """Of these identifiers, which are Apex classes in this org whose source retrieves?
+
+    Answers a question a denylist cannot: `String.join(` and `LadepunktSelector.byName(`
+    are the same shape to any parser, and an inner class is a third. Rather than
+    maintain a list of built-ins that rots as the platform grows, ask ApexClass -
+    a built-in is not in it, an inner class is not in it, and a real local class is.
+
+    NamespacePrefix must be null. A managed class IS in ApexClass, but its source
+    does not retrieve, so asking for it makes the whole retrieve fail and delivers
+    nothing. It stays unresolvable, which is true of it rather than a limit here.
+    """
+    names = [n for n in dict.fromkeys(names) if re.fullmatch(r"[A-Za-z]\w{0,60}", n or "")]
+    found = set()
+    # Chunked: a SOQL statement has a length limit and an agent can reference many.
+    for i in range(0, len(names), 100):
+        chunk = names[i:i + 100]
+        inlist = ", ".join("'" + n + "'" for n in chunk)
+        rows = _sf(f"SELECT Name FROM ApexClass WHERE NamespacePrefix = null "
+                   f"AND Name IN ({inlist})", tooling=True, target_org=target_org)
+        found |= {r["Name"] for r in rows if r.get("Name")}
+    return found

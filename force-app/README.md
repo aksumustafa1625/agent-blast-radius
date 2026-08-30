@@ -43,3 +43,17 @@ Two of them are named in `examples/HanseWatt_AksuIndex.md`. That report stands o
 its own fingerprint and its own numbers; publishing an incomplete copy of the
 code beside it, in a way that implies it is what was analysed, is worth less than
 saying plainly that the HanseWatt action sources are not published.
+
+Eight `localActions/*/*/{input,output}/schema.json` files were deleted on
+2026-08-31, for a reason that had nothing to do with their content. They carried
+the longest paths in the repository — 189 characters — and Windows caps a path at
+260 unless `LongPathsEnabled` is set, which by default it is not. So on a stock
+Git for Windows, `git clone` of this repository **failed its checkout**, left a
+directory holding only `.git`, and the next line of the published command then
+reported `measure.py` missing. This machine has `core.longpaths=true`, which is
+exactly why it was never seen here.
+
+Nothing reads them. The analyzer parses the `<localActions>` **element inside the
+planner bundle file**; the directory of the same name is a retrieve artifact. The
+longest path is now 137 characters. Their paths also carried live org record ids
+(`16jaj0000025v69`, `179dL000004dHDE`), which had no business being here either.
