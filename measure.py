@@ -249,12 +249,19 @@ def main() -> int:
     print("  Reading metadata. No agent is invoked and no Flex Credits are spent.")
     print()
 
-    # Named after the org and written into reports/, beside the two published
-    # examples. The CLI's default is blast_radius/report, which puts a reader's
-    # own measurement inside the source package and overwrites it on the next
-    # run against a different org - fine as a developer default, wrong as the
-    # first thing a stranger produces.
-    out = os.path.join("reports", re.sub(r"[^A-Za-z0-9_.-]", "_", org))
+    # Named for the PAIR, not the org. The Index is defined for one agent and
+    # one running user, and an org holds several agents - VoltStreamDev has
+    # three. A per-org filename would let the second agent's report overwrite
+    # the first's, which is the defect this replaced one level up: the CLI's
+    # default put every run in blast_radius/report.md, inside the source package,
+    # overwritten by whatever ran next.
+    #
+    # The bundle name is used rather than the agent's label because a label
+    # carries spaces ("VoltStream Eichrecht") and a bundle name is already a
+    # safe API name.
+    def _slug(x):
+        return re.sub(r"[^A-Za-z0-9_.-]", "_", x)
+    out = os.path.join("reports", f"{_slug(org)}_{_slug(agent)}")
     cmd = [sys.executable, os.path.join(PKG, "cli.py"),
            "--agent", agent, *who, "--org", org, "--out", out]
     # The child writes straight to the terminal while this process's prints sit
