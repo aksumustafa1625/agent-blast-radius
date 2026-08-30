@@ -89,8 +89,8 @@ against a GA one, and a reviewer will say so first if we do not.
 
 | org | Index | report fingerprint |
 |---|---|---|
-| TechnoStore | see `reports/TechnoStore_AksuIndex.md` | printed in the report |
-| HanseWatt | see `reports/HanseWatt_AksuIndex.md` | printed in the report |
+| TechnoStore | see `examples/TechnoStore_AksuIndex.md` | printed in the report |
+| HanseWatt | see `examples/HanseWatt_AksuIndex.md` | printed in the report |
 
 Both carry their own canonical result string. Quote the string, not a number lifted
 out of it — and never quote `proven` alone while `unresolved` is greater than zero,

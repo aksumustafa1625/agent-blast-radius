@@ -39,7 +39,7 @@ analyzer measured, but half of it.
 Measured against a live org, they produced **176 of the 199** validation errors
 in this directory. The remaining 23 are the org-specific ones described above.
 
-Two of them are named in `reports/HanseWatt_AksuIndex.md`. That report stands on
+Two of them are named in `examples/HanseWatt_AksuIndex.md`. That report stands on
 its own fingerprint and its own numbers; publishing an incomplete copy of the
 code beside it, in a way that implies it is what was analysed, is worth less than
 saying plainly that the HanseWatt action sources are not published.

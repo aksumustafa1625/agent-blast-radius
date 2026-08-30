@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.join(HERE, "blast_radius")
@@ -279,10 +280,26 @@ def main() -> int:
     sys.stdout.flush()
     rc = subprocess.run(cmd, cwd=HERE).returncode
 
+    html = os.path.join(HERE, out + ".html")
     print()
     print(BAR)
     print(f"  Your report: {out}.md  and  {out}.html")
     print("  It is yours and it stays here - nothing was uploaded.")
+
+    # Open it. The alternative is telling someone to navigate to the reports
+    # folder and pick the right file out of it - a file-manager errand standing
+    # between a person and the thing they just waited two minutes for. Failure
+    # to open is not failure to measure, so it never changes the exit code: the
+    # path is printed either way, and --no-open exists for CI, where launching a
+    # browser would be wrong behaviour rather than a missing nicety.
+    if rc == 0 and os.path.exists(html) and "--no-open" not in sys.argv:
+        try:
+            webbrowser.open("file:///" + html.replace("\\", "/"))
+            print("  Opening it in your browser now.")
+        except Exception as e:                       # noqa: BLE001 - any failure is cosmetic
+            _DIAG.append(f"could not open the report automatically: {e}")
+            print("  (Could not open a browser here - the path above is the file.)")
+
     print()
     print("  The same measurement again, whenever you want it:")
     print()

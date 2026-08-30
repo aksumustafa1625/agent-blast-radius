@@ -51,12 +51,12 @@ force-app/main/default/classes/HW*Action.cls-meta.xml
 blast_radius/report.md
 blast_radius/report.html
 
-# Your own reports land in reports/. The two published examples are tracked;
-# yours are not - a report carries your org's usernames and object names, and a
-# tracked default-output file is exactly how an org identifier got committed
-# into this repository once already.
-reports/*
-!reports/TechnoStore_AksuIndex.*
-!reports/HanseWatt_AksuIndex.*
-!reports/technostore.aksu.json
-!reports/hansewatt.aksu.json
+# reports/ belongs entirely to whoever runs this. Nothing of mine lives there:
+# the two published examples moved to examples/, because a stranger who clones
+# this and runs it should find ONE report in that folder - their own - not eight
+# files from two orgs they have never heard of, with theirs as the ninth.
+#
+# It is also the safe default: a report carries your org's usernames and object
+# names, and a tracked output file is exactly how a live org identifier got
+# committed into this repository once already.
+reports/

@@ -61,6 +61,11 @@ tool's — an agent with nine actions has more metadata to read than one with a 
 action. If your laptop blocks the browser login flow, run `sf org list`
 and pass an alias you already have with `--org`.
 
+It writes `reports/<your-org>_<your-agent>.md` and `.html`, **opens the HTML for you when
+it finishes**, and stops there. That folder is yours: nothing of mine is in it, and it is
+git-ignored, because a report carries your org's usernames and object names. The two
+published examples live in [`examples/`](examples/) instead. Pass `--no-open` in CI.
+
 **No Agentforce org?** Run the [28-case corpus](https://github.com/aksumustafa1625/agent-authority-benchmark)
 instead — no org required. It validates the method; it does not measure your organisation.
 
