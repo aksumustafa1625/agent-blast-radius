@@ -506,6 +506,48 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   `print(pattern)` rendered it as identical to a working pattern, because a control
   character does not display. Only `repr()` exposed it. **Use the Write/Edit tools for
   anything containing a backslash, and compare patterns with `repr`, never by eye.**
+- **THE SELECTOR FALSE CLEAN — the worst defect this project has had, found 2026-08-31
+  by running the published command as a stranger.** `PruefeEichfristen` at v65 holds no
+  SOQL: every query goes through `LadepunktSelector.byName(...)`. `_follow_one_level`
+  exists for exactly that fflib shape, but it reads from **disk**, and only the action
+  *targets* were ever retrieved. So the selector was absent, line 777 skipped it in
+  silence, and the report said **0 objects, 0 fields, Index 0/0/0/0, "1 OF 1 ACTION
+  FULLY RESOLVED (100%)"**. Not an unknown — an affirmative claim of completeness over
+  code it never read. **Both backends**, so it was never an AST/regex question. The same
+  agent now reports 2 objects, 25 fields, PS504 + PS508 + 7×PS516, and the "NOT clean"
+  banner. Three lessons, and the third is the general one: **(1)** the fix is to retrieve
+  what the action *calls*, asking `ApexClass` which referenced names are real rather than
+  keeping a denylist of built-ins that would rot; **(2)** `crosslink` borrows the
+  `sobject` slot for a CLASS name, so the first report that ever exercised the follow
+  announced the agent reaches an object called `EichrechtService` — a latent presentation
+  bug that only a working feature could expose; **(3) a skip written as `continue` with a
+  reassuring comment is where false cleans live.** That line said "standard/managed/absent
+  class - not analysable from source" and was three of those four words right.
+- **What is on disk must never outrank the org.** `_retrieve_action_sources` skipped the
+  retrieve whenever a file of that name existed locally. Three consequences, all ending in
+  a confident report about code the org is not running: fix a class and re-run → the old
+  local copy repeats findings you closed; measure a second org → the first org's classes
+  answer wherever names collide; and **a clone of this repository shipped classes called
+  `DateUtils` and `GetRevenueSummaryAction`**, so a stranger with a `DateUtils` of their
+  own would have been measured against mine. Retrieving costs seconds. Note how it got
+  there: `git add -A` after a test run committed three retrieved org classes, the same
+  sweep that had committed a stray gitlink an hour earlier.
+- **A local git config hid a launch-breaking bug, and it is the second time.** The deepest
+  tracked path was 189 chars; Windows caps at 260 with `LongPathsEnabled` off by default,
+  and Git for Windows defaults `core.longpaths` to false. `git clone` therefore **failed
+  its checkout** on a stock machine, left a directory holding only `.git` — so `cd`
+  succeeded and `python measure.py` reported a missing file — and the retry refused
+  because the destination existed. **This machine has `core.longpaths=true`.** That single
+  setting is the whole reason it was never seen. It is the same shape as the CRLF digest:
+  a local configuration standing between the author and what everyone else runs. **Ask of
+  any "works here": which of my settings is not theirs?**
+- **A green suite proves the tests, not the product.** 310 tests passed while the first
+  run of the published command crashed for **everyone**: `reports/` is gitignored in full,
+  git carries no empty directories, and every test wrote into a tmpdir it had created
+  itself, so no test could ever see the missing parent. The rehearsal found it in one try.
+  And `measure.py` then printed "Your report: ..." and "nothing was uploaded" **after the
+  traceback**, naming two files that did not exist — this file's own §7 lesson about
+  summary lines, reproduced in the first thing a new reader sees the tool say.
 - Windows: console is cp1252 — **use ASCII in CLI output** (`[OK]`, not `✔`).
   PowerShell `$pid` is read-only. Use `sf` CLI, not the MCP tools, for deploys.
 - **Run foreign-org scans from THIS DX project dir**, not the other org's folder.
@@ -586,8 +628,21 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 Fixed already: SOSL, dynamic-SOQL PS504, PS509 handler + proof, record-reach
 semantics, stripInaccessible, async hand-offs incl. `EventBus.publish`, PSG (E8),
 muting (E9), the runtime oracle + its negative control, the systematic sfge
-differential, the AST's class-field DML target, the regex subquery false clean, and
-the fingerprint binding the analyzer's own source hash + parser version.
+differential, the AST's class-field DML target, the regex subquery false clean,
+the fingerprint binding the analyzer's own source hash + parser version, and — 
+2026-08-31 — **the selector layer, which was a silent false clean** (§7): the
+delegated classes an action calls are now retrieved, so `_follow_one_level` has
+something to follow on an org whose source is not checked out locally.
+
+**Unexplained, and recorded rather than explained away.** One run of TechnoStore
+on 2026-08-31 produced 13 findings instead of 14 — no PS516 — and a different
+fingerprint. Four later runs, including `verify_deterministic.py` (two runs,
+byte-identical md+html), reproduce the published `6b0359284da3` exactly, PS516
+included. `_sf` raises on a failed query rather than returning `[]`, so a silent
+org failure is not the explanation, and nothing on disk had changed. **It did not
+reproduce and it is not understood.** If it recurs, the thing to capture is the
+`objects` set and the `calculated_fields` result, since PS516 is the only finding
+that moved.
 
 **Still open, in rough priority:**
 
