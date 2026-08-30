@@ -69,8 +69,21 @@ def _sf_json(cmd: str) -> dict | None:
     return d
 
 
-def _query(soql: str, org: str) -> list[dict]:
-    d = _sf_json(f'sf data query --query "{soql}" --target-org {org} --json')
+def _query(soql: str, org: str) -> list[dict] | None:
+    """Rows, or None when the org did not answer.
+
+    The distinction is the whole point. Returning [] for both an empty result and
+    a failed call made the caller print "this org has no Agentforce agents" for a
+    dropped connection, an expired session, a permissions problem, and an org
+    where Agentforce is simply not enabled. Four different situations, one
+    confident wrong sentence, and the CLI's real message discarded on the way.
+
+    The alias is quoted: an org alias may contain a space, and unquoted it split
+    into two arguments and failed every query - surfacing, again, as "no agents".
+    """
+    d = _sf_json(f'sf data query --query "{soql}" --target-org "{org}" --json')
+    if d is None:
+        return None
     return ((d or {}).get("result") or {}).get("records") or []
 
 
@@ -136,6 +149,22 @@ def main() -> int:
     print(BAR)
     print()
 
+    # This script takes no arguments by design - working them out is its whole
+    # job. But silence is the wrong way to say so: someone who reads the CLI's
+    # flags and types `python measure.py --org Prod` would otherwise get a
+    # complete, confident report about a DIFFERENT org, with nothing anywhere
+    # saying the flag was dropped.
+    unknown = [a for a in sys.argv[1:] if a != "--no-open"]
+    if unknown:
+        return _fail(f"measure.py takes no arguments, so {' '.join(unknown)} "
+                     "would have been ignored.",
+                     "python measure.py            # measure this org's first agent",
+                     "",
+                     "For anything specific - another agent, another org, another",
+                     "running user - the full CLI takes it:",
+                     "",
+                     "python blast_radius/cli.py --help")
+
     probe = subprocess.run("sf --version", shell=True, capture_output=True,
                            text=True, encoding="utf-8", errors="replace")
     if "@salesforce/cli" not in (probe.stdout or "") + (probe.stderr or ""):
@@ -156,6 +185,16 @@ def main() -> int:
 
     bots = _query("SELECT DeveloperName, MasterLabel, Type, BotUserId FROM BotDefinition "
                   "ORDER BY DeveloperName", org)
+    # None is the query failing; [] is the org answering that it has none. Saying
+    # "no agents" for the first is a diagnosis, and it is the wrong one - the
+    # commonest cause is that BotDefinition does not exist because Agentforce was
+    # never enabled, which is a thing to switch on rather than an absence.
+    if bots is None:
+        return _fail("Could not ask this org for its agents.",
+                     "sf org display --target-org " + org,
+                     "",
+                     "If BotDefinition is not available, Agentforce may not be",
+                     "enabled in this org - that is a setting, not an absence.")
     if not bots:
         print("  This org has no Agentforce agents, so there is nothing to measure.")
         print()
@@ -170,8 +209,13 @@ def main() -> int:
         for i, b in enumerate(bots, 1):
             print(f"      {i}. {b['DeveloperName']}")
         print()
-        print(f"  Measuring the first. To pick another, pass --agent <name> to")
-        print(f"  blast_radius/cli.py.")
+        # The BUNDLE name, not this list, is what --agent takes, and they differ
+        # (VS_Eichrecht is VS_Eichrecht_v3 on disk). Printing agent names beside
+        # a flag that rejects them sends the reader into an error.
+        print("  Measuring the first. To pick another, list the planner bundles")
+        print(f"  with:  sf org list metadata --metadata-type GenAiPlannerBundle "
+              f"--target-org {org}")
+        print("  and pass one to blast_radius/cli.py with --agent.")
 
     bot = bots[0]
     bot_name = bot["DeveloperName"]
@@ -227,8 +271,12 @@ def main() -> int:
         print("  user, so there is no single running user to measure it against -")
         print("  every employee is a different one. Pick a representative identity:")
         print()
-        print(f"      python blast_radius/cli.py --agent {agent} \\")
-        print(f"             --running-user <username> --org {org}")
+        # One line, no backslash continuation. A POSIX continuation is a parser
+        # error in Windows PowerShell, and this tool exists mostly for people on
+        # Windows - printing a command their own shell refuses is the same defect
+        # that shipped '&&' in the published quickstart.
+        print(f"      python blast_radius/cli.py --agent {agent} "
+              f"--running-user <username> --org {org}")
         print()
         return 2
 
@@ -306,7 +354,12 @@ def main() -> int:
         print()
         return rc or 1
 
-    print(f"  Your report: {out}.md  and  {out}.html")
+    # Absolute, because the path is only relative to the repository and the
+    # reader may not be standing in it. And the org is named: a report is about
+    # one org and one agent, and "which org was that" should not need recall.
+    print(f"  Your report ({org} / {agent}):")
+    print(f"      {os.path.join(HERE, out)}.html")
+    print(f"      {os.path.join(HERE, out)}.md")
     print("  It is yours and it stays here - nothing was uploaded.")
 
     # Open it. The alternative is telling someone to navigate to the reports
@@ -326,8 +379,11 @@ def main() -> int:
     print()
     print("  The same measurement again, whenever you want it:")
     print()
-    print(f"      python blast_radius/cli.py --agent {agent} \\")
-    print(f"             {who[0]} {who[1]} --org {org}")
+    # One line and --out included. The backslash continuation this used to print
+    # is a parser error in Windows PowerShell, and without --out the repeat run
+    # wrote into the source package instead of beside the report it is repeating.
+    print(f"      python blast_radius/cli.py --agent {agent} "
+          f"{who[0]} {who[1]} --org {org} --out {out}")
     print(BAR)
     print()
     return rc

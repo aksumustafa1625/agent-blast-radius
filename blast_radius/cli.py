@@ -59,16 +59,28 @@ def _retrieve_action_sources(agent, source_root: str, target_org):
     Without this the tool is useless against an org whose source is not already
     checked out locally: the action targets resolve, but there is no .cls to
     read, so every action becomes an honest 'source not found' (PS504). We
-    deliberately do not retrieve the whole org - just the reachable targets."""
+    deliberately do not retrieve the whole org - just the reachable targets.
+
+    It retrieves even when a file of that name is already here, and that is the
+    point. Skipping the retrieve when the path exists made whatever sat on disk
+    outrank the org, which is wrong in three ways that all end in a confident
+    report about code the org is not running:
+
+      - Fix a class, re-run, and the tool reads your OLD local copy and repeats
+        findings you have already closed.
+      - Measure a second org and the first org's classes answer for it wherever
+        the names collide.
+      - A clone of THIS repository ships classes called DateUtils and
+        GetRevenueSummaryAction. A stranger with a DateUtils of their own would
+        have been measured against mine.
+
+    The org is the authority on what the org runs. Re-retrieving costs seconds."""
     want = []
     for a in agent.actions:
         if a.target_type == "apex":
-            if not os.path.exists(os.path.join(source_root, "classes", a.target + ".cls")):
-                want.append(f"ApexClass:{a.target}")
+            want.append(f"ApexClass:{a.target}")
         elif a.target_type == "flow":
-            if not os.path.exists(os.path.join(source_root, "flows",
-                                               a.target + ".flow-meta.xml")):
-                want.append(f"Flow:{a.target}")
+            want.append(f"Flow:{a.target}")
     if want:
         print(f"retrieving action sources: {', '.join(want)}")
         _sf_retrieve(want, target_org)
@@ -107,11 +119,12 @@ def _retrieve_referenced_classes(agent, source_root: str, target_org):
             names |= _ai._referenced_classes(_ai._strip_comments(f.read()))
         names.discard(a.target)
 
-    missing = sorted(n for n in names
-                     if not os.path.exists(os.path.join(classes_dir, n + ".cls")))
-    if not missing:
+    # Every referenced name, not only the absent ones - same reason as above: a
+    # local file of the right name is not evidence that it is the org's file.
+    names = sorted(names)
+    if not names:
         return
-    real = org_loaders.local_apex_classes(missing, target_org)
+    real = org_loaders.local_apex_classes(names, target_org)
     want = [f"ApexClass:{n}" for n in sorted(real)]
     if want:
         print(f"retrieving delegated classes: {', '.join(sorted(real))}")
