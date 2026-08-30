@@ -53,13 +53,29 @@ python3 measure.py
 sf org login web --set-default
 git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius $HOME\agent-blast-radius
 cd $HOME\agent-blast-radius
-python measure.py
+py measure.py
 ```
 
-The clone target is spelled out on purpose. A shell opened from the Start menu can land
-in a directory you cannot write to, and `git clone` with no target writes to wherever you
-happen to be. And there is no `&&` here: **Windows PowerShell 5.1 does not have it** and
-answers with a parser error, not a hint.
+Prerequisites: **Python 3.12, git, and the Salesforce CLI**, plus an org you can log in
+to. Node is optional - without it the Apex extractor falls back from the parse tree to
+regex, and the report names which one it used.
+
+Three things in those four lines are deliberate, and each one is a bug someone already hit:
+
+- **The clone target is spelled out.** A shell opened from the Start menu can be sitting in
+  a directory you cannot write to, and `git clone` with no target writes to wherever you
+  happen to be.
+- **There is no `&&`.** Windows PowerShell 5.1 does not have it and answers with a parser
+  error rather than a hint.
+- **Windows uses `py`, not `python`.** `python.exe` and `python3.exe` under `WindowsApps`
+  are 0-byte Microsoft Store stubs that are on `PATH` by default, so `python measure.py`
+  can open the Store while Python 3.12 sits installed on the same disk. The `py` launcher
+  gets its own `PATH` entry whether or not *Add to PATH* was ticked.
+
+No git? The release page carries a source zip for `v1.0.0`; unzip it and start from the
+`cd` line. If PowerShell answers *running scripts is disabled on this system* to the `sf`
+line, your Salesforce CLI came from npm and PowerShell is refusing its `.ps1` shim - use
+`sf.cmd org login web --set-default`, or install the CLI from its own Windows installer.
 
 **No arguments.** It asks the org for your agents and, for each one, the identity Salesforce
 actually runs it as — `BotDefinition.BotUserId`, which is a fact rather than a guess. For an

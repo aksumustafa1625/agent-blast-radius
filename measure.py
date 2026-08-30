@@ -149,19 +149,39 @@ def main() -> int:
     print(BAR)
     print()
 
-    # This script takes no arguments by design - working them out is its whole
-    # job. But silence is the wrong way to say so: someone who reads the CLI's
-    # flags and types `python measure.py --org Prod` would otherwise get a
-    # complete, confident report about a DIFFERENT org, with nothing anywhere
-    # saying the flag was dropped.
-    unknown = [a for a in sys.argv[1:] if a != "--no-open"]
+    # `--org` is the one argument worth taking. Everything else this script works
+    # out for itself, but WHICH org is the one thing it cannot: a person whose
+    # laptop blocks the browser login flow already has an alias authenticated and
+    # no way to make it the default without changing their config. Refusing it
+    # would also have made the published page wrong, since it recommends exactly
+    # this.
+    argv = sys.argv[1:]
+    org_arg = None
+    rest = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--org" and i + 1 < len(argv):
+            org_arg = argv[i + 1]
+            i += 2
+            continue
+        if argv[i].startswith("--org="):
+            org_arg = argv[i].split("=", 1)[1]
+            i += 1
+            continue
+        rest.append(argv[i])
+        i += 1
+
+    # Anything else is refused rather than ignored. Silently dropping a flag
+    # someone typed produces a complete, confident report about something they
+    # did not ask for, with nothing anywhere saying so.
+    unknown = [a for a in rest if a != "--no-open"]
     if unknown:
-        return _fail(f"measure.py takes no arguments, so {' '.join(unknown)} "
-                     "would have been ignored.",
-                     "python measure.py            # measure this org's first agent",
+        return _fail(f"measure.py does not take {' '.join(unknown)}.",
+                     "python measure.py                  # this org's first agent",
+                     "python measure.py --org <alias>    # a specific org",
                      "",
-                     "For anything specific - another agent, another org, another",
-                     "running user - the full CLI takes it:",
+                     "For anything else - another agent, another running user -",
+                     "the full CLI takes it:",
                      "",
                      "python blast_radius/cli.py --help")
 
@@ -172,15 +192,23 @@ def main() -> int:
                      "npm install --global @salesforce/cli",
                      "sf org login web --set-default")
 
-    d = _sf_json("sf org display --json")
+    d = _sf_json("sf org display --json" if not org_arg
+                 else f'sf org display --target-org "{org_arg}" --json')
     user = ((d or {}).get("result") or {}).get("username")
     if not user:
+        if org_arg:
+            return _fail(f"No org is authenticated under the alias {org_arg}.",
+                         "sf org list          # the aliases this machine has",
+                         "sf org login web --set-default")
         return _fail("No default org is set.",
                      "sf org login web --set-default",
                      "",
+                     "Already logged in to an org under an alias?",
+                     "    python measure.py --org <alias>",
+                     "",
                      "A sandbox or a free Developer Edition is fine.",
                      "Nothing is written to it.")
-    org = ((d or {}).get("result") or {}).get("alias") or user
+    org = org_arg or ((d or {}).get("result") or {}).get("alias") or user
     print(f"  Org: {org}")
 
     bots = _query("SELECT DeveloperName, MasterLabel, Type, BotUserId FROM BotDefinition "
