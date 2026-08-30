@@ -261,7 +261,15 @@ def main() -> int:
     # safe API name.
     def _slug(x):
         return re.sub(r"[^A-Za-z0-9_.-]", "_", x)
-    out = os.path.join("reports", f"{_slug(org)}_{_slug(agent)}")
+    # The org prefix exists to keep two orgs' reports apart. When the bundle name
+    # already begins with the org's - which is common, because people name agents
+    # after the company - prefixing produces
+    # TechnoStore_TechnoStore_Revenue_Assistant_v1, which says the same word twice
+    # and reads as a bug. Drop the prefix when it is already there.
+    stem = _slug(agent)
+    if not stem.lower().startswith(_slug(org).lower()):
+        stem = f"{_slug(org)}_{stem}"
+    out = os.path.join("reports", stem)
     cmd = [sys.executable, os.path.join(PKG, "cli.py"),
            "--agent", agent, *who, "--org", org, "--out", out]
     # The child writes straight to the terminal while this process's prints sit
