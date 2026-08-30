@@ -60,3 +60,7 @@ blast_radius/report.html
 # names, and a tracked output file is exactly how a live org identifier got
 # committed into this repository once already.
 reports/
+
+# Scratch clones made while rehearsing the published command.
+clonetest/
+abr-test/
