@@ -167,6 +167,21 @@ def _record_modes(agent, source_root: str, backend: str = "auto"):
     return modes
 
 
+def ensure_outdir(out: str) -> None:
+    """Create the directory --out points into.
+
+    A path has a parent, and the parent may not exist. It did not in a fresh
+    clone: reports/ is gitignored in its entirety - deliberately, so a stranger's
+    folder holds their own measurement and nothing of mine - and git does not
+    carry empty directories. So the very first run of the published command spent
+    two minutes doing work that succeeded and then died on the write.
+
+    Created here rather than shipped as a .gitkeep, because --out accepts any
+    path and a placeholder file only fixes the one directory I thought of.
+    """
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Compute an Agentforce agent's blast radius.")
     ap.add_argument("--agent", default=None, help="GenAiPlannerBundle API name")
@@ -395,6 +410,7 @@ def main():
     html = render_html(agent.name, agent.running_user, agent.channel, summaries,
                        generated=stamp,
                        coverage=coverage, counts=counts, org_health=org_health_html)
+    ensure_outdir(args.out)
     # newline="" so the bytes are identical on every platform. Without it Python
     # rewrites each line ending to os.linesep, and a Windows run produces a report
     # whose sha256 differs from the same report written on Linux - in a project

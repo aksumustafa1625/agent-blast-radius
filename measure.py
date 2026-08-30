@@ -283,6 +283,29 @@ def main() -> int:
     html = os.path.join(HERE, out + ".html")
     print()
     print(BAR)
+
+    # The child's exit code is the only thing that knows whether a report exists.
+    # This block used to print "Your report: ..." unconditionally, so a run that
+    # ended in a traceback still signed off with a filename and the reassurance
+    # that it was safely on disk. That is the §7 failure exactly - a summary line
+    # that reports success it did not verify - and it is worse here than in the
+    # analyzer, because this is the first thing a new reader ever sees the tool say.
+    if rc != 0 or not os.path.exists(html):
+        print("  The run did not finish, so there is no report.")
+        print()
+        print("  The traceback above is the whole of what went wrong - nothing is")
+        print("  hidden and nothing was sent anywhere. If it is not obvious, paste it")
+        print("  into an issue and it will be enough to reproduce:")
+        print("      https://github.com/aksumustafa1625/agent-blast-radius/issues")
+        if _DIAG:
+            print()
+            print("  What the CLI said along the way:")
+            for line in _DIAG:
+                print(f"      {line}")
+        print(BAR)
+        print()
+        return rc or 1
+
     print(f"  Your report: {out}.md  and  {out}.html")
     print("  It is yours and it stays here - nothing was uploaded.")
 
@@ -292,7 +315,7 @@ def main() -> int:
     # to open is not failure to measure, so it never changes the exit code: the
     # path is printed either way, and --no-open exists for CI, where launching a
     # browser would be wrong behaviour rather than a missing nicety.
-    if rc == 0 and os.path.exists(html) and "--no-open" not in sys.argv:
+    if "--no-open" not in sys.argv:
         try:
             webbrowser.open("file:///" + html.replace("\\", "/"))
             print("  Opening it in your browser now.")

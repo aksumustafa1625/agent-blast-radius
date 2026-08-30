@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -95,3 +96,46 @@ class EntryPointsParse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutputDirectoryTest(unittest.TestCase):
+    """--out must work when its directory does not exist yet.
+
+    Every other test in this suite writes into a tmpdir the test itself created,
+    so none of them could see the defect this covers: in a fresh clone `reports/`
+    does not exist - it is gitignored in full and git carries no empty directories
+    - and the published one-command path died there with FileNotFoundError, after
+    two minutes of analysis that had already succeeded.
+
+    310 green tests did not catch it. A stranger running the published command
+    did, on the first try.
+    """
+
+    def test_creates_a_missing_output_directory(self):
+        import cli
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "reports", "Org_Agent")
+            cli.ensure_outdir(out)
+            with open(out + ".md", "w", encoding="utf-8") as f:
+                f.write("x")
+            self.assertTrue(os.path.exists(out + ".md"))
+
+    def test_creates_nested_directories(self):
+        # --out takes any path, so one level is not the general case.
+        import cli
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "a", "b", "c", "report")
+            cli.ensure_outdir(out)
+            self.assertTrue(os.path.isdir(os.path.join(d, "a", "b", "c")))
+
+    def test_existing_directory_is_left_alone(self):
+        # Re-running a measurement must not fail on the second run.
+        import cli
+        with tempfile.TemporaryDirectory() as d:
+            cli.ensure_outdir(os.path.join(d, "r", "x"))
+            cli.ensure_outdir(os.path.join(d, "r", "x"))   # no exception
+
+    def test_bare_filename_has_a_parent(self):
+        # `--out report` has no dirname at all; abspath is what makes it one.
+        import cli
+        cli.ensure_outdir("report")     # the cwd, which exists - must not throw
