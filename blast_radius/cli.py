@@ -395,12 +395,16 @@ def main():
     html = render_html(agent.name, agent.running_user, agent.channel, summaries,
                        generated=stamp,
                        coverage=coverage, counts=counts, org_health=org_health_html)
-    with open(args.out + ".md", "w", encoding="utf-8") as f:
+    # newline="" so the bytes are identical on every platform. Without it Python
+    # rewrites each line ending to os.linesep, and a Windows run produces a report
+    # whose sha256 differs from the same report written on Linux - in a project
+    # whose determinism proof and whose site copies are compared byte for byte.
+    with open(args.out + ".md", "w", encoding="utf-8", newline="") as f:
         f.write(md)
     # The .html on disk is a standalone file (opened in a browser, printed to
     # PDF), so it gets the full-document wrapper - charset + print rules. The
     # fragment render_html returns stays a fragment for embedders.
-    with open(args.out + ".html", "w", encoding="utf-8") as f:
+    with open(args.out + ".html", "w", encoding="utf-8", newline="") as f:
         f.write(wrap_document(html, f"Agent Blast Radius - {agent.name}"))
 
     gap, gdpr = escalation_gap(summaries)

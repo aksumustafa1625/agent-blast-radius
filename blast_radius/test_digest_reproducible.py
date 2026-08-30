@@ -65,5 +65,33 @@ class DigestSourcesAreLfOnly(unittest.TestCase):
         self.assertTrue(all(c in "0123456789abcdef" for c in d))
 
 
+class EntryPointsParse(unittest.TestCase):
+    """The files a reader runs first must at least compile.
+
+    Added after a syntax error in cli.py survived a green suite: no test imports
+    the entry points, so `python -m unittest` said OK while `python measure.py`
+    could not start. The tests covered the analysis and left the front door
+    untested - which is the half a stranger meets.
+    """
+
+    def test_entry_points_compile(self):
+        import ast
+        here = os.path.dirname(os.path.abspath(report.__file__))
+        root = os.path.dirname(here)
+        for path in (os.path.join(here, "cli.py"),
+                     os.path.join(here, "org_census.py"),
+                     os.path.join(here, "verify_deterministic.py"),
+                     os.path.join(root, "measure.py")):
+            if not os.path.exists(path):
+                continue
+            with self.subTest(entry=os.path.basename(path)):
+                src = open(path, encoding="utf-8").read()
+                try:
+                    ast.parse(src, filename=path)
+                except SyntaxError as e:
+                    self.fail(f"{os.path.basename(path)} does not parse: "
+                              f"line {e.lineno}: {e.msg}")
+
+
 if __name__ == "__main__":
     unittest.main()
