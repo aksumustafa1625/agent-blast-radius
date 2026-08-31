@@ -32,19 +32,30 @@ but every fingerprint sealed with the old digest was unreproducible, which is th
 this file exists to prevent. `test_digest_reproducible.py` now fails if any analysis source
 carries a CR.
 
+**It changed again on 2026-08-31, and this time the code did.** `f0f9842e7305` ->
+`257203d65b68`, for two corrections in the analysis path: the permission snapshot was
+read from the machine's DEFAULT org rather than the one `--org` named, and a delegated
+class was followed on the evidence that a file of that name sat in the folder - which a
+run against a different org can put there. Both published Indexes were re-measured under
+the new digest. **TechnoStore did not move** (`P:6 C:1 B:0 U:1`, every finding identical).
+**HanseWatt moved from `U:2` to `U:7`**: its nine actions delegate their queries to seven
+service classes that were never retrieved, so the old report understated what it could not
+resolve. `P` stayed `0` in both builds. That is the digest working - it over-invalidates on
+purpose, and here it was invalidating something that genuinely changed.
+
 ---
 
 ## The analyzer
 
 | figure | value | reproduce |
 |---|---:|---|
-| Unit tests | **307** | `python -m unittest discover -s blast_radius -p "test_*.py"` |
+| Unit tests | **320** | `python -m unittest discover -s blast_radius -p "test_*.py"` |
 | …of which skip in a fresh clone (no `npm install`) | **32** | same command, before `npm install` |
 | Benchmark cases passed | **28 / 28** | `python blast_radius/benchmark/run.py` |
 | Mutation score | **8 / 8** | `python blast_radius/benchmark/mutate.py` |
 | Architecture decision records | **13** | `ls docs/adr/ADR-*.md` |
 | In-org experiments | **E1 – E16** | `CLAUDE.md` §2 |
-| Analyzer digest | **`f0f9842e7305`** | `python -c "import sys;sys.path.insert(0,'blast_radius');from report import analyzer_version;print(analyzer_version()[:12])"` |
+| Analyzer digest | **`257203d65b68`** | `python -c "import sys;sys.path.insert(0,'blast_radius');from report import analyzer_version;print(analyzer_version()[:12])"` |
 
 The skip count is measured in a fresh clone at a **short path**. On Windows a
 checkout nested past roughly 240 characters makes five more tests skip, because

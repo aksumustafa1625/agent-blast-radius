@@ -198,7 +198,7 @@ def _reached_fields(agent, source_root: str, backend: str = "auto", allowed=None
     return fields
 
 
-def _record_modes(agent, source_root: str, backend: str = "auto"):
+def _record_modes(agent, source_root: str, backend: str = "auto", allowed=None):
     """{object: 'user'|'system'} for the objects the agent READS.
 
     This is what makes the record-reach headline honest: a read that is bounded by
@@ -447,7 +447,7 @@ def main():
                                         allowed=apex_allowed)
         # Per-object record-axis mode: a user-mode (sharing-enforced) read is bounded
         # by the running user, so the org's record count is NOT the agent's reach.
-        modes = _record_modes(agent, root, args.apex_backend)
+        modes = _record_modes(agent, root, args.apex_backend, allowed=apex_allowed)
         counts = org_loaders.record_counts(read_objects, sharing, perms, args.org, modes=modes)
 
     # org health: whole-org signals (API-version debt, god-mode grants, OWD) that

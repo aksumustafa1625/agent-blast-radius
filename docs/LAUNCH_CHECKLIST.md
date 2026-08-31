@@ -133,13 +133,13 @@ ok "profile README"     "$(curl -s -o /dev/null -w '%{http_code}' https://raw.gi
 
 H=$(curl -sL https://agentblastradius.com/en)
 ok "site: clone command" "$(echo "$H" | grep -c 'git clone --branch v1.0.0')"
-ok "site: canonical str" "$(echo "$H" | grep -c 'AKSU:1.0/P:6/C:1/B:0/U:1/fp:6b0359284da3')"
+ok "site: canonical str" "$(echo "$H" | grep -c 'AKSU:1.0/P:6/C:1/B:0/U:1/fp:da237145496c')"
 ok "site: spec URL"      "$(echo "$H" | grep -c 'aksuindex.com/spec/v1.0')"
 ok "site: #reports id"   "$(echo "$H" | grep -c 'id=\"reports\"')"
 
 S=$(curl -sL https://aksuindex.com/spec/v1.0)
 ok "spec: stylesheet"    "$(echo "$S" | grep -c 'rel=\"stylesheet\"')"           # want >=1
-ok "spec: current digest" "$(echo "$S" | grep -c 'f0f9842e7305')"
+ok "spec: current digest" "$(echo "$S" | grep -c '257203d65b68')"
 ok "spec: stale digests"  "$(echo "$S" | grep -cE 'd3a0cb4d683c|52c669ea07a9')"   # want 0
 
 for u in technostore hansewatt; do

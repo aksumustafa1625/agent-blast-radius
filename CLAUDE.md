@@ -548,6 +548,26 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   And `measure.py` then printed "Your report: ..." and "nothing was uploaded" **after the
   traceback**, naming two files that did not exist — this file's own §7 lesson about
   summary lines, reproduced in the first thing a new reader sees the tool say.
+- **A flag with no test is a function that does not exist.** `_record_modes` is reachable
+  only through `--include-counts`, which needs an org, so nothing in the suite ever called
+  it — and a `NameError` in it passed **317 green tests, 28/28 benchmark and 8/8 mutation**,
+  then died on the first live run. The fix is three smoke tests that merely *execute* the
+  cli reach helpers; the analyzer's own tests still own the verdicts. **Ask of any
+  org-gated code path: what in the suite reaches it, and if nothing does, does it compile
+  into a function that runs?**
+- **Reading the source is not reading the page.** The Windows clone target was correct in
+  `en.ts` and wrong on the live site: a JavaScript template literal treats `\a` as an escape
+  it does not know and silently drops it, so `$HOME\agent-blast-radius` was published as
+  `$HOMEagent-blast-radius`. A fetch of the live page **showed** the broken string and it
+  was explained away as a markdown-converter artifact. `String.raw` fixes it; a postbuild
+  check that reads the **built html** guards it, and it must read the built html, because a
+  guard inspecting the same text a human already read would have passed both times.
+- **A plausible command is not a verified command.** `examples/README.md` documented
+  `--agent HW_ServiceAgent_v1 --org HanseWatt`. The bundle is `HW_Energy_Agent` and the
+  alias is lowercase `hansewatt`; the name was invented from the permission set beside it
+  and never run. It then cost an hour, because the resulting "No authorization information
+  found for HanseWatt" was read as *the org is not authenticated here* and reported to the
+  maintainer as a blocker. **Every command in a document is a claim; run it.**
 - Windows: console is cp1252 — **use ASCII in CLI output** (`[OK]`, not `✔`).
   PowerShell `$pid` is read-only. Use `sf` CLI, not the MCP tools, for deploys.
 - **Run foreign-org scans from THIS DX project dir**, not the other org's folder.
@@ -558,8 +578,12 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 
 ## 8. Proof surface — what backs the claims
 
-- **307 unit tests** in 15 files (2026-08-28; 303 on 2026-08-23; was 241 before the baseline gate and
-  the PS504 ownership split).
+- **320 unit tests** in 16 files (2026-08-31; 307 on 2026-08-28; was 241 before the baseline
+  gate and the PS504 ownership split). The last thirteen are the ones the launch rehearsal
+  forced: a missing output directory, a digest that CRLF made irreproducible, a stale class
+  from another org merged into a report, and the cli.py reach helpers - which nothing
+  executed, so a `NameError` behind `--include-counts` passed 317 green tests, the benchmark
+  and the mutation run.
 - **Agent Authority Benchmark v1** (`blast_radius/benchmark/`): **28 hand-labelled
   cases → 28 passed** — 100% precision/recall on this corpus, and **8/8 mutation
   score** (break the analyzer on purpose; the corpus catches it).

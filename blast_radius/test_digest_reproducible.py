@@ -24,6 +24,7 @@ disk actually obeys it.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -139,3 +140,65 @@ class OutputDirectoryTest(unittest.TestCase):
         # `--out report` has no dirname at all; abspath is what makes it one.
         import cli
         cli.ensure_outdir("report")     # the cwd, which exists - must not throw
+
+
+class CliHelpersSmokeTest(unittest.TestCase):
+    """Call every cli.py reach helper, because only the live path does.
+
+    A NameError in `_record_modes` shipped through 317 tests, the benchmark and
+    the mutation run. Nothing reached it: it is behind `--include-counts`, which
+    needs an org, so the whole suite was blind to a function that could not run.
+    These do not assert verdicts - the analyzer's own tests do that. They assert
+    the functions execute, which is the part nothing else checked.
+    """
+
+    class _Action:
+        def __init__(self, target, target_type="apex"):
+            self.target = target
+            self.target_type = target_type
+            self.name = target
+
+    class _Agent:
+        def __init__(self, actions):
+            self.actions = actions
+
+    BODY = ("public without sharing class Act {\n"
+            "  public static void go() {\n"
+            "    List<Acc__c> a = [SELECT Id, Secret__c FROM Acc__c];\n"
+            "  }\n"
+            "}\n")
+
+    def _root(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        classes = os.path.join(d, "classes")
+        os.makedirs(classes)
+        with open(os.path.join(classes, "Act.cls"), "w", encoding="utf-8") as f:
+            f.write(self.BODY)
+        with open(os.path.join(classes, "Act.cls-meta.xml"), "w", encoding="utf-8") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>'
+                    '<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">'
+                    "<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>")
+        return d
+
+    def _agent(self):
+        return self._Agent([self._Action("Act")])
+
+    def test_reached_objects_runs_both_with_and_without_an_allowlist(self):
+        import cli
+        d, a = self._root(), self._agent()
+        self.assertIn("Acc__c", cli._reached_objects(a, d, backend="regex"))
+        self.assertIn("Acc__c", cli._reached_objects(a, d, backend="regex",
+                                                     allowed={"Act"}))
+
+    def test_reached_fields_runs(self):
+        import cli
+        d, a = self._root(), self._agent()
+        self.assertTrue(cli._reached_fields(a, d, backend="regex", allowed={"Act"}))
+
+    def test_record_modes_runs(self):
+        # The one behind --include-counts, and the one that was broken.
+        import cli
+        d, a = self._root(), self._agent()
+        modes = cli._record_modes(a, d, backend="regex", allowed={"Act"})
+        self.assertEqual(modes.get("Acc__c"), "system")   # v58, without sharing

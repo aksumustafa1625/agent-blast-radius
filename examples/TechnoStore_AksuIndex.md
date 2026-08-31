@@ -11,7 +11,7 @@
       1  unresolved               reach we could not determine at all
 
   Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
-  AKSU:1.0/P:6/C:1/B:0/U:1/fp:6b0359284da3
+  AKSU:1.0/P:6/C:1/B:0/U:1/fp:da237145496c
   https://aksuindex.com/spec/v1.0
   (all four numbers ARE the metric - none of them may be quoted alone)
 
@@ -33,7 +33,7 @@
 ```
 AGENT BLAST RADIUS REPORT - TechnoStore Revenue Assistant
 Running user: (hypothetical grant model - permission set: TechnoStore_Revenue_Assistant2098228049_Permissions)   (channel: agent)
-Config fingerprint: 6b0359284da3      Generated: measured 2026-08-29
+Config fingerprint: da237145496c      Generated: measured 2026-08-31
 Aksu Index spec v1.0: aksuindex.com
 ================================================================
 
@@ -105,7 +105,7 @@ CLASSIFICATION COVERAGE
 
 - **[PS504] GetRevenueSummaryAction -> Invoice**
   - Reach for this operation could not be fully determined - this analyzer does not model the shape (aggregate/function select - fields not enumerated).
-  - _Why:_ A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build f0f9842e7305 does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.
+  - _Why:_ A silent false-clean is worse than an honest unknown, so this is counted as unresolved rather than passed. This one is OUR limit, not a property of your code: the reach is written out in the source and analyzer build 257203d65b68 does not model this shape. Stated as of that build - a later one may resolve it, and this report is not falsified when it does.
   - _Fix:_ Ours to close - there is nothing to change in your code. Review this operation by hand, or re-run on an analyzer build that models the shape.
 - **[PS509] SendPaymentRemindersAction -> Invoice**
   - DML (update) on Invoice fires trigger 'InvoiceTrigger' at API v60 (< v67) — a legacy cascade boundary, but no escalating write was proven.
@@ -146,6 +146,6 @@ _Whole-org signals that don't concern TechnoStore Revenue Assistant directly, bu
 
 ---
 Produced by static analysis. No agent was invoked. 0 Flex Credits.
-Bound to fingerprint `6b0359284da3`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `f0f9842e7305`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
+Bound to fingerprint `da237145496c`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `257203d65b68`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
 
 _The fingerprint seals the **static analysis** — the agent's config, the analysed Apex/Flow, the permission snapshot, and the analyzer itself. It does **not** cover the live `COUNT()` figures above: those are a measurement of the org at the moment of the run. Two runs sharing a fingerprint can legitimately show different counts._
