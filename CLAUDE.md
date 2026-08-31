@@ -552,6 +552,13 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   And `measure.py` then printed "Your report: ..." and "nothing was uploaded" **after the
   traceback**, naming two files that did not exist — this file's own §7 lesson about
   summary lines, reproduced in the first thing a new reader sees the tool say.
+- **The same filter in two places is one filter that is wrong somewhere.** `crosslink`
+  borrows the `sobject` slot for a CLASS name, so it must never be counted as a reachable
+  object. That filter was added to `cli.py`'s `_reached_objects` and not to
+  `report.summarize_apex`, so the console printed **6 objects** and the report printed
+  **7** — for the same run, on the same page — and the seventh was called
+  `HWTariffService`. A tool whose subject is measurement cannot disagree with itself about
+  a count. It is filtered at the source now, and `cli.py` inherits it.
 - **A flag with no test is a function that does not exist.** `_record_modes` is reachable
   only through `--include-counts`, which needs an org, so nothing in the suite ever called
   it — and a `NameError` in it passed **317 green tests, 28/28 benchmark and 8/8 mutation**,
@@ -582,7 +589,7 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 
 ## 8. Proof surface — what backs the claims
 
-- **320 unit tests** in 16 files (2026-08-31; 307 on 2026-08-28; was 241 before the baseline
+- **322 unit tests** in 16 files (2026-08-31; 307 on 2026-08-28; was 241 before the baseline
   gate and the PS504 ownership split). The last thirteen are the ones the launch rehearsal
   forced: a missing output directory, a digest that CRLF made irreproducible, a stale class
   from another org merged into a report, and the cli.py reach helpers - which nothing

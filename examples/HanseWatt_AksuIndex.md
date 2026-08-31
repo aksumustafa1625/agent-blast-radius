@@ -15,14 +15,14 @@
       7  unresolved               reach we could not determine at all
 
   Aksu Index: 0 proven (0 regulated) · 0 unproven boundaries · 7 unresolved
-  AKSU:1.0/P:0/C:0/B:0/U:7/fp:422e6dc9f85d
+  AKSU:1.0/P:0/C:0/B:0/U:7/fp:6ffeb1112b65
   https://aksuindex.com/spec/v1.0
   (all four numbers ARE the metric - none of them may be quoted alone)
 
 ------------------------------------------------------------------------------
   WHAT THE AGENT'S CODE REACHES  vs  WHAT THIS RUNNING USER MAY SEE
 
-      Objects reached by the agent ............. 7
+      Objects reached by the agent ............. 6
       Fields reached by the agent .............. 14
         of those, readable by this user ........ 14
         beyond this user - the gap ............. 0
@@ -37,7 +37,7 @@
 ```
 AGENT BLAST RADIUS REPORT - HW Energy Agent
 Running user: (hypothetical grant model - permission set: HW_ServiceAgent)   (channel: agent)
-Config fingerprint: 422e6dc9f85d      Generated: measured 2026-08-31
+Config fingerprint: 6ffeb1112b65      Generated: measured 2026-08-31
 Aksu Index spec v1.0: aksuindex.com
 ================================================================
 
@@ -45,7 +45,7 @@ ESCALATION GAP ......... 0 fields  /  0 regulated
 
 REACH SUMMARY
   Actions analysed ....... 9
-  Objects reachable ...... 7
+  Objects reachable ...... 6
   Fields reachable ....... 14
   System-mode actions .... 7 / 9
   Legacy API (< v67) ..... 0 / 9
@@ -123,6 +123,6 @@ _Whole-org signals that don't concern HW Energy Agent directly, but anyone secur
 
 ---
 Produced by static analysis. No agent was invoked. 0 Flex Credits.
-Bound to fingerprint `422e6dc9f85d`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `257203d65b68`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
+Bound to fingerprint `6ffeb1112b65`, which seals both the INPUTS (agent config, the analysed Apex/Flow, the permission snapshot, and what the analysis identity could see) and the TOOL that produced this verdict (analyzer `257203d65b68`, parser `5.1.0`; each analysed class's own apiVersion is bound per action, since it decides the verdict). Regenerate if any of these change.
 
 _The fingerprint seals the **static analysis** — the agent's config, the analysed Apex/Flow, the permission snapshot, and the analyzer itself. It does **not** cover the live `COUNT()` figures above: those are a measurement of the org at the moment of the run. Two runs sharing a fingerprint can legitimately show different counts._

@@ -557,3 +557,41 @@ class StaleClassFromAnotherOrgTest(unittest.TestCase):
             reach = parse_apex(os.path.join(classes, "Act.cls"), d, backend="regex",
                                allowed={"Act", "Helper"})
             self.assertIn("Secret__c", self._objects(reach))
+
+
+class CrosslinkIsNotAnObjectTest(unittest.TestCase):
+    """PS508's marker must not be counted as a reachable object.
+
+    `crosslink` borrows the `sobject` slot to carry the name of a CLASS that
+    delegates further. The first report that ever exercised the selector follow
+    therefore announced that the agent reaches seven objects, one of them called
+    `HWTariffService` - a latent presentation bug only a working feature could
+    expose. The filter belongs here, in the one function every caller shares:
+    cli.py had grown its own copy and the report kept the bug.
+    """
+
+    def _summary(self, ops):
+        from report import summarize_apex
+
+        class _R:
+            class_name = "Act"
+            api_version = 58.0
+            backend = "regex"
+            operations = ops
+        return summarize_apex(_R(), [])
+
+    def _op(self, kind, sobject, fields=()):
+        from apex_introspect import ApexOperation, ResolvedMode
+        return ApexOperation(operation=kind, sobject=sobject, fields=list(fields),
+                             fields_complete=True,
+                             resolved=ResolvedMode(None, None, "test"))
+
+    def test_a_crosslink_marker_is_not_a_reachable_object(self):
+        s = self._summary([self._op("read", "Invoice", ["Total__c"]),
+                           self._op("crosslink", "HWTariffService")])
+        self.assertEqual(s.objects, ["Invoice"])
+
+    def test_a_real_read_still_counts(self):
+        s = self._summary([self._op("read", "Invoice", ["Total__c"])])
+        self.assertEqual(s.objects, ["Invoice"])
+        self.assertEqual(s.fields, ["Invoice.Total__c"])

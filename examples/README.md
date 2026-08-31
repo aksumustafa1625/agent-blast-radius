@@ -7,7 +7,7 @@ the fingerprint that seals it.
 | org | Index | fingerprint |
 |---|---|---|
 | TechnoStore — 113/113 Apex files pre-v67 | `6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved` | `da237145496c` |
-| HanseWatt — 182/219 pre-v67, yet all nine agent actions at v67 | `0 proven (0 regulated) · 0 unproven boundaries · 7 unresolved` | `422e6dc9f85d` |
+| HanseWatt — 182/219 pre-v67, yet all nine agent actions at v67 | `0 proven (0 regulated) · 0 unproven boundaries · 7 unresolved` | `6ffeb1112b65` |
 
 Read them together. That is the pair the whole argument rests on: **you do not have to
 modernise the whole org, only the part the agent touches** — and HanseWatt's report says

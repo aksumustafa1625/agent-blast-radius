@@ -75,12 +75,15 @@ def _retrieve_action_sources(agent, source_root: str, target_org):
         have been measured against mine.
 
     The org is the authority on what the org runs. Re-retrieving costs seconds."""
-    want = []
-    for a in agent.actions:
-        if a.target_type == "apex":
-            want.append(f"ApexClass:{a.target}")
-        elif a.target_type == "flow":
-            want.append(f"Flow:{a.target}")
+    # dict.fromkeys, not a set: several actions can share one class - HanseWatt's
+    # nine name seven - and asking the org for the same class twice is both slower
+    # and printed twice, which reads like the tool losing its place. Order is kept
+    # so the printed line matches the agent's own action order.
+    want = list(dict.fromkeys(
+        (f"ApexClass:{a.target}" if a.target_type == "apex"
+         else f"Flow:{a.target}" if a.target_type == "flow" else None)
+        for a in agent.actions))
+    want = [w for w in want if w]
     if want:
         print(f"retrieving action sources: {', '.join(want)}")
         _sf_retrieve(want, target_org)

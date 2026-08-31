@@ -80,9 +80,16 @@ def _qualify(sobject: str, fl: str) -> str:
 
 
 def summarize_apex(reach, findings, name=None) -> ActionSummary:
-    objs = sorted({o.sobject for o in reach.operations if o.sobject})
+    # PS508's crosslink marker borrows the `sobject` slot to carry the name of a
+    # CLASS that delegates further. It is a marker, not a reach, so counting it
+    # puts a class name in "Objects reachable": the first HanseWatt report to
+    # exercise the selector follow said the agent reaches SEVEN objects, one of
+    # them called HWTariffService. Excluded at the source here rather than at each
+    # caller - cli.py had its own copy of this filter, and the report kept the bug.
+    ops = [o for o in reach.operations if o.operation != "crosslink"]
+    objs = sorted({o.sobject for o in ops if o.sobject})
     flds = sorted({_qualify(o.sobject, fl)
-                   for o in reach.operations if o.sobject for fl in o.fields})
+                   for o in ops if o.sobject for fl in o.fields})
     system = any(o.resolved.is_escalation_capable for o in reach.operations if o.operation == "read")
     return ActionSummary(name or reach.class_name, "apex", reach.api_version, system,
                          objs, flds, findings, backend=getattr(reach, "backend", None))
