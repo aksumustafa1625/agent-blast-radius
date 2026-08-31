@@ -36,6 +36,14 @@ sys.path.insert(0, PKG)
 
 BAR = "=" * 74
 
+# What to call the interpreter when printing a command for someone to run. On
+# Windows `python` may be the 0-byte Microsoft Store stub that sits on PATH by
+# default, and `python3` is that stub even on a correct python.org install; the
+# `py` launcher gets its own PATH entry regardless. Elsewhere `python` is often
+# absent entirely - Debian and Ubuntu ship python3 and no python. Printing the
+# wrong one hands the reader a command their own machine refuses.
+PY = "py" if os.name == "nt" else "python3"
+
 # Anomalies worth showing a reader who is debugging, kept rather than swallowed.
 _DIAG: list[str] = []
 
@@ -101,7 +109,7 @@ def _resolve_bundle(bot_name: str, org: str) -> tuple[str | None, list[str]]:
     when there is no candidate: the caller lists what the org does have.
     """
     d = _sf_json("sf org list metadata --metadata-type GenAiPlannerBundle "
-                 f"--target-org {org} --json")
+                 f"--target-org \"{org}\" --json")
     names = [r.get("fullName") for r in ((d or {}).get("result") or [])
              if r.get("fullName")]
     if not names:
@@ -177,13 +185,13 @@ def main() -> int:
     unknown = [a for a in rest if a != "--no-open"]
     if unknown:
         return _fail(f"measure.py does not take {' '.join(unknown)}.",
-                     "python measure.py                  # this org's first agent",
-                     "python measure.py --org <alias>    # a specific org",
+                     f"{PY} measure.py                  # this org's first agent",
+                     f"{PY} measure.py --org <alias>    # a specific org",
                      "",
                      "For anything else - another agent, another running user -",
                      "the full CLI takes it:",
                      "",
-                     "python blast_radius/cli.py --help")
+                     f"{PY} blast_radius/cli.py --help")
 
     probe = subprocess.run("sf --version", shell=True, capture_output=True,
                            text=True, encoding="utf-8", errors="replace")
@@ -219,18 +227,34 @@ def main() -> int:
     # never enabled, which is a thing to switch on rather than an absence.
     if bots is None:
         return _fail("Could not ask this org for its agents.",
-                     "sf org display --target-org " + org,
+                     f'sf org display --target-org "{org}"',
                      "",
                      "If BotDefinition is not available, Agentforce may not be",
                      "enabled in this org - that is a setting, not an absence.")
+    # BotDefinition holds classic Einstein Bots alongside Agentforce agents. A
+    # classic bot has no planner bundle, so measuring one ends in "no bundle
+    # matching ..." - and if it merely sorted first alphabetically, an org with a
+    # perfectly good Agentforce agent would be reported as having nothing to
+    # measure. Skip them for selection rather than stopping on them.
+    classic = [b for b in bots if (b.get("Type") or "") == "Bot"]
+    bots = [b for b in bots if (b.get("Type") or "") != "Bot"]
+
     if not bots:
-        print("  This org has no Agentforce agents, so there is nothing to measure.")
+        if classic:
+            print(f"  This org has {len(classic)} classic Einstein Bot(s) and no")
+            print("  Agentforce agent. A classic bot has no planner bundle and no")
+            print("  Apex action surface of the kind this measures.")
+        else:
+            print("  This org has no Agentforce agents, so there is nothing to measure.")
         print()
         print("  The 28-case corpus needs no org at all, if you would rather see")
         print("  the shape of the measurement first:")
         print("      https://github.com/aksumustafa1625/agent-authority-benchmark")
         print()
         return 1
+
+    if classic:
+        print(f"  Skipping {len(classic)} classic Einstein Bot(s) - not Agentforce.")
 
     if len(bots) > 1:
         print(f"  Agents: {len(bots)}")
@@ -242,7 +266,7 @@ def main() -> int:
         # a flag that rejects them sends the reader into an error.
         print("  Measuring the first. To pick another, list the planner bundles")
         print(f"  with:  sf org list metadata --metadata-type GenAiPlannerBundle "
-              f"--target-org {org}")
+              f'--target-org "{org}"')
         print("  and pass one to blast_radius/cli.py with --agent.")
 
     bot = bots[0]
@@ -262,8 +286,8 @@ def main() -> int:
         print()
         print("  Pick one and pass it explicitly:")
         print()
-        print(f"      python blast_radius/cli.py --agent <name> --org {org} \\")
-        print("             --running-user <username>")
+        print(f"      {PY} blast_radius/cli.py --agent <name> --org {org} "
+              f"--running-user <username>")
         print()
         return 2
     agent = agent or bot_name
@@ -280,11 +304,22 @@ def main() -> int:
     # populated.
     employee_agent = kind == "InternalCopilot"
 
+
+    # Three outcomes, not two. `rows is None` is the lookup FAILING; `[]` is the
+    # org answering that the id resolves to nothing. Collapsing them into "no
+    # BotUserId" printed a falsehood - "this agent has no BotUserId of its own" -
+    # and then measured a real agent against an arbitrary permission set, in the
+    # tool's ordinary confident voice, with a number at the end of it.
     running_user = None
+    lookup_failed = False
     if bot.get("BotUserId") and not employee_agent:
         rows = _query(f"SELECT Username FROM User WHERE Id = '{bot['BotUserId']}'", org)
-        if rows:
+        if rows is None:
+            lookup_failed = True
+        elif rows:
             running_user = rows[0]["Username"]
+        else:
+            lookup_failed = True          # the id is set but resolves to no row
 
     print()
     print(f"  Agent:        {bot_name}")
@@ -303,7 +338,7 @@ def main() -> int:
         # error in Windows PowerShell, and this tool exists mostly for people on
         # Windows - printing a command their own shell refuses is the same defect
         # that shipped '&&' in the published quickstart.
-        print(f"      python blast_radius/cli.py --agent {agent} "
+        print(f"      {PY} blast_radius/cli.py --agent {agent} "
               f"--running-user <username> --org {org}")
         print()
         return 2
@@ -312,16 +347,38 @@ def main() -> int:
         print(f"  Running user: {running_user}   (the agent's own, from BotUserId)")
         who = ["--running-user", running_user]
     else:
+        # Type != 'Group' excludes Permission Set Group AGGREGATES. They satisfy
+        # IsCustom = true, and the one Agentforce installs sorts first
+        # alphabetically, so the "custom set an admin made" this was meant to find
+        # was in fact the same Salesforce-shipped boilerplate in every org tested.
         sets = _query("SELECT Name FROM PermissionSet WHERE IsOwnedByProfile = false "
-                      "AND IsCustom = true ORDER BY Name LIMIT 1", org)
+                      "AND IsCustom = true AND Type != 'Group' ORDER BY Name", org)
+        if sets is None:
+            return _fail("Could not ask this org for its permission sets.",
+                         f'sf org display --target-org "{org}"')
         if not sets:
             return _fail("This agent has no running user set, and the org has no "
                          "custom permission set to model one with.",
-                         "python blast_radius/cli.py --agent " + agent +
-                         " --running-user <username>")
-        print(f"  Running user: modelled as permission set {sets[0]['Name']}")
-        print("                (this agent has no BotUserId of its own)")
-        who = ["--permission-set", sets[0]["Name"]]
+                         f"{PY} blast_radius/cli.py --agent {agent} "
+                         f"--running-user <username> --org {org}")
+        chosen = sets[0]["Name"]
+        if lookup_failed:
+            print(f"  Running user: COULD NOT BE RESOLVED.")
+            print(f"                This agent's BotUserId is {bot['BotUserId']}, but")
+            print( "                the lookup for it did not come back.")
+        else:
+            print("  Running user: this agent has no BotUserId of its own.")
+        print(f"                Modelling a hypothetical user holding only")
+        print(f"                {chosen}")
+        # Say that it was picked arbitrarily. Without this the number reads as a
+        # measurement of somebody, and it is a measurement of nobody: the set was
+        # chosen because it sorts first, out of however many the org has.
+        print(f"                - chosen only because it sorts first of "
+              f"{len(sets)} custom set(s).")
+        print( "                It is NOT this agent's identity. For a real number:")
+        print(f"                    {PY} blast_radius/cli.py --agent {agent} "
+              f"--running-user <username> --org {org}")
+        who = ["--permission-set", chosen]
     print()
     print("  Reading metadata. No agent is invoked and no Flex Credits are spent.")
     print()
@@ -410,7 +467,7 @@ def main() -> int:
     # One line and --out included. The backslash continuation this used to print
     # is a parser error in Windows PowerShell, and without --out the repeat run
     # wrote into the source package instead of beside the report it is repeating.
-    print(f"      python blast_radius/cli.py --agent {agent} "
+    print(f"      {PY} blast_radius/cli.py --agent {agent} "
           f"{who[0]} {who[1]} --org {org} --out {out}")
     print(BAR)
     print()

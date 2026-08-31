@@ -43,7 +43,7 @@ def _sf_retrieve(metadata: list, target_org) -> bool:
         return True
     cmd = "sf project retrieve start " + " ".join(f'--metadata "{m}"' for m in metadata)
     if target_org:
-        cmd += f" --target-org {target_org}"
+        cmd += f" --target-org \"{target_org}\""
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                          encoding="utf-8", errors="replace")
     return res.returncode == 0
@@ -123,16 +123,21 @@ def _retrieve_referenced_classes(agent, source_root: str, target_org):
     # local file of the right name is not evidence that it is the org's file.
     names = sorted(names)
     if not names:
-        return
+        return set()
     real = org_loaders.local_apex_classes(names, target_org)
     want = [f"ApexClass:{n}" for n in sorted(real)]
     if want:
         print(f"retrieving delegated classes: {', '.join(sorted(real))}")
         _sf_retrieve(want, target_org)
+    # The org's own answer, handed back so the follow can use it as an allowlist.
+    # A .cls sitting in the folder is not evidence this org has that class - it
+    # may be residue from a run against a different org, and merging it invents
+    # findings about code nobody runs.
+    return set(real) | {a.target for a in agent.actions if a.target_type == "apex"}
 
 
 def _reached_objects(agent, source_root: str, backend: str = "auto",
-                     read_only: bool = False):
+                     read_only: bool = False, allowed=None):
     """Objects the agent's actions touch. `read_only=True` returns only objects
     the code READS - the ones where "reaches N records" is a meaningful record
     count. A create/insert target is a write, not a read of N records, so it is
@@ -149,7 +154,8 @@ def _reached_objects(agent, source_root: str, backend: str = "auto",
         if action.target_type == "apex":
             path = os.path.join(source_root, "classes", action.target + ".cls")
             if os.path.exists(path):
-                for o in parse_apex(path, source_root, backend=backend).operations:
+                for o in parse_apex(path, source_root, backend=backend,
+                                    allowed=allowed).operations:
                     if o.operation == "crosslink":
                         continue
                     if o.sobject and (not read_only or o.operation == "read"):
@@ -163,7 +169,7 @@ def _reached_objects(agent, source_root: str, backend: str = "auto",
     return objects
 
 
-def _reached_fields(agent, source_root: str, backend: str = "auto"):
+def _reached_fields(agent, source_root: str, backend: str = "auto", allowed=None):
     """Field paths the agent reads, spelled exactly as the analyzer and its findings
     spell them (report._qualify): a relationship field keeps its own path
     (`BillToContact.Email`), a direct field gets `Object.Field`.
@@ -177,7 +183,8 @@ def _reached_fields(agent, source_root: str, backend: str = "auto"):
         if action.target_type == "apex":
             path = os.path.join(source_root, "classes", action.target + ".cls")
             if os.path.exists(path):
-                for o in parse_apex(path, source_root, backend=backend).operations:
+                for o in parse_apex(path, source_root, backend=backend,
+                                    allowed=allowed).operations:
                     if o.sobject:
                         for f in o.fields:
                             fields.add(_qualify(o.sobject, f))
@@ -220,7 +227,8 @@ def _record_modes(agent, source_root: str, backend: str = "auto"):
         if action.target_type == "apex":
             path = os.path.join(source_root, "classes", action.target + ".cls")
             if os.path.exists(path):
-                for o in parse_apex(path, source_root, backend=backend).operations:
+                for o in parse_apex(path, source_root, backend=backend,
+                                    allowed=allowed).operations:
                     if o.sobject and o.operation == "read":
                         _note(o.sobject, o.resolved.enforces_sharing, o.resolved.enforces_fls)
         elif action.target_type == "flow":
@@ -367,10 +375,13 @@ def main():
               f"-> {len(expanded)} action(s) total")
 
     # The action targets are known now; pull just their source if it isn't local.
+    # None means "no org was asked", which is the local/--no-retrieve case: the
+    # follow then trusts the folder, because there is nothing better to trust.
+    apex_allowed = None
     if not args.no_retrieve:
         _retrieve_action_sources(agent, root, args.org)
         # And then what those classes call, or the selector layer stays invisible.
-        _retrieve_referenced_classes(agent, root, args.org)
+        apex_allowed = _retrieve_referenced_classes(agent, root, args.org)
 
     import apex_ast
     if args.apex_backend in ("auto", "ast"):
@@ -383,7 +394,7 @@ def main():
         backend_note = "regex (forced)"
     print(f"apex extractor: {backend_note}")
 
-    objects = _reached_objects(agent, root, args.apex_backend)
+    objects = _reached_objects(agent, root, args.apex_backend, allowed=apex_allowed)
     print(f"objects reached: {sorted(objects) or '(none - opaque actions only)'}")
 
     print("loading classifications, sharing models, permissions ...")
@@ -392,7 +403,8 @@ def main():
     # object's compliance labels - without it, PS506 silently misses every cross-object
     # personal field the agent reads.
     classification, visible = org_loaders.classification(
-        objects, args.org, fields=_reached_fields(agent, root, args.apex_backend))
+        objects, args.org,
+        fields=_reached_fields(agent, root, args.apex_backend, allowed=apex_allowed))
     # Which reached fields are FORMULAS. Their inputs are not resolved, so the user's
     # FLS on the formula does not bound what its value carries - the one channel a v67
     # user-mode read does not close. PS516 reports it as an unresolved reach.
@@ -402,12 +414,14 @@ def main():
     if args.permission_set:
         snapshot = org_loaders.snapshot_from_permset(args.permission_set, objects, args.org)
     else:
-        snapshot = build_snapshot(args.running_user, sobjects=list(objects), channel=args.channel)
+        snapshot = build_snapshot(args.running_user, sobjects=list(objects),
+                                  channel=args.channel, target_org=args.org)
     perms = EffectivePermissions(snapshot)
 
     summaries = analyze_agent(agent, root, perms, classification, sharing, triggers,
                               apex_backend=args.apex_backend, script_ir=script_ir,
-                              graph_edges=graph_edges, calculated=calculated)
+                              graph_edges=graph_edges, calculated=calculated,
+                              apex_allowed=apex_allowed)
     coverage = classification_coverage(summaries, classification, visible)
 
     # An evidence-grade gate. The regex fallback cannot trace the Authority Path,
@@ -429,7 +443,8 @@ def main():
         # Record-reach is a READ concept: "how many records can the code read
         # beyond the user". A create/insert target is not a read of N records, so
         # count only the objects the code actually READS - honest by construction.
-        read_objects = _reached_objects(agent, root, args.apex_backend, read_only=True)
+        read_objects = _reached_objects(agent, root, args.apex_backend, read_only=True,
+                                        allowed=apex_allowed)
         # Per-object record-axis mode: a user-mode (sharing-enforced) read is bounded
         # by the running user, so the org's record count is NOT the agent's reach.
         modes = _record_modes(agent, root, args.apex_backend)

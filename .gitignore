@@ -64,3 +64,8 @@ reports/
 # Scratch clones made while rehearsing the published command.
 clonetest/
 abr-test/
+
+# verify_deterministic.py writes these two pairs beside the repo root. Only the
+# .md half was excluded, so a `git add -A` would have swept the .html half in -
+# the sweep that has already committed a gitlink and three org classes tonight.
+_det_*

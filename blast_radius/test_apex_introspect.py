@@ -498,3 +498,62 @@ class ArrayDeclaredDmlTargetTest(unittest.TestCase):
         # `SObject` names no object. Unknown beats confidently wrong.
         self.assertEqual(self._dml("SObject x = new Account(); insert x;"),
                          [("insert", None)])
+
+
+class StaleClassFromAnotherOrgTest(unittest.TestCase):
+    """A .cls on disk is not evidence that THIS org has that class.
+
+    `_follow_one_level` read the folder, so a class left behind by an earlier run
+    against a different org was merged into the next org's report - unretrieved,
+    unmentioned, and able to invent findings about code the org does not run. The
+    live path now passes the org's own answer to `SELECT Name FROM ApexClass` as
+    an allowlist; a local run passes None and keeps trusting the folder, because
+    there is no org to ask.
+    """
+
+    ACTION = ("public with sharing class Act {\n"
+              "  public static void go() { Helper.load(); }\n"
+              "}\n")
+    HELPER = ("public without sharing class Helper {\n"
+              "  public static void load() {\n"
+              "    List<Secret__c> s = [SELECT Id, Ssn__c FROM Secret__c];\n"
+              "  }\n"
+              "}\n")
+
+    def _root(self, d):
+        classes = os.path.join(d, "classes")
+        os.makedirs(classes, exist_ok=True)
+        for name, body in (("Act", self.ACTION), ("Helper", self.HELPER)):
+            with open(os.path.join(classes, name + ".cls"), "w", encoding="utf-8") as f:
+                f.write(body)
+            with open(os.path.join(classes, name + ".cls-meta.xml"), "w", encoding="utf-8") as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                        '<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">'
+                        '<apiVersion>58.0</apiVersion><status>Active</status></ApexClass>\n')
+        return classes
+
+    def _objects(self, reach):
+        return {o.sobject for o in reach.operations if o.sobject}
+
+    def test_no_allowlist_follows_the_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            classes = self._root(d)
+            reach = parse_apex(os.path.join(classes, "Act.cls"), d, backend="regex")
+            self.assertIn("Secret__c", self._objects(reach))
+
+    def test_a_class_the_org_denies_is_not_followed(self):
+        # The org was asked and does not have Helper. The file is residue.
+        with tempfile.TemporaryDirectory() as d:
+            classes = self._root(d)
+            reach = parse_apex(os.path.join(classes, "Act.cls"), d, backend="regex",
+                               allowed={"Act"})
+            self.assertNotIn("Secret__c", self._objects(reach),
+                             "a class the org does not have was merged into the reach")
+
+    def test_a_class_the_org_confirms_is_still_followed(self):
+        # The allowlist must not become a way to lose real reach.
+        with tempfile.TemporaryDirectory() as d:
+            classes = self._root(d)
+            reach = parse_apex(os.path.join(classes, "Act.cls"), d, backend="regex",
+                               allowed={"Act", "Helper"})
+            self.assertIn("Secret__c", self._objects(reach))

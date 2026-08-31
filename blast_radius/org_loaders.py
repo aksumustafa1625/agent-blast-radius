@@ -28,7 +28,7 @@ def _sf(query: str, tooling: bool = False, target_org: Optional[str] = None) -> 
     if tooling:
         cmd += " --use-tooling-api"
     if target_org:
-        cmd += f" --target-org {target_org}"
+        cmd += f' --target-org "{target_org}"'
     # shell=True is deliberate and stays: on Windows `sf` is a .cmd shim that
     # subprocess cannot exec without a shell (or a resolved path to sf.cmd), and
     # this is a local operator-driven CLI - the only person who can put a shell

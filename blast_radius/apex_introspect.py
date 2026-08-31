@@ -764,15 +764,27 @@ def _refs_of(reach: ApexReach, cls_path: str) -> set:
 
 
 def _follow_one_level(reach: ApexReach, source_root: str, own_name: str,
-                      own_path: str, backend: str = "auto"):
+                      own_path: str, backend: str = "auto", allowed=None):
     """fflib/selector reality: the query usually lives in a delegated class, not
     the action. Follow ONE level - parse referenced local classes and merge their
     reach into this action. Delegation that itself delegates further is flagged
-    PS508 (a crosslink marker), never silently dropped."""
+    PS508 (a crosslink marker), never silently dropped.
+
+    `allowed`, when given, is the set of class names the ORG confirmed it has.
+    Without it this function treated a file's presence as evidence the org has
+    that class, which it is not: a .cls left in the folder by an earlier run
+    against a DIFFERENT org is merged into this org's report, unretrieved and
+    unmentioned, and can invent findings about code this org does not run. The
+    live path passes the answer to `SELECT Name FROM ApexClass`; a local or
+    --no-retrieve run passes None and keeps the old behaviour, because there is
+    no org to ask.
+    """
     classes_dir = os.path.join(source_root, "classes")
     for cname in sorted(_refs_of(reach, own_path)):
         if cname == own_name:
             continue
+        if allowed is not None and cname not in allowed:
+            continue  # the org does not have this class; a local file of that name is not it
         cpath = os.path.join(classes_dir, cname + ".cls")
         if not os.path.exists(cpath):
             continue  # standard/managed/absent class - not analysable from source
@@ -780,6 +792,7 @@ def _follow_one_level(reach: ApexReach, source_root: str, own_name: str,
         reach.operations.extend(sub.operations)  # attribute the selector's reach to the action
         deeper = sorted({c for c in _refs_of(sub, cpath)
                          if c not in (cname, own_name)
+                         and (allowed is None or c in allowed)
                          and os.path.exists(os.path.join(classes_dir, c + ".cls"))})
         if deeper:
             reach.operations.append(ApexOperation(
@@ -789,10 +802,12 @@ def _follow_one_level(reach: ApexReach, source_root: str, own_name: str,
                 note="PS508: call chain beyond one level not followed"))
 
 
-def parse_apex(cls_path: str, source_root: str = None, backend: str = "auto") -> ApexReach:
+def parse_apex(cls_path: str, source_root: str = None, backend: str = "auto",
+               allowed=None) -> ApexReach:
     reach = _parse_file(cls_path, backend)
     if source_root:
-        _follow_one_level(reach, source_root, reach.class_name, cls_path, backend)
+        _follow_one_level(reach, source_root, reach.class_name, cls_path, backend,
+                          allowed=allowed)
     return reach
 
 
