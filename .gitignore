@@ -69,3 +69,16 @@ abr-test/
 # .md half was excluded, so a `git add -A` would have swept the .html half in -
 # the sweep that has already committed a gitlink and three org classes tonight.
 _det_*
+
+# Retrieved Apex lands here, because that is where `sf project retrieve start`
+# writes. A `git add -A` after a live run has now committed other orgs' source
+# THREE times in one night - a gitlink, three VoltStream classes, then seven
+# HanseWatt services - each time into a repository that is about to be public.
+#
+# .gitignore does not affect files git already tracks, so every evidence class
+# under force-app stays exactly as tracked as it was; only NEW arrivals are
+# ignored. A genuinely new evidence class therefore needs `git add -f`, which is
+# the right amount of friction for the one case that is deliberate.
+force-app/main/default/classes/*.cls
+force-app/main/default/classes/*.cls-meta.xml
+force-app/main/default/flows/*.flow-meta.xml
