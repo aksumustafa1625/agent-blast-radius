@@ -90,6 +90,23 @@ one the org actually runs. One run cannot see any of them.
 If either run ends badly, the answer is **not** to fix it and continue. It is to
 decide whether to publish at all - see 13:00.
 
+## 12:15 — the other platform, once it is public
+
+Two minutes, and it closes the only surface a Windows rehearsal cannot reach. On
+Ubuntu under WSL (`wsl -d Ubuntu`), or any Mac or Linux box:
+
+```
+bash docs/first-run-check.sh
+```
+
+- [ ] It ends **PASS 11 FAIL 0**
+- [ ] The digest it prints is the one the reports carry
+
+It was run on 2026-08-31 against a LOCAL clone, because the repo was private and
+an anonymous clone hangs on a credential prompt with no output. Everything passed
+except that workaround's own warning. This is the same script against the real
+URL, so it also proves the published clone command works there.
+
 ## 12:30 — the eyes-only pass
 
 `curl` cannot do any of these. Open a browser.
