@@ -1,4 +1,4 @@
-# Launch checklist — Monday 31 August 2026
+# Launch checklist — Tuesday 1 September 2026
 
 Open this file at **11:25**. Work down it. Do not skip a line because it "must be fine".
 
