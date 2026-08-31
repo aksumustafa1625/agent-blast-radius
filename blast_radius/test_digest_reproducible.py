@@ -202,3 +202,38 @@ class CliHelpersSmokeTest(unittest.TestCase):
         d, a = self._root(), self._agent()
         modes = cli._record_modes(a, d, backend="regex", allowed={"Act"})
         self.assertEqual(modes.get("Acc__c"), "system")   # v58, without sharing
+
+
+class TrackedPathLengthTest(unittest.TestCase):
+    """No tracked path may be long enough to break `git clone` on stock Windows.
+
+    Windows caps a path at 260 unless LongPathsEnabled is set, and it is off by
+    default; Git for Windows likewise defaults core.longpaths to false. The
+    deepest tracked path here was 189 characters, which made the published clone
+    command fail its checkout for anyone whose parent directory was longer than
+    about fifty characters - and leave a directory holding only .git, so the
+    obvious retry refused too.
+
+    It was fixed once and a `git add -A` after the next live run put it straight
+    back within the hour, because a retrieve writes those paths again. A rule in
+    .gitignore is the mechanism; this is the alarm for when the rule is wrong.
+
+    160 leaves room for a clone parent of roughly eighty characters, which covers
+    a OneDrive-shaped home directory with a company name in it.
+    """
+
+    LIMIT = 160
+
+    def test_no_tracked_path_is_long_enough_to_break_a_windows_clone(self):
+        import subprocess
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        out = subprocess.run(["git", "ls-files"], cwd=root,
+                             capture_output=True, text=True)
+        if out.returncode != 0:
+            self.skipTest("not a git checkout")
+        long = [p for p in out.stdout.splitlines() if len(p) > self.LIMIT]
+        self.assertEqual(
+            long, [],
+            "These tracked paths exceed %d characters, which is what broke "
+            "`git clone` on a stock Windows machine:\n  %s"
+            % (self.LIMIT, "\n  ".join(f"{len(p)}  {p}" for p in long)))

@@ -82,3 +82,11 @@ _det_*
 force-app/main/default/classes/*.cls
 force-app/main/default/classes/*.cls-meta.xml
 force-app/main/default/flows/*.flow-meta.xml
+
+# A retrieve writes localActions/<id>/<id>/{input,output}/schema.json under a
+# planner bundle. Nothing reads them - the analyzer parses the <localActions>
+# ELEMENT inside the bundle file - and they carry the longest paths here, which
+# is what broke `git clone` on stock Windows. Removed once already; a `git add -A`
+# after the next live run put them straight back, which is why this is a rule now
+# and not a cleanup. The bundle files themselves stay tracked: tests read them.
+force-app/main/default/genAiPlannerBundles/*/localActions/
