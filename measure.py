@@ -328,6 +328,16 @@ def main() -> int:
         print(f"  Planner bundle: {agent}   (the org's name for it)")
     if kind:
         print(f"  Agent type:   {kind}")
+    # BotDefinition.Type has four values and only three have ever been measured.
+    # An orchestrator is treated as a service agent here, which may well be right -
+    # but no org available to this project has one, so saying nothing would let a
+    # reader assume the type was considered and cleared. It was not.
+    if kind == "AgentforceOrchestrator":
+        print("                An orchestrator has never been measured by this tool.")
+        print("                It is handled as a service agent below; if that is")
+        print("                wrong, the run will say so rather than guess.")
+        print("                Agent-to-agent delegation itself IS analysed - see")
+        print("                PS515 and docs/LIMITATIONS.md.")
 
     if employee_agent:
         print()

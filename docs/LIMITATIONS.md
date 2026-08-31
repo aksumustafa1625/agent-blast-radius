@@ -122,6 +122,38 @@ via neither the data API nor Tooling. PS516 is not upgraded to a leak claim unti
 measured; believing a well-established platform behaviour is exactly how the
 `stripInaccessible` false positive happened.
 
+### An `AgentforceOrchestrator` agent has never been measured
+
+`BotDefinition.Type` has four values. Three are handled and measured:
+`ExternalCopilot` (a service agent, which has its own running user in `BotUserId`),
+`InternalCopilot` (an employee agent, which runs as whoever is logged in — so the
+tool refuses to invent a single running user and asks for one), and `Bot` (a
+classic Einstein Bot, which has no planner bundle and is skipped rather than
+measured).
+
+The fourth, `AgentforceOrchestrator`, is **not measured**. None of the six orgs
+available to this project has one, so nothing here can say whether an orchestrator
+carries a `BotUserId`, whether it has a planner bundle of its own, or what its
+actions look like. `measure.py` will treat one as a service agent, and the outcome
+is one of three, all of them honest: it resolves and produces a report about the
+orchestrator's own actions; or the planner bundle does not resolve and the tool
+lists what the org actually has; or there is no `BotUserId` and it falls back to a
+permission set while saying, at the point of the claim, that the identity was
+chosen arbitrarily and is not the agent's.
+
+**What IS handled is the thing orchestration is for.** An agent invoking another
+agent (`agentforce://X`) is walked as a graph: every reachable agent's actions are
+spliced into one action list before any reach or permission work happens, so the
+report covers the aggregate blast radius rather than reporting the sub-agent as one
+opaque action. A delegation that cannot be resolved stays a `PS515` **WARN**, never
+silently dropped and never read as clean; a cycle stops at the repeat and is
+reported; and the walk is depth-bounded, with the bound itself reported rather than
+pretending the reach ends there.
+
+So the gap is narrow and specific: the *type* is unmeasured, the *pattern* is
+covered. If you have an org with an orchestrator, that is the measurement this
+project would most like to be sent.
+
 ### Polymorphic lookups stay unclassified
 
 - **Status:** by design (ADR-012)
