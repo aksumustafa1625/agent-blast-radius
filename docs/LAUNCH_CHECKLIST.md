@@ -28,32 +28,67 @@ The script at the bottom does the mechanical half. It cannot do the half that ne
 ## 11:30 — the click that everything else multiplies against
 
 - [ ] **Make `agent-blast-radius` public.**
-- [ ] Create and push the tag the landing page tells people to clone:
+- [ ] **Verify** the tag - it already exists and is pushed, so this is a check, not a
+      step. The page says `--branch v1.0.0`; if the tag is missing or points at the
+      wrong commit, **every visitor's first command fails.**
       ```
-      git tag -a v1.0.0 -m "First public release"
-      git push origin v1.0.0
+      git ls-remote --tags origin v1.0.0     # one line, and the sha matches HEAD
+      git ls-tree -r --name-only v1.0.0 | awk '{print length($0)}' | sort -rn | head -1
       ```
-      The page says `--branch v1.0.0`. If the tag does not exist, **every visitor's first
-      command fails.** This is the single highest-consequence line on this page.
+      The second command must print **under 160**. A tracked path of 189 characters
+      makes `git clone` fail its checkout on a stock Windows machine, and that
+      regression has already happened twice: fixed, then reintroduced within the hour
+      by a `git add -A` after a live run.
+
+      If the tag must be moved, recreate it **lightweight** - `git tag v1.0.0`, not
+      `git tag -a`. A shallow clone of an annotated tag prints
+      `warning: refs/tags/v1.0.0 ... is not a commit!`, which is the first line a
+      stranger sees and reads as a broken repository.
 - [ ] Pin three on the profile — analyzer · benchmark · profile README.
       The API cannot do this; it is three clicks in the UI.
 
 ## 12:00 — be the first stranger
 
-In a **clean directory**, run the landing page's commands **verbatim**. No fix that is not
-in the documentation. Whatever breaks here is what a stranger hits.
+**Copy the commands off the live page. Do not type them from memory, and do not
+apply a fix that is not in the documentation.** The point is not to prove the tool
+works - it did last night. The point is that every correction you make in your
+head is a correction a stranger will not make. Read what the page says, paste
+exactly that, and let it break.
 
-```
-git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius
-cd agent-blast-radius
-python measure.py
+In a **clean directory** - not the project folder:
+
+```powershell
+sf org login web --set-default
+git clone --branch v1.0.0 --depth 1 https://github.com/aksumustafa1625/agent-blast-radius $HOME\agent-blast-radius
+cd $HOME\agent-blast-radius
+py measure.py
 ```
 
-- [ ] The clone succeeds **at the tag**
-- [ ] `measure.py` runs with no arguments and prints an Index line
-- [ ] The elapsed time is still in the neighbourhood of the **62 seconds** the page claims.
-      If it is materially different, change the page — the number is a measurement, not a
-      slogan.
+- [ ] The clone succeeds **at the tag**, and `git` prints no `warning:` line
+- [ ] `measure.py` runs with **no arguments** and prints an Index line
+- [ ] `reports/` holds **exactly two files**, both named for that org and agent
+- [ ] The report opens in the browser by itself
+- [ ] Elapsed time is inside the range the page claims. If it is materially
+      outside, **change the page** - the number is a measurement, not a slogan.
+
+**Then run it a second time, against a different org**, from the same clone:
+
+```powershell
+py measure.py --org <second alias>
+```
+
+- [ ] The second report is correct **for the second org** - not the first org's
+      numbers under a new name
+- [ ] `reports/` now holds four files, two per org, and nothing else
+
+That second run is not padding. Every defect that produced a *confident wrong
+report* rather than an honest failure lived on exactly this path: a stale class
+from the previous org merged into the next one's reach, a permission snapshot read
+from the default org while `--org` named another, a class on disk outranking the
+one the org actually runs. One run cannot see any of them.
+
+If either run ends badly, the answer is **not** to fix it and continue. It is to
+decide whether to publish at all - see 13:00.
 
 ## 12:30 — the eyes-only pass
 
