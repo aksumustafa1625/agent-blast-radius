@@ -44,6 +44,17 @@ its own fingerprint and its own numbers; publishing an incomplete copy of the
 code beside it, in a way that implies it is what was analysed, is worth less than
 saying plainly that the HanseWatt action sources are not published.
 
+**They are in this repository's history, and that is worth saying rather than
+leaving for someone to find.** On 2026-08-31 the analyzer began retrieving the
+classes an action delegates to - it had been reading only what happened to be on
+disk, which is a silent false clean - and a `git add -A` after that run committed
+seven HanseWatt services and four VoltStream classes before they were removed
+again. `git log` still reaches them. A clone of the published tag does not: the
+command this project publishes uses `--depth 1`, which fetches exactly one commit,
+so a reader following it never receives them. Removing them from history is a
+one-line `git filter-repo` and remains on the table; a sentence that describes the
+repository accurately costs nothing and cannot fail, which is why it comes first.
+
 Eight `localActions/*/*/{input,output}/schema.json` files were deleted on
 2026-08-31, for a reason that had nothing to do with their content. They carried
 the longest paths in the repository — 189 characters — and Windows caps a path at
