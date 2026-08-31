@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -455,7 +456,12 @@ def main() -> int:
     # browser would be wrong behaviour rather than a missing nicety.
     if "--no-open" not in sys.argv:
         try:
-            webbrowser.open("file:///" + html.replace("\\", "/"))
+            # pathlib, not string surgery. `"file:///" + path` is right on Windows,
+            # where the path starts with a drive letter, and wrong everywhere else:
+            # a POSIX path already begins with a slash, so it produced
+            # file:////home/... - four slashes and a malformed URI. as_uri() knows
+            # which platform it is on, which the concatenation could not.
+            webbrowser.open(pathlib.Path(html).as_uri())
             print("  Opening it in your browser now.")
         except Exception as e:                       # noqa: BLE001 - any failure is cosmetic
             _DIAG.append(f"could not open the report automatically: {e}")

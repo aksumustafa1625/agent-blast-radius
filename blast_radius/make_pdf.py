@@ -72,11 +72,38 @@ def main() -> None:
     if not html.exists():
         raise SystemExit(f"[FAIL] Report not found: {html}")
 
+    # Any Chromium will do - they all take --headless --print-to-pdf. It used to
+    # look for Edge and nothing else, so on macOS and Linux, where nobody has
+    # "msedge", the tool refused with a message naming a browser that platform
+    # does not ship. This is presentation only and cannot change a verdict, but a
+    # dead end that blames the wrong thing still costs the reader an hour.
     edge = _find("msedge",
                  r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                  r"C:\Program Files\Microsoft\Edge\Application\msedge.exe")
     if not edge:
-        raise SystemExit("[FAIL] Edge not found (headless PDF engine).")
+        for name, *paths in (
+            ("google-chrome",),
+            ("google-chrome-stable",),
+            ("chromium",),
+            ("chromium-browser",),
+            ("chrome",),
+            ("microsoft-edge",),
+            ("Google Chrome",
+             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+            ("Microsoft Edge",
+             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+            ("Chromium",
+             "/Applications/Chromium.app/Contents/MacOS/Chromium"),
+        ):
+            edge = _find(name, *paths)
+            if edge:
+                break
+    if not edge:
+        raise SystemExit(
+            "[FAIL] No headless Chromium found, and the PDF needs one.\n"
+            "       Any of these will do: Microsoft Edge, Google Chrome, Chromium.\n"
+            "       The .html report beside it is the same document and needs nothing:\n"
+            "       open it and print to PDF from the browser.")
 
     pdf = html.with_suffix(".pdf")
 

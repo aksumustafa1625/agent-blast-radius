@@ -573,6 +573,15 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   was explained away as a markdown-converter artifact. `String.raw` fixes it; a postbuild
   check that reads the **built html** guards it, and it must read the built html, because a
   guard inspecting the same text a human already read would have passed both times.
+- **The platform you never ran it on is the one the bug is on.** The macOS/Linux tab was
+  published without a single execution, and reading it found two defects a Windows run
+  could not: `"file:///" + path` is correct only when the path starts with a drive letter,
+  so on POSIX the browser-open produced `file:////home/...` — four slashes, a malformed
+  URI (`pathlib.Path(p).as_uri()` now, which knows which platform it is on); and
+  `make_pdf.py` looked for `msedge` and nothing else, so on a platform that ships no Edge
+  it refused, naming a browser that does not exist there. **When a platform cannot be
+  tested, read the code AS that platform** — every string concatenation involving a path,
+  every executable name, every separator.
 - **A plausible command is not a verified command.** `examples/README.md` documented
   `--agent HW_ServiceAgent_v1 --org HanseWatt`. The bundle is `HW_Energy_Agent` and the
   alias is lowercase `hansewatt`; the name was invented from the permission set beside it
