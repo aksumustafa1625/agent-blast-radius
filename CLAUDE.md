@@ -250,8 +250,12 @@ docs/AKSU_INDEX_TECHNICAL_BRIEFING.{html,pdf}
                                      2026-08-29 - it carried a Turkish half of
                                      equal length, and a public English-language
                                      repository has no place for it
-site/aksuindex/           aksuindex.com — index/legal/privacy, one self-contained
-                          file each, zero external dependencies
+site/aksuindex/           NOT TRACKED, and no longer what aksuindex.com serves. The
+                          domain now points at the Next app in the sibling repo
+                          `agentblastradius-landing`, whose legal/privacy text lives
+                          in `src/lib/legal.ts` + `legal.de.ts`. This directory is a
+                          local leftover still carrying unfilled `[Full postal
+                          address]` placeholders — read it as history, not as the site
 reports/                  committed real runs (TechnoStore_AksuIndex.md/html/pdf)
 ```
 
