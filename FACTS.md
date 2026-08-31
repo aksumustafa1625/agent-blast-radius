@@ -61,6 +61,14 @@ The skip count is measured in a fresh clone at a **short path**. On Windows a
 checkout nested past roughly 240 characters makes five more tests skip, because
 `os.path.exists` fails on the long path rather than because anything is wrong.
 
+**Measured on Linux for the first time on 2026-08-31**, and it is the digest claim that
+mattered. A fresh checkout on Ubuntu 26.04 under **Python 3.14.4** computes
+`257203d65b68` - the same value Windows computes under 3.12.3 - with every file checked
+out LF. `examples/README.md` says a fresh clone reproduces the digest; until that run it
+had only ever been reproduced on one operating system, by one interpreter, which is the
+shape of the CRLF incident above. 323 tests, 28/28 and 8/8 all pass there, so the
+`Python 3.12` in the prerequisites was a floor and not a requirement, and now says so.
+
 ## The corpus
 
 | figure | value | reproduce |

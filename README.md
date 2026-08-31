@@ -56,7 +56,7 @@ cd $HOME\agent-blast-radius
 py measure.py
 ```
 
-Prerequisites: **Python 3.12, git, and the Salesforce CLI**, plus an org you can log in
+Prerequisites: **Python 3.12 or newer, git, and the Salesforce CLI**, plus an org you can log in
 to. Node is optional - without it the Apex extractor falls back from the parse tree to
 regex, and the report names which one it used.
 

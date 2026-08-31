@@ -573,6 +573,18 @@ Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
   was explained away as a markdown-converter artifact. `String.raw` fixes it; a postbuild
   check that reads the **built html** guards it, and it must read the built html, because a
   guard inspecting the same text a human already read would have passed both times.
+- **Then it WAS run on it, and the point of doing so was not the bugs.** Ubuntu 26.04
+  under WSL, 2026-08-31, Python **3.14.4**: 323 tests, 28/28, 8/8, every file LF, the
+  `file://` URI well formed, and `measure.py` failing honestly with no `sf` on PATH. The
+  result worth having is the **digest**: a fresh Linux checkout computes `257203d65b68`,
+  the value Windows computes under 3.12.3. `examples/README.md` claims a fresh clone
+  reproduces it, and until that run it had been reproduced on one OS by one interpreter -
+  which is exactly the shape of the CRLF incident. Two other things fell out: `python`
+  does not exist on Ubuntu at all, so the platform-split in the printed commands was
+  necessary rather than tidy; and the tool runs on 3.14, so the published `Python 3.12`
+  was a floor stated as a requirement. **A private repo cannot be cloned anonymously** -
+  the first attempt hung for thirty minutes on a credential prompt with no output, which
+  is worth knowing before the next time something "hangs" in WSL.
 - **The platform you never ran it on is the one the bug is on.** The macOS/Linux tab was
   published without a single execution, and reading it found two defects a Windows run
   could not: `"file:///" + path` is correct only when the path starts with a drive letter,
