@@ -90,3 +90,6 @@ force-app/main/default/flows/*.flow-meta.xml
 # after the next live run put them straight back, which is why this is a rule now
 # and not a cleanup. The bundle files themselves stay tracked: tests read them.
 force-app/main/default/genAiPlannerBundles/*/localActions/
+
+# One-off, and it names paths that only make sense before the purge.
+purge-history.ps1
