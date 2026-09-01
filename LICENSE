@@ -19,19 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Notes
-
-- The README states this project is MIT-licensed; this file makes that claim
-  true on disk. (This repo's own rule: documentation must be measured.)
-- Third-party npm dependencies used by the optional AST / Agent Script
-  backends (@apexdevtools/apex-parser, @sf-agentscript/parser, and their
-  transitive dependencies) are governed by their own licenses and are not
-  vendored into this repository.
-- Salesforce, Agentforce, Apex, and Einstein are trademarks of Salesforce,
-  Inc. This project reads Salesforce metadata via the official sf CLI under
-  standard developer-org terms and is not affiliated with or endorsed by
-  Salesforce. The sfge comparison uses Salesforce Code Analyzer / Graph
-  Engine under its own license.

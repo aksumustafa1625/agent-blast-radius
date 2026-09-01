@@ -12,6 +12,12 @@ agent and one running user:
 Aksu Index: 6 proven (1 regulated) · 0 unproven boundaries · 1 unresolved
 ```
 
+[![The Aksu Index band from a real report: 6 fields proven reachable beyond the running user, 1 of them regulated, 0 unproven boundaries, 1 unresolved — and the reach strip showing 8 fields the agent's code reaches against 2 the user can read.](docs/img/aksu-index.png)](examples/TechnoStore_AksuIndex.html)
+
+*A real run, not a mock-up — TechnoStore, measured 2026-08-31, sealed as `da237145496c`.
+The full report is [in this repository](examples/TechnoStore_AksuIndex.html), alongside a
+[second org](examples/HanseWatt_AksuIndex.html) whose Index is `0/0/0/7`.*
+
 **proven** — fields the code demonstrably reaches past the user · **regulated** — the subset
 carrying the org's own compliance labels · **unproven boundaries** — a real boundary the
 analysis could not prove was crossed · **unresolved** — reach it could not determine at all.
