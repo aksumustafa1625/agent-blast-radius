@@ -453,6 +453,10 @@ Appendix AD.
 
 For a security tool, finding your own claims wrong is the point.
 
+**The three occasions where this analyzer itself was wrong — what it claimed, what corrected
+it, and what changed — are written up in [`docs/ERRATA.md`](docs/ERRATA.md).** None were
+found by reading documentation; all three were settled by running code against a live org.
+
 ## An upstream find
 
 Wiring Salesforce's official Agent Script SDK in surfaced a packaging bug: the main entry of
